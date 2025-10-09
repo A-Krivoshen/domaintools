@@ -1,0 +1,329 @@
+2025-10-09 22:31:34,817 INFO: Checking domain: bolotnaya.online
+2025-10-09 22:31:35,310 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    return render_template('index.html', result=result)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 22:31:35,314 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 22:31:41,042 INFO: Checking domain: bolotnaya.online
+2025-10-09 22:31:41,330 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    return render_template('index.html', result=result)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 22:31:41,331 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:11:35,853 INFO: Checking domain: bolotnaya.online
+2025-10-09 23:11:36,703 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    return render_template('index.html', result=result)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 23:11:36,711 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:13:20,960 INFO: Checking domain: sucden.ru
+2025-10-09 23:13:21,113 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    result = {'error': 'Unsupported domain TLD.'}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 23:13:21,116 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:13:24,107 INFO: Checking domain: sucden.ru
+2025-10-09 23:13:24,185 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    result = {'error': 'Unsupported domain TLD.'}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 23:13:24,189 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:13:40,052 INFO: Checking domain: bolotnaya.online
+2025-10-09 23:13:40,426 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    result = {'error': 'Unsupported domain TLD.'}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 23:13:40,429 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:13:45,831 ERROR: Validation error: Invalid domain format
+2025-10-09 23:13:45,831 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    result = {'error': 'Unsupported domain TLD.'}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 23:13:45,833 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:13:55,584 INFO: Checking domain: sucden.ru
+2025-10-09 23:13:55,660 ERROR: Exception on / [POST]
+Traceback (most recent call last):
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1511, in wsgi_app
+    response = self.full_dispatch_request()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 919, in full_dispatch_request
+    rv = self.handle_user_exception(e)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 917, in full_dispatch_request
+    rv = self.dispatch_request()
+         ^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 902, in dispatch_request
+    return self.ensure_sync(self.view_functions[rule.endpoint])(**view_args)  # type: ignore[no-any-return]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/app.py", line 45, in index
+    result = {'error': 'Unsupported domain TLD.'}
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 150, in render_template
+    return _render(app, template, context)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/templating.py", line 131, in _render
+    rv = template.render(context)
+         ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 1295, in render
+    self.environment.handle_exception()
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/jinja2/environment.py", line 942, in handle_exception
+    raise rewrite_traceback_stack(source=source)
+  File "/var/www/python.domaintools.site/htdocs/templates/index.html", line 31, in top-level template code
+    <h3><a href="{{ url_for('whois', domain=result.domain) }}">WHOIS</a></h3>
+    ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1121, in url_for
+    return self.handle_url_build_error(error, endpoint, values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/flask/app.py", line 1110, in url_for
+    rv = url_adapter.build(  # type: ignore[union-attr]
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/var/www/python.domaintools.site/htdocs/venv/lib/python3.12/site-packages/werkzeug/routing/map.py", line 924, in build
+    raise BuildError(endpoint, values, method, self)
+werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
+2025-10-09 23:13:55,662 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
+2025-10-09 23:23:38,075 INFO: Checking domain: mail.ru

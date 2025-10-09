@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>WHOIS Details</title>
+    <!-- Подключи стили как в index.html -->
+</head>
+<body>
+    <h1>WHOIS for {{ whois_data.domain_name }}</h1>
+    <p>Owner: {{ whois_data.name or 'N/A' }}</p>
+    <p>Email: {{ whois_data.email or 'N/A' }}</p>
+    <p>Registrar: {{ whois_data.registrar or 'N/A' }}</p>
+    <p>Creation Date: {{ whois_data.creation_date or 'N/A' }}</p>
+    <p>Expiration Date: {{ whois_data.expiration_date or 'N/A' }}</p>
+    <p>Nameservers: {{ whois_data.name_servers or 'N/A' }}</p>
+    <!-- Добавь больше полей по мере надобности -->
+    <a href="{{ url_for('index') }}">Back to Search</a>
+</body>
+</html>
