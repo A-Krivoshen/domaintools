@@ -1,27 +1,23 @@
 {% extends 'base.html' %}
-{% block title %}{{ _('DNS Lookup') }}{% endblock %}
+{% block title %}DNS Lookup{% endblock %}
 {% block content %}
-    <h1>{{ _('DNS Lookup') }}</h1>
-    <p>{{ _('Enter a domain to view its DNS records.') }}</p>
-
-    <form method="POST" class="card">
-        <input type="text" name="domain" placeholder="{{ _('Enter domain name') }}" required>
-        <button type="submit">{{ _('Lookup DNS') }}</button>
-    </form>
-
-    {% if error %}
-        <p style="color: red;">{{ error }}</p>
-    {% endif %}
-
-    {% if result %}
-        <h2>{{ _('DNS Records for') }} {{ request.form.domain }}</h2>
-        <table class="table">
-            <tr><th>{{ _('Type') }}</th><th>{{ _('Records') }}</th></tr>
-            {% for qtype, records in result.items() %}
-                <tr><td>{{ qtype }}</td><td>{{ records | join(', ') }}</td></tr>
-            {% endfor %}
-        </table>
-    {% endif %}
-
-    <a href="{{ url_for('main.index') }}">{{ _('Back to Domain Search') }}</a>
+<div class="bg-white p-4 rounded-3 shadow-sm">
+  <form method="post" class="row g-3">
+    <div class="col-auto">
+      <input name="domain" class="form-control" placeholder="example.com" required>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary">Lookup</button>
+    </div>
+  </form>
+  {% if error %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endif %}
+  {% if result %}
+  <hr>
+  <h5>Результат</h5>
+  {% for qtype, rows in result.items() %}
+    <h6 class="mt-3">{{ qtype }}</h6>
+    <pre class="mb-0">{{ rows | tojson }}</pre>
+  {% endfor %}
+  {% endif %}
+</div>
 {% endblock %}

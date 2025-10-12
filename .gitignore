@@ -1,4 +1,20 @@
+# venv / кеши / мусор
+.venv/
 venv/
-__pycache__
+__pycache__/
 *.pyc
+instance/
 *.log
+
+# IDE
+.vscode/
+.idea/
+
+# артефакты / локальные секреты
+.env
+.env.*
+*.sqlite3
+
+# системные
+.DS_Store
+Thumbs.db

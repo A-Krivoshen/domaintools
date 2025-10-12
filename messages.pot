@@ -1,0 +1,788 @@
+# Translations template for PROJECT.
+# Copyright (C) 2025 ORGANIZATION
+# This file is distributed under the same license as the PROJECT project.
+# FIRST AUTHOR <EMAIL@ADDRESS>, 2025.
+#
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PROJECT VERSION\n"
+"Report-Msgid-Bugs-To: EMAIL@ADDRESS\n"
+"POT-Creation-Date: 2025-10-12 13:18+0300\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=utf-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Generated-By: Babel 2.17.0\n"
+
+#: app.py:41
+msgid "Invalid domain format"
+msgstr ""
+
+#: app.py:67
+msgid "WHOIS query failed (check if whois installed or rate limit)."
+msgstr ""
+
+#: app.py:70
+msgid "Unsupported domain TLD."
+msgstr ""
+
+#: app.py:73
+msgid "An unexpected error occurred."
+msgstr ""
+
+#: app.py:83
+msgid "Error fetching WHOIS."
+msgstr ""
+
+#: app.py:100
+msgid "No DNS records found for this type."
+msgstr ""
+
+#: app.py:102
+msgid "Domain does not exist."
+msgstr ""
+
+#: app.py:107
+msgid "An error occurred during DNS lookup."
+msgstr ""
+
+#: app.py:131
+msgid "Invalid IP or domain."
+msgstr ""
+
+#: app.py:134
+msgid "An error occurred during GeoIP lookup."
+msgstr ""
+
+#: app.py:142
+msgid "Internal Server Error. Check logs."
+msgstr ""
+
+#: templates/base.html:35 templates/index.html:2 templates/index.html:4
+msgid "Domain Search"
+msgstr ""
+
+#: templates/base.html:36
+msgid "Domain Generator"
+msgstr ""
+
+#: templates/base.html:37 templates/index.html:18
+msgid "WHOIS"
+msgstr ""
+
+#: templates/base.html:38
+msgid "IP Info"
+msgstr ""
+
+#: templates/base.html:39 templates/geo.html:2
+msgid "Geo Location"
+msgstr ""
+
+#: templates/base.html:40
+msgid "DNS Records"
+msgstr ""
+
+#: templates/base.html:41
+msgid "Blocklists"
+msgstr ""
+
+#: templates/base.html:46
+msgid "Toggle Theme"
+msgstr ""
+
+#: templates/base.html:56
+msgid "Instruments"
+msgstr ""
+
+#: templates/base.html:56
+msgid "Countries"
+msgstr ""
+
+#: templates/base.html:56
+msgid "Useful Links"
+msgstr ""
+
+#: templates/dns.html:2 templates/dns.html:4
+msgid "DNS Lookup"
+msgstr ""
+
+#: templates/dns.html:5
+msgid "Enter a domain to view its DNS records."
+msgstr ""
+
+#: templates/dns.html:8 templates/index.html:8
+msgid "Enter domain name"
+msgstr ""
+
+#: templates/dns.html:9
+msgid "Lookup DNS"
+msgstr ""
+
+#: templates/dns.html:17
+msgid "DNS Records for"
+msgstr ""
+
+#: templates/dns.html:19
+msgid "Type"
+msgstr ""
+
+#: templates/dns.html:19
+msgid "Records"
+msgstr ""
+
+#: templates/dns.html:26
+msgid "Back to Domain Search"
+msgstr ""
+
+#: templates/error.html:2 templates/error.html:4 templates/index.html:22
+msgid "Error"
+msgstr ""
+
+#: templates/error.html:6
+msgid "Back to Home"
+msgstr ""
+
+#: templates/geo.html:4
+msgid "Geo Location Lookup"
+msgstr ""
+
+#: templates/geo.html:5
+msgid "Enter IP or domain to find location."
+msgstr ""
+
+#: templates/geo.html:8
+msgid "Enter IP or domain"
+msgstr ""
+
+#: templates/geo.html:9
+msgid "Lookup Geo"
+msgstr ""
+
+#: templates/geo.html:17
+msgid "Results for"
+msgstr ""
+
+#: templates/geo.html:18
+msgid "ASN"
+msgstr ""
+
+#: templates/geo.html:19
+msgid "Country"
+msgstr ""
+
+#: templates/geo.html:20
+msgid "Location"
+msgstr ""
+
+#: templates/geo.html:23 templates/whois.html:11
+msgid "Back to Search"
+msgstr ""
+
+#: templates/index.html:5
+msgid ""
+"Check whether a Domain Name is available for registration or not via our "
+"Domain Search Tool."
+msgstr ""
+
+#: templates/index.html:9
+msgid "Check Domain Availability"
+msgstr ""
+
+#: templates/index.html:14
+msgid "Wow! This domain is still available for registration."
+msgstr ""
+
+#: templates/index.html:16
+msgid "Unfortunately this domain has already been registered."
+msgstr ""
+
+#: templates/index.html:27
+msgid "Find Domain Owner & Information"
+msgstr ""
+
+#: templates/index.html:28
+msgid ""
+"Use the WHOIS Information tool to find out a domains owner, location, ip "
+"and other information."
+msgstr ""
+
+#: templates/index.html:32
+msgid "Find out Domain Expiry"
+msgstr ""
+
+#: templates/index.html:33
+msgid ""
+"Looking out for a domain name that you want to claim? Learn when a domain"
+" will expire with our whois & search tools."
+msgstr ""
+
+#: templates/index.html:37
+msgid "FAQS"
+msgstr ""
+
+#: templates/index.html:38
+msgid "How do I search a domain name?"
+msgstr ""
+
+#: templates/index.html:39
+msgid ""
+"Simply use the Domain Search tool above. Type in the domain name in the "
+"search box and click on \"Search\""
+msgstr ""
+
+#: templates/index.html:41
+msgid "How do I generate domain names?"
+msgstr ""
+
+#: templates/index.html:42
+msgid ""
+"Use the Domain Generator tool. Type in a key-word and you will receive "
+"many suggestions back."
+msgstr ""
+
+#: templates/index.html:44
+msgid "How can I find out who owns a domain?"
+msgstr ""
+
+#: templates/index.html:45
+msgid ""
+"You can find out a domains ownership using the WHOIS Information tool "
+"above."
+msgstr ""
+
+#: templates/index.html:47
+msgid "Where can I find when a domain expires?"
+msgstr ""
+
+#: templates/index.html:48
+msgid ""
+"You can use the WHOIS Information tool and check the domain-name to see "
+"when it will expire."
+msgstr ""
+
+#: templates/index.html:50
+msgid "How do I find the location of an IP or Domain?"
+msgstr ""
+
+#: templates/index.html:51
+msgid ""
+"To find the Location of an IP / Domain, you can use the IP Lookup & "
+"Domain Location tools."
+msgstr ""
+
+#: templates/index.html:53
+msgid "Where can I see the DNS Records of a Domain?"
+msgstr ""
+
+#: templates/index.html:54
+msgid "Use the DNS Lookup tool and type in your Domain Name."
+msgstr ""
+
+#: templates/whois.html:2
+msgid "WHOIS Details"
+msgstr ""
+
+#: templates/whois.html:4
+msgid "WHOIS for"
+msgstr ""
+
+#: templates/whois.html:5
+msgid "Owner"
+msgstr ""
+
+#: templates/whois.html:6
+msgid "Email"
+msgstr ""
+
+#: templates/whois.html:7
+msgid "Registrar"
+msgstr ""
+
+#: templates/whois.html:8
+msgid "Creation Date"
+msgstr ""
+
+#: templates/whois.html:9
+msgid "Expiration Date"
+msgstr ""
+
+#: templates/whois.html:10
+msgid "Nameservers"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/_termui_impl.py:608
+#, python-brace-format
+msgid "{editor}: Editing failed"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/_termui_impl.py:612
+#, python-brace-format
+msgid "{editor}: Editing failed: {e}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1104
+#: venv/lib/python3.12/site-packages/click/core.py:1141
+#, python-brace-format
+msgid "{text} {deprecated_message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1160
+msgid "Options"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1222
+#, python-brace-format
+msgid "Got unexpected extra argument ({args})"
+msgid_plural "Got unexpected extra arguments ({args})"
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1241
+#, python-brace-format
+msgid "DeprecationWarning: The command {name!r} is deprecated.{extra_message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1425
+msgid "Aborted!"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1799
+msgid "Commands"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1830
+msgid "Missing command."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:1908
+#, python-brace-format
+msgid "No such command {name!r}."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:2332
+msgid "Value must be an iterable."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:2355
+#, python-brace-format
+msgid "Takes {nargs} values but 1 was given."
+msgid_plural "Takes {nargs} values but {len} were given."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:2505
+#, python-brace-format
+msgid ""
+"DeprecationWarning: The {param_type} {name!r} is "
+"deprecated.{extra_message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:2956
+#, python-brace-format
+msgid "env var: {var}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:2959
+#, python-brace-format
+msgid "default: {default}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:2963
+msgid "required"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/core.py:3023
+msgid "(dynamic)"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/decorators.py:465
+#, python-format
+msgid "%(prog)s, version %(version)s"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/decorators.py:522
+msgid "Show the version and exit."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/decorators.py:548
+msgid "Show this message and exit."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:50
+#: venv/lib/python3.12/site-packages/click/exceptions.py:89
+#, python-brace-format
+msgid "Error: {message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:81
+#, python-brace-format
+msgid "Try '{command} {option}' for help."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:130
+#, python-brace-format
+msgid "Invalid value: {message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:132
+#, python-brace-format
+msgid "Invalid value for {param_hint}: {message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:190
+msgid "Missing argument"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:192
+msgid "Missing option"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:194
+msgid "Missing parameter"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:196
+#, python-brace-format
+msgid "Missing {param_type}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:203
+#, python-brace-format
+msgid "Missing parameter: {param_name}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:223
+#, python-brace-format
+msgid "No such option: {name}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:235
+#, python-brace-format
+msgid "Did you mean {possibility}?"
+msgid_plural "(Possible options: {possibilities})"
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:282
+msgid "unknown error"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/exceptions.py:289
+#, python-brace-format
+msgid "Could not open file {filename!r}: {message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/formatting.py:156
+msgid "Usage:"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/parser.py:199
+#, python-brace-format
+msgid "Argument {name!r} takes {nargs} values."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/parser.py:381
+#, python-brace-format
+msgid "Option {name!r} does not take a value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/parser.py:444
+#, python-brace-format
+msgid "Option {name!r} requires an argument."
+msgid_plural "Option {name!r} requires {nargs} arguments."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/click/shell_completion.py:332
+msgid "Shell completion is not supported for Bash versions older than 4.4."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/shell_completion.py:339
+msgid "Couldn't detect Bash version, shell completion is not supported."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/termui.py:162
+msgid "Repeat for confirmation"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/termui.py:178
+msgid "Error: The value you entered was invalid."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/termui.py:180
+#, python-brace-format
+msgid "Error: {e.message}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/termui.py:191
+msgid "Error: The two entered values do not match."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/termui.py:247
+msgid "Error: invalid input"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/termui.py:866
+msgid "Press any key to continue..."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:332
+#, python-brace-format
+msgid ""
+"Choose from:\n"
+"\t{choices}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:369
+#, python-brace-format
+msgid "{value!r} is not {choice}."
+msgid_plural "{value!r} is not one of {choices}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:460
+#, python-brace-format
+msgid "{value!r} does not match the format {format}."
+msgid_plural "{value!r} does not match the formats {formats}."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:482
+#, python-brace-format
+msgid "{value!r} is not a valid {number_type}."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:538
+#, python-brace-format
+msgid "{value} is not in the range {range}."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:719
+#, python-brace-format
+msgid "{value!r} is not a valid boolean. Recognized values: {states}"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:747
+#, python-brace-format
+msgid "{value!r} is not a valid UUID."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:937
+msgid "file"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:939
+msgid "directory"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:941
+msgid "path"
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:988
+#, python-brace-format
+msgid "{name} {filename!r} does not exist."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:997
+#, python-brace-format
+msgid "{name} {filename!r} is a file."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:1005
+#, python-brace-format
+msgid "{name} {filename!r} is a directory."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:1014
+#, python-brace-format
+msgid "{name} {filename!r} is not readable."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:1023
+#, python-brace-format
+msgid "{name} {filename!r} is not writable."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:1032
+#, python-brace-format
+msgid "{name} {filename!r} is not executable."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/click/types.py:1099
+#, python-brace-format
+msgid "{len_type} values are required, but {len_value} was given."
+msgid_plural "{len_type} values are required, but {len_value} were given."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:86
+#, python-format
+msgid "Invalid field name '%s'."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:99
+#, python-format
+msgid "Field must be equal to %(other_name)s."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:146
+#, python-format
+msgid "Field must be at least %(min)d character long."
+msgid_plural "Field must be at least %(min)d characters long."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:152
+#, python-format
+msgid "Field cannot be longer than %(max)d character."
+msgid_plural "Field cannot be longer than %(max)d characters."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:158
+#, python-format
+msgid "Field must be exactly %(max)d character long."
+msgid_plural "Field must be exactly %(max)d characters long."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:164
+#, python-format
+msgid "Field must be between %(min)d and %(max)d characters long."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:216
+#, python-format
+msgid "Number must be at least %(min)s."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:219
+#, python-format
+msgid "Number must be at most %(max)s."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:222
+#, python-format
+msgid "Number must be between %(min)s and %(max)s."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:293
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:323
+msgid "This field is required."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:358
+msgid "Invalid input."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:422
+msgid "Invalid email address."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:460
+msgid "Invalid IP address."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:503
+msgid "Invalid Mac address."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:540
+msgid "Invalid URL."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:561
+msgid "Invalid UUID."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:595
+#, python-format
+msgid "Invalid value, must be one of: %(values)s."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:631
+#, python-format
+msgid "Invalid value, can't be any of: %(values)s."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:700
+msgid "This field cannot be edited."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/validators.py:716
+msgid "This field is disabled and cannot have a value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/csrf/core.py:96
+msgid "Invalid CSRF Token."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/csrf/session.py:64
+msgid "CSRF token missing."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/csrf/session.py:72
+msgid "CSRF failed."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/csrf/session.py:77
+msgid "CSRF token expired."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/choices.py:142
+msgid "Invalid Choice: could not coerce."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/choices.py:149
+#: venv/lib/python3.12/site-packages/wtforms/fields/choices.py:203
+msgid "Choices cannot be None."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/choices.py:155
+msgid "Not a valid choice."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/choices.py:194
+msgid "Invalid choice(s): one or more data inputs could not be coerced."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/choices.py:212
+#, python-format
+msgid "'%(value)s' is not a valid choice for this field."
+msgid_plural "'%(value)s' are not valid choices for this field."
+msgstr[0] ""
+msgstr[1] ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/datetime.py:52
+msgid "Not a valid datetime value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/datetime.py:78
+msgid "Not a valid date value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/datetime.py:104
+msgid "Not a valid time value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/datetime.py:149
+msgid "Not a valid week value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/numeric.py:82
+#: venv/lib/python3.12/site-packages/wtforms/fields/numeric.py:92
+msgid "Not a valid integer value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/numeric.py:168
+msgid "Not a valid decimal value."
+msgstr ""
+
+#: venv/lib/python3.12/site-packages/wtforms/fields/numeric.py:197
+msgid "Not a valid float value."
+msgstr ""
+

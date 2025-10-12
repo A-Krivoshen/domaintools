@@ -1,56 +1,8 @@
 {% extends 'base.html' %}
-{% block title %}{{ _('Domain Search') }}{% endblock %}
+{% block title %}Home — python.domaintools.site{% endblock %}
 {% block content %}
-    <h1>{{ _('Domain Search') }}</h1>
-    <p>{{ _('Check whether a Domain Name is available for registration or not via our Domain Search Tool.') }}</p>
-
-    <form method="POST" class="card">
-        <input type="text" name="domain" placeholder="{{ _('Enter domain name') }}" required>
-        <button type="submit">{{ _('Check Domain Availability') }}</button>
-    </form>
-
-    {% if result %}
-        {% if result.available %}
-            <h2 class="available">{{ _('Wow! This domain is still available for registration.') }}</h2>
-        {% else %}
-            <h2 class="taken">{{ _('Unfortunately this domain has already been registered.') }}</h2>
-            {% if result.whois %}
-                <h3><a href="{{ url_for('main.whois', domain=result.domain) }}">{{ _('WHOIS') }}</a></h3>
-            {% endif %}
-        {% endif %}
-        {% if result.error %}
-            <p style="color: red;">{{ _('Error') }}: {{ result.error }}</p>
-        {% endif %}
-    {% endif %}
-
-    <div class="card">
-        <h2>{{ _('Find Domain Owner & Information') }}</h2>
-        <p>{{ _('Use the WHOIS Information tool to find out a domains owner, location, ip and other information.') }}</p>
-    </div>
-
-    <div class="card">
-        <h2>{{ _('Find out Domain Expiry') }}</h2>
-        <p>{{ _('Looking out for a domain name that you want to claim? Learn when a domain will expire with our whois & search tools.') }}</p>
-    </div>
-
-    <div class="card">
-        <h1>{{ _('FAQS') }}</h1>
-        <h2>{{ _('How do I search a domain name?') }}</h2>
-        <p>{{ _('Simply use the Domain Search tool above. Type in the domain name in the search box and click on "Search"') }}</p>
-
-        <h2>{{ _('How do I generate domain names?') }}</h2>
-        <p>{{ _('Use the Domain Generator tool. Type in a key-word and you will receive many suggestions back.') }}</p>
-
-        <h2>{{ _('How can I find out who owns a domain?') }}</h2>
-        <p>{{ _('You can find out a domains ownership using the WHOIS Information tool above.') }}</p>
-
-        <h2>{{ _('Where can I find when a domain expires?') }}</h2>
-        <p>{{ _('You can use the WHOIS Information tool and check the domain-name to see when it will expire.') }}</p>
-
-        <h2>{{ _('How do I find the location of an IP or Domain?') }}</h2>
-        <p>{{ _('To find the Location of an IP / Domain, you can use the IP Lookup & Domain Location tools.') }}</p>
-
-        <h2>{{ _('Where can I see the DNS Records of a Domain?') }}</h2>
-        <p>{{ _('Use the DNS Lookup tool and type in your Domain Name.') }}</p>
-    </div>
+<div class="p-5 bg-white shadow-sm rounded-3">
+  <h1 class="h3 mb-3">Добро пожаловать</h1>
+  <p class="mb-0">Перейдите в разделы <a href="/dns">DNS</a>, <a href="/whois">WHOIS</a> или <a href="/geo">GeoIP</a>.</p>
+</div>
 {% endblock %}

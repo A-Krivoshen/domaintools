@@ -1,12 +1,20 @@
 {% extends 'base.html' %}
-{% block title %}{{ _('WHOIS Details') }}{% endblock %}
+{% block title %}WHOIS{% endblock %}
 {% block content %}
-    <h1>{{ _('WHOIS for') }} {{ whois_data.domain_name }}</h1>
-    <p>{{ _('Owner') }}: {{ whois_data.name or 'N/A' }}</p>
-    <p>{{ _('Email') }}: {{ whois_data.email or 'N/A' }}</p>
-    <p>{{ _('Registrar') }}: {{ whois_data.registrar or 'N/A' }}</p>
-    <p>{{ _('Creation Date') }}: {{ whois_data.creation_date or 'N/A' }}</p>
-    <p>{{ _('Expiration Date') }}: {{ whois_data.expiration_date or 'N/A' }}</p>
-    <p>{{ _('Nameservers') }}: {{ whois_data.name_servers or 'N/A' }}</p>
-    <a href="{{ url_for('main.index') }}">{{ _('Back to Search') }}</a>
+<div class="bg-white p-4 rounded-3 shadow-sm">
+  <form method="post" class="row g-3">
+    <div class="col-auto">
+      <input name="query" class="form-control" placeholder="example.com или 8.8.8.8" required>
+    </div>
+    <div class="col-auto">
+      <button class="btn btn-primary">Lookup</button>
+    </div>
+  </form>
+  {% if error %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endif %}
+  {% if result %}
+  <hr>
+  <h5>Результат</h5>
+  <pre class="mb-0">{{ result | tojson(indent=2) }}</pre>
+  {% endif %}
+</div>
 {% endblock %}

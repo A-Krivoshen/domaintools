@@ -1,0 +1,17 @@
+[Unit]
+Description=Gunicorn for Python DomainTools
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/python.domaintools.site/htdocs
+Environment="PATH=/var/www/python.domaintools.site/htdocs/.venv/bin"
+ExecStart=/var/www/python.domaintools.site/htdocs/.venv/bin/gunicorn \
+  --workers 3 --bind 127.0.0.1:8000 wsgi:app
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
