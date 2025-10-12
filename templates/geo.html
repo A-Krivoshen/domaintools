@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('Geo Location') }}{% endblock %}
+{% block content %}
+    <h1>{{ _('Geo Location Lookup') }}</h1>
+    <p>{{ _('Enter IP or domain to find location.') }}</p>
+
+    <form method="POST" class="card">
+        <input type="text" name="query" placeholder="{{ _('Enter IP or domain') }}" required>
+        <button type="submit">{{ _('Lookup Geo') }}</button>
+    </form>
+
+    {% if error %}
+        <p style="color: red;">{{ error }}</p>
+    {% endif %}
+
+    {% if result %}
+        <h2>{{ _('Results for') }} {{ result.ip }}</h2>
+        <p>{{ _('ASN') }}: {{ result.asn }}</p>
+        <p>{{ _('Country') }}: {{ result.country }}</p>
+        <p>{{ _('Location') }}: {{ result.location }}</p>
+    {% endif %}
+
+    <a href="{{ url_for('main.index') }}">{{ _('Back to Search') }}</a>
+{% endblock %}

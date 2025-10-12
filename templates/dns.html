@@ -1,26 +1,27 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <title>DNS Lookup</title>
-    <style> /* Стили как в index.html */ </style>
-</head>
-<body>
-    <h1>DNS Lookup</h1>
-    <form method="POST">
-        <input name="domain" placeholder="Enter domain">
-        <button>Lookup DNS</button>
+{% extends 'base.html' %}
+{% block title %}{{ _('DNS Lookup') }}{% endblock %}
+{% block content %}
+    <h1>{{ _('DNS Lookup') }}</h1>
+    <p>{{ _('Enter a domain to view its DNS records.') }}</p>
+
+    <form method="POST" class="card">
+        <input type="text" name="domain" placeholder="{{ _('Enter domain name') }}" required>
+        <button type="submit">{{ _('Lookup DNS') }}</button>
     </form>
+
     {% if error %}
         <p style="color: red;">{{ error }}</p>
     {% endif %}
+
     {% if result %}
-        <table border="1">
-            <tr><th>Type</th><th>Records</th></tr>
+        <h2>{{ _('DNS Records for') }} {{ request.form.domain }}</h2>
+        <table class="table">
+            <tr><th>{{ _('Type') }}</th><th>{{ _('Records') }}</th></tr>
             {% for qtype, records in result.items() %}
                 <tr><td>{{ qtype }}</td><td>{{ records | join(', ') }}</td></tr>
             {% endfor %}
         </table>
     {% endif %}
-    <a href="{{ url_for('index') }}">Back to Search</a>
-</body>
-</html>
+
+    <a href="{{ url_for('main.index') }}">{{ _('Back to Domain Search') }}</a>
+{% endblock %}

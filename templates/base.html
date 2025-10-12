@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="{{ get_locale() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - DomainTools.site</title>
+    {{ bootstrap.load_css() }}
+    <style>
+        :root { --bg: #fff; --text: #333; --primary: #007bff; --secondary: #f8f9fa; } /* Light */
+        .dark { --bg: #333; --text: #fff; --primary: #0056b3; --secondary: #444; } /* Dark */
+        body { background: var(--bg); color: var(--text); transition: 0.3s; font-family: Arial, sans-serif; }
+        .navbar { background: var(--primary); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        footer { background: var(--secondary); padding: 10px; text-align: center; }
+        .card { background: var(--secondary); border: 1px solid #ddd; padding: 20px; margin: 10px; border-radius: 8px; }
+    </style>
+    <script>
+        function toggleTheme() {
+            document.body.classList.toggle('dark');
+            localStorage.setItem('theme', document.body.classList.contains('dark') ? 'dark' : 'light');
+        }
+        window.onload = () => {
+            if (localStorage.getItem('theme') === 'dark') toggleTheme();
+        };
+    </script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <a class="navbar-brand" href="{{ url_for('main.index') }}"><img src="{{ url_for('static', filename='logo.png') }}" alt="DomainTools" height="30"></a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+            <ul class="navbar-nav">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.index') }}">{{ _('Domain Search') }}</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.generator') }}">{{ _('Domain Generator') }}</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.whois') }}">{{ _('WHOIS') }}</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.ip') }}">{{ _('IP Info') }}</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.geo') }}">{{ _('Geo Location') }}</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.dns') }}">{{ _('DNS Records') }}</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('main.blocklist') }}">{{ _('Blocklists') }}</a></li>
+            </ul>
+            <ul class="navbar-nav ms-auto">
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('set_lang', lang='en') }}">EN</a></li>
+                <li class="nav-item"><a class="nav-link" href="{{ url_for('set_lang', lang='ru') }}">RU</a></li>
+                <li class="nav-item"><button class="nav-link btn" onclick="toggleTheme()">{{ _('Toggle Theme') }}</button></li>
+            </ul>
+        </div>
+    </nav>
+
+    <main class="container">
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <p>{{ _('Instruments') }} | {{ _('Countries') }} | {{ _('Useful Links') }}</p>
+        <p>© 2025 DomainTools. All Rights Reserved.</p>
+    </footer>
+
+    {{ bootstrap.load_js() }}
+</body>
+</html>

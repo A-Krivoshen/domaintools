@@ -327,3 +327,7 @@ Traceback (most recent call last):
 werkzeug.routing.exceptions.BuildError: Could not build url for endpoint 'whois' with values ['domain']. Did you mean 'index' instead?
 2025-10-09 23:13:55,662 ERROR: 500 error: 500 Internal Server Error: The server encountered an internal error and was unable to complete your request. Either the server is overloaded or there is an error in the application.
 2025-10-09 23:23:38,075 INFO: Checking domain: mail.ru
+2025-10-12 12:44:07,475 ERROR: Validation error: Invalid domain format
+2025-10-12 12:44:17,731 INFO: Checking domain: krivoshein.site
+2025-10-12 12:54:38,881 INFO: DNS lookup for: krivoshein.site
+2025-10-12 12:54:55,901 INFO: Checking domain: krivoshein.site
