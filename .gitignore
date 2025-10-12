@@ -18,3 +18,7 @@ instance/
 # системные
 .DS_Store
 Thumbs.db
+
+# large
+*.zip
+

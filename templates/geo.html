@@ -1,20 +1,52 @@
 {% extends 'base.html' %}
-{% block title %}GeoIP{% endblock %}
+{% block title %}GeoIP — python.domaintools.site{% endblock %}
 {% block content %}
-<div class="bg-white p-4 rounded-3 shadow-sm">
-  <form method="post" class="row g-3">
-    <div class="col-auto">
-      <input name="query" class="form-control" placeholder="example.com или 8.8.8.8" required>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-primary">Lookup</button>
-    </div>
-  </form>
-  {% if error %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endif %}
-  {% if result %}
-  <hr>
-  <h5>Результат</h5>
-  <pre class="mb-0">{{ result | tojson(indent=2) }}</pre>
-  {% endif %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <div class="col-md-6">
+        <input class="form-control" name="query" placeholder="example.com или 8.8.8.8" value="{{ request.form.get('query','') }}">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary">Lookup</button>
+      </div>
+    </form>
+
+    {% if error %}
+      <div class="alert alert-danger mt-3">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <h5 class="mt-4">Результат</h5>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle">
+          <tbody>
+            <tr>
+              <th class="text-muted" style="width:220px">IP</th>
+              <td><span class="code-badge">{{ result.ip }}</span></td>
+            </tr>
+            <tr>
+              <th class="text-muted">ASN</th>
+              <td>{{ result.asn or '—' }}</td>
+            </tr>
+            <tr>
+              <th class="text-muted">Страна</th>
+              <td>
+                {% set cc = (result.country_code or '').upper() %}
+                <span class="me-2">{{ country_flag(cc) }}</span>
+                <strong class="me-2">{{ result.country_name or cc or '—' }}</strong>
+                {% if cc %}<span class="badge text-bg-secondary">{{ cc }}</span>{% endif %}
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <details class="mt-3">
+        <summary class="muted">Показать сырой JSON</summary>
+        <pre class="code mt-2">{{ result | prettyjson }}</pre>
+      </details>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

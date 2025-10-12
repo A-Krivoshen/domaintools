@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}History{% endblock %}
+{% block content %}
+<div class="card card-soft p-4">
+  <h5 class="mb-3">Последние запросы</h5>
+  {% if items and items|length %}
+    <div class="list-group">
+      {% for it in items %}
+      <a class="list-group-item list-group-item-action" href="{{ it.url }}">
+        <div class="d-flex w-100 justify-content-between">
+          <div class="result-header">
+            <span class="badge text-bg-secondary badge-pill">{{ it.kind|upper }}</span>
+            <strong>{{ it.query }}</strong>
+          </div>
+          <small class="text-muted">{{ it.ts }}</small>
+        </div>
+      </a>
+      {% endfor %}
+    </div>
+  {% else %}
+    <p class="text-muted m-0">Пока пусто — сделайте первый запрос.</p>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,23 +1,54 @@
 {% extends 'base.html' %}
-{% block title %}DNS Lookup{% endblock %}
+{% block title %}DNS — python.domaintools.site{% endblock %}
 {% block content %}
-<div class="bg-white p-4 rounded-3 shadow-sm">
-  <form method="post" class="row g-3">
-    <div class="col-auto">
-      <input name="domain" class="form-control" placeholder="example.com" required>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-primary">Lookup</button>
-    </div>
-  </form>
-  {% if error %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endif %}
-  {% if result %}
-  <hr>
-  <h5>Результат</h5>
-  {% for qtype, rows in result.items() %}
-    <h6 class="mt-3">{{ qtype }}</h6>
-    <pre class="mb-0">{{ rows | tojson }}</pre>
-  {% endfor %}
-  {% endif %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <div class="col-md-6">
+        <input class="form-control" name="domain" placeholder="example.com" value="{{ request.form.get('domain','') }}">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary">Lookup</button>
+      </div>
+      {% if permalink %}
+      <div class="col-12"><a class="small" href="{{ permalink }}">Постоянная ссылка на этот результат</a></div>
+      {% endif %}
+    </form>
+
+    {% if error %}
+      <div class="alert alert-danger mt-3">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <h5 class="mt-4">Записи</h5>
+
+      {% for qtype, values in result.items() %}
+        <div class="mb-3">
+          <div class="d-flex align-items-center mb-2">
+            <span class="badge text-bg-dark me-2">{{ qtype }}</span>
+            <span class="muted">{{ values|length }} шт.</span>
+          </div>
+
+          {% if values %}
+            <div class="table-responsive">
+              <table class="table table-sm">
+                <thead><tr><th style="width:40px">#</th><th>Value</th></tr></thead>
+                <tbody>
+                  {% for v,i in values|reverse|list|enumerate %}
+                    <tr>
+                      <td class="text-muted">{{ loop.index }}</td>
+                      <td><span class="code-badge">{{ v }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="text-muted">— нет данных —</div>
+          {% endif %}
+        </div>
+      {% endfor %}
+    {% endif %}
+  </div>
 </div>
 {% endblock %}

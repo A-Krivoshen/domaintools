@@ -1,20 +1,57 @@
 {% extends 'base.html' %}
-{% block title %}WHOIS{% endblock %}
+{% block title %}WHOIS — python.domaintools.site{% endblock %}
 {% block content %}
-<div class="bg-white p-4 rounded-3 shadow-sm">
-  <form method="post" class="row g-3">
-    <div class="col-auto">
-      <input name="query" class="form-control" placeholder="example.com или 8.8.8.8" required>
-    </div>
-    <div class="col-auto">
-      <button class="btn btn-primary">Lookup</button>
-    </div>
-  </form>
-  {% if error %}<div class="alert alert-danger mt-3">{{ error }}</div>{% endif %}
-  {% if result %}
-  <hr>
-  <h5>Результат</h5>
-  <pre class="mb-0">{{ result | tojson(indent=2) }}</pre>
-  {% endif %}
+<div class="card shadow-sm">
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      <div class="col-md-6">
+        <input class="form-control" name="query" placeholder="example.com или 8.8.8.8" value="{{ request.form.get('query','') }}">
+      </div>
+      <div class="col-auto">
+        <button class="btn btn-primary">Lookup</button>
+      </div>
+      {% if permalink %}
+      <div class="col-12"><a class="small" href="{{ permalink }}">Постоянная ссылка на этот результат</a></div>
+      {% endif %}
+    </form>
+
+    {% if error %}
+      <div class="alert alert-danger mt-3">{{ error }}</div>
+    {% endif %}
+
+    {% if result %}
+      <h5 class="mt-4">Ключевые поля</h5>
+      {% set keys = [
+        'domain_name','registrar','name','org','country','creation_date',
+        'expiration_date','updated_date','status','emails','name_servers'
+      ] %}
+      <div class="table-responsive">
+        <table class="table table-sm">
+          <tbody>
+            {% for k in keys if result.get(k) %}
+              <tr>
+                <th class="text-muted" style="width:220px">{{ k }}</th>
+                <td>
+                  {% set v = result.get(k) %}
+                  {% if v is string %}
+                    {{ v }}
+                  {% elif v is iterable %}
+                    {% for item in v %}<span class="code-badge">{{ item }}</span>{% endfor %}
+                  {% else %}
+                    <span class="code-badge">{{ v }}</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <details class="mt-3">
+        <summary class="muted">Показать полный WHOIS (JSON)</summary>
+        <pre class="code mt-2">{{ result | prettyjson }}</pre>
+      </details>
+    {% endif %}
+  </div>
 </div>
 {% endblock %}
