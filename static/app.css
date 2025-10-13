@@ -13,3 +13,6 @@ pre { background: #0d1117; color:#e6edf3; padding:1rem; border-radius:.75rem; ov
 .table-sm td,.table-sm th{padding:.4rem .5rem}
 pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overflow:auto}
 .muted{color:#6c757d}
+
+/* DNS values color for both light/dark themes */
+.dns-code{color:var(--bs-primary);}

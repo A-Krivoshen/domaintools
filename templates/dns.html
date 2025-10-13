@@ -1,54 +1,85 @@
 {% extends 'base.html' %}
-{% block title %}DNS — python.domaintools.site{% endblock %}
+{% block title %}DNS{% endblock %}
 {% block content %}
 <div class="card shadow-sm">
   <div class="card-body">
-    <form method="post" class="row g-2">
-      <div class="col-md-6">
-        <input class="form-control" name="domain" placeholder="example.com" value="{{ request.form.get('domain','') }}">
+    <form method="post" class="row g-2 align-items-center">
+      <div class="col-md-8">
+        <input class="form-control" name="domain" placeholder="example.com" value="{{ (query or '')|e }}">
       </div>
-      <div class="col-auto">
-        <button class="btn btn-primary">Lookup</button>
+      <div class="col-md-2">
+        <button class="btn btn-primary w-100">Lookup</button>
       </div>
-      {% if permalink %}
-      <div class="col-12"><a class="small" href="{{ permalink }}">Постоянная ссылка на этот результат</a></div>
-      {% endif %}
+      <div class="col-md-2 text-md-end">
+        {% if permalink %}
+          <a class="btn btn-outline-secondary w-100" href="{{ permalink }}" target="_blank" rel="nofollow noopener">Постоянная ссылка</a>
+        {% endif %}
+      </div>
     </form>
 
     {% if error %}
       <div class="alert alert-danger mt-3">{{ error }}</div>
     {% endif %}
 
-    {% if result %}
-      <h5 class="mt-4">Записи</h5>
+    {% if (records or result) %}
+      <hr>
+      {# безопасные дефолты #}
+      {% set _records = records|default(result)|default({}) %}
+      {% set _meta = meta|default({}) %}
 
-      {% for qtype, values in result.items() %}
-        <div class="mb-3">
-          <div class="d-flex align-items-center mb-2">
-            <span class="badge text-bg-dark me-2">{{ qtype }}</span>
-            <span class="muted">{{ values|length }} шт.</span>
-          </div>
-
-          {% if values %}
-            <div class="table-responsive">
-              <table class="table table-sm">
-                <thead><tr><th style="width:40px">#</th><th>Value</th></tr></thead>
-                <tbody>
-                  {% for v,i in values|reverse|list|enumerate %}
-                    <tr>
-                      <td class="text-muted">{{ loop.index }}</td>
-                      <td><span class="code-badge">{{ v }}</span></td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            </div>
-          {% else %}
-            <div class="text-muted">— нет данных —</div>
-          {% endif %}
-        </div>
-      {% endfor %}
+      <h5 class="mb-3">{{ _('Записи') }}</h5>
+      <div class="table-responsive">
+        <table class="table table-sm table-bordered table-striped align-middle">
+          <thead class="table-primary">
+            <tr>
+              <th style="width:90px;">{{ _('Records') }}</th>
+              <th style="width:90px;">TTL</th>
+              <th style="width:90px;">Class</th>
+              <th>Entries for {{ (query or '')|e }}</th>
+            </tr>
+          </thead>
+          <tbody class="table-group-divider">
+            {% for q in ["A","AAAA","MX","NS","TXT"] %}
+              {% set rows = _records.get(q) or [] %}
+              {% set ttl = (_meta.get(q) or {}).get("ttl") %}
+              {% set cls = (_meta.get(q) or {}).get("cls") or "IN" %}
+              {% if rows %}
+                {% for val in rows %}
+                  <tr>
+                    {% if loop.first %}
+                      <td class="align-top" rowspan="{{ rows|length }}"><span class="badge text-bg-primary">{{ q }}</span></td>
+                      <td class="align-top text-muted" rowspan="{{ rows|length }}">{{ ttl if ttl is not none else '—' }}</td>
+                      <td class="align-top text-muted" rowspan="{{ rows|length }}">{{ cls }}</td>
+                    {% endif %}
+                    <td class="dns-value">
+                      {% if q == 'MX' and ' ' in val %}
+                        {% set _parts = val.split(' ', 1) %}
+                        <span class="badge text-bg-secondary me-2">{{ _parts[0] }}</span>
+                        <code class="dns-code">{{ _parts[1] }}</code>
+                      {% else %}
+                        <code class="dns-code">{{ val }}</code>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              {% else %}
+                <tr>
+                  <td><span class="badge text-bg-primary">{{ q }}</span></td>
+                  <td class="text-muted">—</td>
+                  <td class="text-muted">IN</td>
+                  <td class="text-muted">— нет данных —</td>
+                </tr>
+              {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% endif %}
   </div>
 </div>
+
+<style>
+  /* цвет значений — «primary», ок в светлой/тёмной теме */
+  .dns-code { color: var(--bs-primary); }
+</style>
 {% endblock %}

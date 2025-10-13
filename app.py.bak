@@ -234,34 +234,28 @@ def index():
     return render_template("index.html")
 
 # ---------- DNS ----------
-
-# ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
     result: Optional[Dict[str, List[str]]] = None
     error: Optional[str] = None
     domain = None
     permalink = None
-    meta = {}  # важно: чтобы шаблон всегда имел meta
 
     if request.method == "POST" or (request.method == "GET" and request.args.get("query")):
-        # поддержим и GET ?query=... и форму name="domain"
-        domain = (request.form.get("domain") or request.args.get("query") or "").strip().lower()
+        domain = (request.form.get("domain") or "").strip().lower()
         try:
             validate_domain(domain)
             app.logger.info(f"DNS lookup for: {domain}")
-
             result = {}
+            meta = {}
             for qtype in ["A", "AAAA", "MX", "NS", "TXT"]:
                 try:
                     result[qtype] = resolve_records(domain, qtype)
                 except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
                     result[qtype] = []
-
             # история
             hid = save_history("dns", domain, result)
             permalink = url_for("history_view", kind="dns", hid=hid, _external=True)
-
         except ValueError as ve:
             error = str(ve)
         except dns.exception.DNSException as de:
@@ -270,15 +264,22 @@ def dns_lookup():
             app.logger.exception("Unexpected DNS error")
             error = _("Unexpected error during DNS lookup.")
 
-    return render_template(
-        "dns.html",
-        records=result,   # шаблон использует records
-        meta=meta,        # даже если пустой — пусть будет
-        result=result,    # для обратной совместимости
-        error=error,
-        query=domain,
-        permalink=permalink,
-    )
+    
+# безопасное значение по умолчанию
+try:
+    meta
+except NameError:
+    meta = {}
+
+return render_template(
+    "dns.html",
+    records=result,       # важно: шаблон использует records
+    meta=meta,
+    result=result,        # оставляем для обратной совместимости
+    error=error,
+    query=domain,
+    permalink=permalink,
+)
 
 
 # ---------- DOMAIN SEARCH ----------
@@ -487,7 +488,7 @@ def history_view(kind: str, hid: str):
     res = doc.get("result")
     permalink = request.url
     if kind == "dns":
-        return render_template("dns.html", records=res, meta={}, result=res, error=None, query=q, permalink=permalink)
+        return render_template("dns.html", result=res, error=None, query=q, permalink=permalink)
     if kind == "whois":
         return render_template("whois.html", result=res, error=None, query=q, permalink=permalink)
     if kind == "geo":
