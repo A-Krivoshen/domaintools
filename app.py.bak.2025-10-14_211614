@@ -264,41 +264,43 @@ def index():
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
-    from flask import request, render_template, url_for
-    import dns.resolver
-
-    # Page meta is defined first so it always exists
-    meta = {
-        "title": "DNS Lookup",
-        "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
-    }
-
-    query = (request.args.get("q") or "").strip()
-    if not query:
-        return render_template("dns.html", meta=meta, result=None, records={}, error=None, query="", permalink=None)
-
-    records = {}
     error = None
-
-    def fetch(rtype: str):
+    result = {}
+    meta = {}
+    permalink = None
+    
+    domain_input = (request.form.get("domain") or request.args.get("domain") or request.args.get("query") or "").strip()
+    query = domain_input
+    
+    if not domain_input:
+        return render_template("dns.html", meta=meta, result=result, records={}, error=None, query=query, permalink=None)
+    
+    # Normalize input (handles punycode/IDN) and lower-case
+    domain, err = _normalize_domain_query(domain_input)
+    if err:
+        error = err
+    else:
+        domain = domain.lower()
+    
+    if not error:
         try:
-            answers = dns.resolver.resolve(query, rtype)
-            vals = []
-            for r in answers:
-                vals.append(str(r).rstrip("."))
-            if vals:
-                records[rtype] = vals
-        except Exception:
-            pass
-
-    for rt in ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]:
-        fetch(rt)
-
-    result = {"domain": query, "has_records": bool(records)}
-    permalink = url_for("dns_lookup", q=query, _external=False)
-
+            validate_domain(domain)
+            app.logger.info(f"DNS lookup for: {domain}")
+            for qtype in ["A", "AAAA", "MX", "NS", "TXT"]:
+                try:
+                    result[qtype] = resolve_records(domain, qtype)
+                except (dns.resolver.NoAnswer, dns.resolver.NXDOMAIN, dns.resolver.NoNameservers):
+                    result[qtype] = []
+            # save history
+            hid = save_history("dns", domain, result)
+            permalink = url_for("history_view", kind="dns", hid=hid, _external=True)
+        except ValueError as ve:
+            error = str(ve)
+        except dns.exception.DNSException as de:
+            error = _("DNS error: ") + str(de)
+    
+    records = {k: v for k, v in result.items() if v}
     return render_template("dns.html", meta=meta, result=result, records=records, error=error, query=query, permalink=permalink)
-
 def _normalize_label(label: str) -> str:
     label = (label or "").strip().lower()
     label = re.sub(r"[^a-z0-9-]+", "-", label)
