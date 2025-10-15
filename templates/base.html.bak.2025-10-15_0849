@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <title>{% block title %}DomainTools{% endblock %}</title>
+  <title>{% block title %}DomainTools (Python){% endblock %}</title>
   <meta name="description" content="DNS / WHOIS / GeoIP утилиты с историей запросов (python.domaintools.site)">
   <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
 
   <!-- Open Graph -->
-  <meta property="og:title" content="DomainTools">
+  <meta property="og:title" content="DomainTools (Python)">
   <meta property="og:description" content="DNS / WHOIS / GeoIP утилиты с историей запросов">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
@@ -23,7 +23,7 @@
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
   <div class="container">
-    <a class="navbar-brand" href="/">DomainTools</a>
+    <a class="navbar-brand" href="/">DomainTools (Python)</a>
 
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topnav" aria-controls="topnav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
@@ -49,7 +49,7 @@
   <div class="footer">
     <hr>
     <div class="d-flex justify-content-between align-items-center">
-      <span>© {{ 2025 }} DomainTools</span>
+      <span>© {{ 2025 }} DomainTools (Python)</span>
       <span>
         <a href="/sitemap.xml">sitemap.xml</a> ·
         <a href="/robots.txt">robots.txt</a>

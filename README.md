@@ -1,11 +1,23 @@
-# python.domaintools.site
+# Домашняя страница — правка приветственного блока
 
-Flask + Gunicorn + Nginx.
+Этот пакет **аккуратно правит только `templates/index.html`**: обновляет приветственный текст, добавляет ссылку на **Domains** и SEO‑абзац. Всё остальное остаётся как есть. Делается бэкап.
 
-## local run
-python3 -m venv .venv && . .venv/bin/activate
-pip install -r requirements.txt
-FLASK_ENV=production gunicorn -w 3 -b 127.0.0.1:8000 wsgi:app
+## Что меняется
+- Фраза _«Перейдите в разделы DNS, WHOIS или GeoIP. Сохранённые результаты доступны в History.»_ заменяется на расширенный блок:
+  - Предлагаем начать с **Domains** (подбор доменных имён, проверка доступности, варианты).
+  - Остаются ссылки **DNS**, **WHOIS**, **GeoIP**, **History**.
+  - Добавляется компактный SEO‑абзац с полезной лексикой (подбор, транслитерация, зоны .ru/.рф/.com и т. д.).
 
-## systemd/nginx
-Шаблоны в ./deploy. Не коммить реальные сертификаты/секреты.
+## Установка
+```bash
+APPDIR="/var/www/python.domaintools.site/htdocs"
+sudo bash apply.sh "$APPDIR"
+sudo systemctl restart python-domaintools
+```
+
+## Откат
+```bash
+APPDIR="/var/www/python.domaintools.site/htdocs"
+sudo bash restore.sh "$APPDIR"
+sudo systemctl restart python-domaintools
+```
