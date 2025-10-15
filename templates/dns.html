@@ -1,40 +1,165 @@
+{# templates/dns.html #}
 {% extends "base.html" %}
+{% block title %}DNS — DomainTools{% endblock %}
 
 {% block content %}
+<style>
+/* ===== Feature cards for tools ===== */
+.feature-card {
+  position: relative;
+  border-radius: .75rem;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 .75rem 1.25rem rgba(0,0,0,.06);
+  border-color: var(--bs-primary);
+}
+
+/* Иконка в плашке сверху */
+.feature-card .icon-wrap {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  margin: .5rem auto 0.75rem;
+  background: rgba(var(--bs-primary-rgb), .10);
+}
+.feature-card .icon-wrap i,
+.feature-card .icon-wrap svg {
+  font-size: 26px;
+  color: var(--bs-primary);
+  transition: transform .15s ease;
+}
+.feature-card:hover .icon-wrap i,
+.feature-card:hover .icon-wrap svg { transform: scale(1.06); }
+
+/* Тексты карточек */
+.feature-card .card-body { text-align: center; }
+.feature-card .card-title { font-weight: 600; }
+
+/* Плавная подсветка кликабельной области .stretched-link */
+.feature-card:hover .stretched-link::after {
+  box-shadow: inset 0 0 0 .12rem rgba(var(--bs-primary-rgb), .20);
+  border-radius: .75rem;
+}
+
+/* Пилюли-ссылки снизу (sitemap/robots) */
+.link-pill {
+  display: inline-block;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  text-decoration: none;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.link-pill:hover {
+  color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), .06);
+}
+
+/* Уважать «меньше анимаций» */
+@media (prefers-reduced-motion: reduce) {
+  .feature-card, .feature-card .icon-wrap, .stretched-link::after {
+    transition: none !important;
+  }
+}
+</style>
+
 <div class="container my-4">
   <h1 class="mb-3">DNS</h1>
 
-  <form method="get" action="{{ url_for('dns_lookup') }}" class="mb-4">
+  <!-- ФОРМА — как в рабочем варианте -->
+  <form method="get" action="{{ url_for('dns_lookup') }}" class="mb-4" autocomplete="off">
     <div class="input-group">
-      <input type="text" class="form-control" name="q" placeholder="example.com" value="{{ query or '' }}">
-      <button class="btn btn-primary" type="submit">Проверить</button>
+      <input type="text"
+             class="form-control form-control-lg"
+             name="q"
+             placeholder="example.com"
+             value="{{ query or '' }}">
+      <button class="btn btn-primary btn-lg" type="submit">Проверить</button>
     </div>
   </form>
 
+  <!-- Ошибка -->
   {% if error %}
     <div class="alert alert-danger">{{ error }}</div>
   {% endif %}
 
+  <!-- РЕЗУЛЬТАТЫ ПОИСКА -->
   {% if result %}
     <h2 class="h5">Результаты для <code>{{ query }}</code></h2>
-    {% if permalink %}<p><small><a href="{{ permalink }}">Постоянная ссылка</a></small></p>{% endif %}
+    {% if permalink %}
+      <p class="small mb-3"><a href="{{ permalink }}">Постоянная ссылка</a></p>
+    {% endif %}
 
     {% if records and records|length > 0 %}
       {% for rtype, values in records.items() %}
-      <div class="card mb-3">
-        <div class="card-header"><strong>{{ rtype }}</strong></div>
-        <div class="card-body">
-          <ul class="mb-0">
-            {% for v in values %}
-              <li><code>{{ v }}</code></li>
-            {% endfor %}
-          </ul>
+        <div class="card mb-3">
+          <div class="card-header"><strong>{{ rtype }}</strong></div>
+          <div class="card-body">
+            <ul class="mb-0">
+              {% for v in values %}
+                <li><code>{{ v }}</code></li>
+              {% endfor %}
+            </ul>
+          </div>
         </div>
-      </div>
       {% endfor %}
     {% else %}
       <p>DNS-записей не найдено.</p>
     {% endif %}
+
+  {% else %}
+  <!-- КАРТОЧКИ И ССЫЛКИ — только когда результата ещё нет -->
+  <div class="row g-3 mt-4">
+    <div class="col-12 col-md-4">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <div class="icon-wrap"><i class="fa-solid fa-book-open" aria-hidden="true"></i></div>
+          <h2 class="h5 card-title mb-2">Информация о владельце домена (WHOIS)</h2>
+          <p class="text-muted mb-2">
+            Подробные сведения о домене: владелец, регистратор, статусы и даты регистрации.
+          </p>
+          <a href="{{ url_for('whois_lookup') }}" class="stretched-link">Перейти в WHOIS</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <div class="icon-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></div>
+          <h2 class="h5 card-title mb-2">Проверка доступности доменного имени</h2>
+          <p class="text-muted mb-2">
+            Подберите свободное имя в популярных зонах и зарегистрируйте домен у надёжного регистратора.
+          </p>
+          <a href="{{ url_for('domain_search') }}" class="stretched-link">Искать домен</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-md-4">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <div class="icon-wrap"><i class="fa-regular fa-calendar" aria-hidden="true"></i></div>
+          <h2 class="h5 card-title mb-2">Узнать срок действия домена</h2>
+          <p class="text-muted mb-2">
+            Следите за сроком продления: вовремя продлевайте или отслеживайте освобождение доменов.
+          </p>
+          <a href="{{ url_for('whois_lookup') }}" class="stretched-link">Проверить через WHOIS</a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mt-4">
+    <a class="link-pill me-2" href="{{ url_for('sitemap') }}">sitemap.xml</a>
+    <a class="link-pill" href="{{ url_for('robots') }}">robots.txt</a>
+  </div>
   {% endif %}
 </div>
 {% endblock %}
