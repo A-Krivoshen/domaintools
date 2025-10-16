@@ -16,3 +16,91 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 
 /* DNS values color for both light/dark themes */
 .dns-code{color:var(--bs-primary);}
+
+
+/* ===== Feature cards for tools ===== */
+.feature-card {
+  position: relative;
+  border-radius: .75rem;
+  transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease;
+  border: 1px solid var(--bs-border-color);
+  background: var(--bs-body-bg);
+}
+.feature-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 .75rem 1.25rem rgba(0,0,0,.06);
+  border-color: var(--bs-primary);
+}
+
+/* Иконка в плашке сверху */
+.feature-card .icon-wrap {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  display: flex; align-items: center; justify-content: center;
+  margin: .5rem auto 0.75rem;
+  background: rgba(var(--bs-primary-rgb), .10);
+}
+.feature-card .icon-wrap svg,
+.feature-card .icon-wrap i {
+  font-size: 26px;
+  color: var(--bs-primary);
+  transition: transform .15s ease;
+}
+.feature-card:hover .icon-wrap svg,
+.feature-card:hover .icon-wrap i { transform: scale(1.06); }
+
+/* Заголовок и текст карточки по центру */
+.feature-card .card-body { text-align: center; }
+.feature-card .card-title { font-weight: 600; }
+
+/* Плавная подсветка кликабельной области Bootstrap .stretched-link */
+.feature-card:hover .stretched-link::after {
+  box-shadow: inset 0 0 0 .12rem rgba(var(--bs-primary-rgb), .20);
+  border-radius: .75rem;
+}
+
+/* Пилюли-ссылки снизу (sitemap/robots) */
+.link-pill {
+  display: inline-block;
+  padding: .25rem .6rem;
+  border-radius: 999px;
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  text-decoration: none;
+  transition: color .15s ease, border-color .15s ease, background-color .15s ease;
+}
+.link-pill:hover {
+  color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), .06);
+}
+/* Уважать «меньше анимаций» в системе */
+@media (prefers-reduced-motion: reduce) {
+  .feature-card,
+  .feature-card .icon-wrap,
+  .stretched-link::after {
+    transition: none !important;
+  }
+}
+
+/* Горизонтальная лента кнопок в моб.меню */
+.nav-scroller {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
+}
+.nav-scroller .btn {
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
+
+/* (опц.) чуть компактнее общий отступ контейнера меню */
+#topnav .btn { padding-inline: .75rem; }
+
+/* крупнее тач-таргеты */
+.nav-scroller .btn { padding: .45rem .9rem; }
+
+/* липкий навбар */
+.navbar { position: sticky; top: 0; z-index: 1030; }
+
+.before-footer-ad { margin: 16px 0 20px; }

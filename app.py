@@ -6,46 +6,19 @@ import json
 import hashlib
 import time
 import logging
-import ipaddress
-import csv
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 
 import redis
 import whois
+from whois.exceptions import WhoisError  # для точного перехвата
 import dns.resolver
 import dns.exception
 from ipwhois import IPWhois
 import idna
+import ipaddress
+import subprocess
 
-def _normalize_domain_query(value: str):
-    if not value:
-        return None, _("Invalid domain name.")
-    q = value.strip()
-    try:
-        if q.lower().startswith(("http://","https://")):
-            from urllib.parse import urlparse
-            q = urlparse(q).hostname or q
-    except Exception:
-        pass
-    q = q.rstrip(".").lower()
-    import ipaddress as _ipa, re as _re, idna as _idna
-    # IP?
-    try:
-        _ipa.ip_address(q)
-        return q, None
-    except Exception:
-        pass
-    if "." not in q:
-        return None, _("Invalid domain name.")
-    try:
-        if not q.isascii():
-            q = _idna.encode(q, uts46=True).decode("ascii")
-    except Exception:
-        return None, _("Invalid domain name.")
-    if not DOMAIN_RE.match(q):
-        return None, _("Invalid domain name.")
-    return q, None
 from geopy.geocoders import Nominatim
 
 from flask import (
@@ -62,7 +35,6 @@ from flask import (
 from flask_babel import Babel, gettext as _, get_locale as babel_get_locale
 from flask_caching import Cache
 
-
 # -------------------------------------------------
 # App & config
 # -------------------------------------------------
@@ -77,11 +49,15 @@ app.config.update(
     # Cache
     CACHE_TYPE="SimpleCache",
     CACHE_DEFAULT_TIMEOUT=120,
-    # RKN blocklist (public mirrors; non-official)
     # Domain search
-    AFFILIATE_BUY_BASE=os.environ.get("AFFILIATE_BUY_BASE", "https://beget.com/p754742/domains/search/{domain}"),
-    TLD_LIST=os.environ.get("TLD_LIST", "ru,com,net,org,info,pro,xyz,site,online,store,app,dev,io,ai,co,me,blog").split(","),
-
+    AFFILIATE_BUY_BASE=os.environ.get(
+        "AFFILIATE_BUY_BASE",
+        "https://beget.com/p754742/domains/search/{domain}",
+    ),
+    TLD_LIST=os.environ.get(
+        "TLD_LIST",
+        "ru,com,net,org,info,pro,xyz,site,online,store,app,dev,io,ai,co,me,blog",
+    ).split(","),
 )
 
 # Redis (DB=3 по умолчанию)
@@ -107,7 +83,6 @@ def _locale_selector():
 
 babel.init_app(app, locale_selector=_locale_selector)
 
-
 # Сделаем функции/фильтры доступными в Jinja
 @app.context_processor
 def jinja_globals():
@@ -119,10 +94,10 @@ def prettyjson(obj):
         return json.dumps(obj, ensure_ascii=False, indent=2)
     except Exception:
         return str(obj)
+
 @app.template_filter("enumerate")
 def jinja_enumerate(seq):
     try:
-        # вернём список пар (value, index), чтобы в шаблоне работало: {% for v,i in ... %}
         return [(v, i) for i, v in enumerate(list(seq))]
     except Exception:
         return []
@@ -138,6 +113,12 @@ def country_flag(cc: str) -> str:
 def jinja_more_globals():
     return {"country_flag": country_flag}
 
+@app.context_processor
+def inject_common():
+    return {
+        "current_year": datetime.utcnow().year,
+        "yandex_rtb_block_id": os.getenv("YANDEX_RTB_BLOCK_ID", "R-A-XXXXXXX-1"),
+    }
 
 # -------------------------------------------------
 # Logging
@@ -147,11 +128,13 @@ handler.setLevel(logging.INFO)
 app.logger.setLevel(logging.INFO)
 app.logger.addHandler(handler)
 
-
 # -------------------------------------------------
 # Helpers
 # -------------------------------------------------
-DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?!-)(?!.*\.\.)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])$", re.IGNORECASE)
+DOMAIN_RE = re.compile(
+    r"^(?=.{1,253}$)(?!-)(?!.*\.\.)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])$",
+    re.IGNORECASE,
+)
 
 def validate_domain(domain: str) -> None:
     if not DOMAIN_RE.match(domain):
@@ -204,6 +187,99 @@ def _split_kind_id(s: str) -> Optional[Tuple[str, str]]:
         return None
     return k, i
 
+def _normalize_domain_query(value: str):
+    if not value:
+        return None, _("Invalid domain name.")
+    q = value.strip()
+    try:
+        if q.lower().startswith(("http://", "https://")):
+            from urllib.parse import urlparse
+            q = urlparse(q).hostname or q
+    except Exception:
+        pass
+    q = q.rstrip(".").lower()
+    # IP?
+    try:
+        ipaddress.ip_address(q)
+        return q, None
+    except Exception:
+        pass
+    if "." not in q:
+        return None, _("Invalid domain name.")
+    try:
+        if not q.isascii():
+            q = idna.encode(q, uts46=True).decode("ascii")
+    except Exception:
+        return None, _("Invalid domain name.")
+    if not DOMAIN_RE.match(q):
+        return None, _("Invalid domain name.")
+    return q, None
+
+# --- Fallback-парсер текста whois (минимум полезных полей) ---
+WHOIS_PATTERNS = {
+    "registrar": re.compile(r"Registrar:\s*(.+)", re.I),
+    "whois_server": re.compile(r"Whois Server:\s*(.+)", re.I),
+    "creation_date": re.compile(r"(Creation Date|Registered on):\s*([^\r\n]+)", re.I),
+    "updated_date": re.compile(r"(Updated Date|Last Updated On):\s*([^\r\n]+)", re.I),
+    "expiration_date": re.compile(r"(Registry Expiry Date|Expiry Date|Expires On):\s*([^\r\n]+)", re.I),
+    "status": re.compile(r"Status:\s*([^\r\n]+)", re.I),
+    "name_server": re.compile(r"Name Server:\s*([^\r\n]+)", re.I),
+    "org": re.compile(r"(Registrant Organization|Registrant Organization Name):\s*([^\r\n]+)", re.I),
+    "country": re.compile(r"(Registrant Country|Country):\s*([A-Z]{2})\b", re.I),
+}
+
+def parse_whois_text(domain: str, text: str) -> Dict:
+    data: Dict[str, object] = {
+        "domain_name": domain,
+        "text": text or "",
+    }
+    if not text:
+        return data
+
+    m = WHOIS_PATTERNS["registrar"].search(text)
+    if m: data["registrar"] = m.group(1).strip()
+
+    m = WHOIS_PATTERNS["whois_server"].search(text)
+    if m: data["whois_server"] = m.group(1).strip()
+
+    m = WHOIS_PATTERNS["creation_date"].search(text)
+    if m: data["creation_date"] = m.group(2).strip()
+
+    m = WHOIS_PATTERNS["updated_date"].search(text)
+    if m: data["updated_date"] = m.group(2).strip()
+
+    m = WHOIS_PATTERNS["expiration_date"].search(text)
+    if m: data["expiration_date"] = m.group(2).strip()
+
+    statuses = [s.strip() for s in WHOIS_PATTERNS["status"].findall(text)]
+    if statuses:
+        data["status"] = statuses
+
+    nss = [ns.strip().rstrip(".").upper() for ns in WHOIS_PATTERNS["name_server"].findall(text)]
+    if nss:
+        data["name_servers"] = sorted(set(nss))
+
+    m = WHOIS_PATTERNS["org"].search(text)
+    if m: data["org"] = m.group(2).strip()
+
+    m = WHOIS_PATTERNS["country"].search(text)
+    if m: data["country"] = m.group(2).upper()
+
+    return data
+
+def run_system_whois(domain: str, timeout: int = 8) -> str:
+    """Вызвать системную утилиту 'whois'. Вернуть сырой текст или пустую строку."""
+    try:
+        out = subprocess.run(
+            ["whois", domain],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+        return out.stdout or ""
+    except Exception:
+        return ""
 
 # -------------------------------------------------
 # Routes
@@ -232,15 +308,14 @@ def robots():
 
 @app.get("/sitemap.xml")
 def sitemap():
-    # главные страницы
     base_urls = [
         url_for("index", _external=True),
-        request.url_root.rstrip("/") + "/dns",
-        request.url_root.rstrip("/") + "/whois",
-        request.url_root.rstrip("/") + "/geo",
-        request.url_root.rstrip("/") + "/history",
+        url_for("dns_lookup", _external=True),
+        url_for("whois_lookup", _external=True),
+        url_for("geo_lookup", _external=True),
+        url_for("history_list", _external=True),
     ]
-    # возьмём последние 200 ссылок истории
+    # последние 200 из истории
     keys = r.zrevrange(HIST_ZSET, 0, 199)
     hist_urls = []
     for s in keys:
@@ -264,10 +339,7 @@ def index():
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
-    from flask import request, render_template, url_for
-    import dns.resolver
-
-    # Page meta is defined first so it always exists
+    # Page meta
     meta = {
         "title": "DNS Lookup",
         "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
@@ -277,7 +349,7 @@ def dns_lookup():
     if not query:
         return render_template("dns.html", meta=meta, result=None, records={}, error=None, query="", permalink=None)
 
-    records = {}
+    records: Dict[str, List[str]] = {}
     error = None
 
     def fetch(rtype: str):
@@ -299,6 +371,7 @@ def dns_lookup():
 
     return render_template("dns.html", meta=meta, result=result, records=records, error=error, query=query, permalink=permalink)
 
+# ---------- Domains ----------
 def _normalize_label(label: str) -> str:
     label = (label or "").strip().lower()
     label = re.sub(r"[^a-z0-9-]+", "-", label)
@@ -359,7 +432,6 @@ def domain_search():
     error = None
     if request.method == "POST" or (request.method == "GET" and request.args.get("query")):
         query = (request.form.get("q") or "").strip()
-        base = app.config.get("AFFILIATE_BUY_BASE")
         try:
             if "." in query:
                 query = query.split(".")[0]
@@ -370,8 +442,7 @@ def domain_search():
     return render_template("domains.html", q=query, items=items,
                            error=error, buy_base=app.config.get("AFFILIATE_BUY_BASE"))
 
-
-# ---------- WHOIS ----------# ---------- WHOIS ----------
+# ---------- WHOIS ----------
 @app.route("/whois", methods=["GET", "POST"])
 def whois_lookup():
     data: Optional[Dict] = None
@@ -384,7 +455,8 @@ def whois_lookup():
         query, err = _normalize_domain_query(query)
         if err:
             error = err
-            return render_template('whois.html', result=None, error=error, query=(query or ''), permalink=None)
+            return render_template("whois.html", result=None, error=error, query=(query or ''), permalink=None)
+
         try:
             # IP или домен?
             try:
@@ -394,6 +466,7 @@ def whois_lookup():
                 is_ip = False
 
             if is_ip:
+                # RDAP по IP
                 lookup = IPWhois(query).lookup_rdap()
                 data = {
                     "query": query,
@@ -403,19 +476,34 @@ def whois_lookup():
                     "network": lookup.get("network", {}),
                 }
             else:
+                # Доменный WHOIS
                 validate_domain(query)
                 w = whois.whois(query)
-                data = {
-                    k: (", ".join(v) if isinstance(v, (list, tuple)) else str(v))
-                    for k, v in w.__dict__.items()
-                    if not k.startswith("_")
-                }
+
+                def _norm(v):
+                    if isinstance(v, (list, tuple, set)):
+                        return [str(x) for x in v if x]
+                    if v is None:
+                        return None
+                    return str(v)
+
+                # сохраняем структуры (списки остаются списками), строки нормализуем
+                data = {k: _norm(v) for k, v in w.__dict__.items() if not k.startswith("_")}
+
+                # domain_name -> строка (первое значение)
+                dn = data.get("domain_name") or query
+                if isinstance(dn, (list, tuple)):
+                    dn = next((str(x) for x in dn if x), query)
+                data["domain_name"] = dn
+
+                # сырое тело WHOIS (если библиотека вернула)
+                raw = getattr(w, "text", None)
+                if raw:
+                    data["text"] = raw if isinstance(raw, str) else str(raw)
 
             hid = save_history("whois", query, data)
             permalink = url_for("history_view", kind="whois", hid=hid, _external=True)
 
-        except ValueError as ve:
-            error = str(ve)
         except Exception:
             app.logger.exception("WHOIS error")
             error = _("Unexpected error during WHOIS lookup.")
@@ -435,13 +523,13 @@ def geo_lookup():
         query, err = _normalize_domain_query(query)
         if err:
             error = err
-            return render_template('whois.html', result=None, error=error, query=(query or ''), permalink=None)
+            return render_template('geo.html', result=None, error=error, query=(query or ''), permalink=None)
         try:
             # домен -> IP
             try:
-                socket.inet_aton(query)
+                ipaddress.ip_address(query)
                 ip = query
-            except OSError:
+            except ValueError:
                 ip = socket.gethostbyname(query)
 
             app.logger.info(f"Geo lookup for: {ip}")
@@ -449,7 +537,7 @@ def geo_lookup():
             asn = lookup.get("asn_description") or "N/A"
             country_code = lookup.get("asn_country_code") or "N/A"
 
-            # человекочитаемое имя страны (опционально)
+            # человекочитаемое имя страны (best effort)
             country_name = country_code
             try:
                 geolocator = Nominatim(user_agent="domaintools-geo")
@@ -519,7 +607,6 @@ def history_view(kind: str, hid: str):
         return render_template("geo.html", result=res, error=None, query=q, permalink=permalink)
     abort(404)
 
-
 # -------------------------------------------------
 # Error handlers
 # -------------------------------------------------
@@ -532,30 +619,14 @@ def server_error(e):
     app.logger.exception("Internal Server Error")
     return render_template("errors/500.html"), 500
 
-
 # -------------------------------------------------
 # Dev entry
 # -------------------------------------------------
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=True)
 
-
+# ЧПУ для /whois/<domain>
 @app.route("/whois/<path:domain>", methods=["GET"])
 def whois_domain_lookup(domain):
     q = (domain or '').strip().rstrip('.').lower()
     return redirect(url_for('whois_lookup', query=q))
-
-# --- Hotfix: alias for templates expecting 'geo_lookup' ---
-try:
-    _geo_view = geoip_lookup  # existing GeoIP view
-except NameError:
-    _geo_view = None
-else:
-    try:
-        endpoints = [r.endpoint for r in app.url_map.iter_rules()]
-    except Exception:
-        endpoints = []
-    if _geo_view and 'geo_lookup' not in endpoints:
-        app.add_url_rule('/geo', endpoint='geo_lookup',
-                         view_func=_geo_view, methods=['GET','POST'])
-# --- End hotfix ---

@@ -19,6 +19,19 @@
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+<script>window.yaContextCb = window.yaContextCb || [];</script>
+<script async src="https://yandex.ru/ads/system/context.js"></script>
+<script>
+(function () {
+  try {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') {
+      document.documentElement.setAttribute('data-bs-theme', saved);
+    }
+  } catch (e) {}
+})();
+</script>
+
 </head>
 <body class="bg-light">
 <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
@@ -28,34 +41,40 @@
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#topnav" aria-controls="topnav" aria-expanded="false" aria-label="Toggle navigation">
       <span class="navbar-toggler-icon"></span>
     </button>
+<div id="topnav" class="collapse navbar-collapse">
+  <!-- Мобилка: горизонтальная лента ссылок + отдельная строка с переключателем темы -->
+  <div class="d-lg-none w-100">
+    <div class="nav-scroller d-flex gap-2 py-2 px-1">
+      <a class="btn btn-sm btn-outline-light flex-shrink-0" href="/dns">DNS</a>
+      <a class="btn btn-sm btn-outline-light flex-shrink-0" href="/domains">Domains</a>
+      <a class="btn btn-sm btn-outline-light flex-shrink-0" href="/whois">WHOIS</a>
+      <a class="btn btn-sm btn-outline-light flex-shrink-0" href="/geo">GeoIP</a>
+      <a class="btn btn-sm btn-outline-warning flex-shrink-0" href="/history">History</a>
+    </div>
+    <div class="py-2 text-center">
+      <a class="btn btn-sm btn-outline-light" href="#" data-theme-toggle>🌓 Тема</a>
+    </div>
+  </div>
 
-    <div id="topnav" class="collapse navbar-collapse">
-      <div class="ms-auto d-flex align-items-center gap-2">
-        <a class="btn btn-sm btn-outline-light" href="/dns">DNS</a>
-        <a class="btn btn-sm btn-outline-light" href="/domains">Domains</a>
-        <a class="btn btn-sm btn-outline-light" href="/whois">WHOIS</a>
-        <a class="btn btn-sm btn-outline-light" href="/geo">GeoIP</a>
-        
-        <a class="btn btn-sm btn-outline-warning" href="/history">History</a>
-        <button class="btn btn-sm btn-secondary" type="button" title="Тёмная/светлая тема" data-theme-toggle>🌓</button>
-      </div>
+  <!-- Десктоп: как было -->
+  <div class="ms-auto d-none d-lg-flex align-items-center gap-2">
+    <a class="btn btn-sm btn-outline-light" href="/dns">DNS</a>
+    <a class="btn btn-sm btn-outline-light" href="/domains">Domains</a>
+    <a class="btn btn-sm btn-outline-light" href="/whois">WHOIS</a>
+    <a class="btn btn-sm btn-outline-light" href="/geo">GeoIP</a>
+    <a class="btn btn-sm btn-outline-warning" href="/history">History</a>
+    <button class="btn btn-sm btn-outline-light d-none d-lg-inline-flex align-items-center gap-1"
+            type="button" title="Тёмная/светлая тема" data-theme-toggle>🌓</button>
+  </div>
+</div>
+
+
     </div>
   </div>
 </nav>
 
 <main class="container">
   {% block content %}{% endblock %}
-
-  <div class="footer">
-    <hr>
-    <div class="d-flex justify-content-between align-items-center">
-      <span>© {{ 2025 }} DomainTools</span>
-      <span>
-        <a href="/sitemap.xml">sitemap.xml</a> ·
-        <a href="/robots.txt">robots.txt</a>
-      </span>
-    </div>
-  </div>
 </main>
 
 <!-- JS -->
@@ -77,6 +96,41 @@
       alert('Copy failed');
     });
   });
+</script>
+{% block before_footer %}{% include "_ad_rsy.html" %}{% endblock %}
+{% include "_footer.html" %}
+<script>
+(function () {
+  const root = document.documentElement;
+
+  function setTheme(mode) {
+    root.setAttribute('data-bs-theme', mode);
+    try { localStorage.setItem('theme', mode); } catch (e) {}
+  }
+  function currentTheme() {
+    return root.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
+  }
+
+  // Если в localStorage уже есть тема — применим (на случай когда head-скрипт не сработал)
+  try {
+    const saved = localStorage.getItem('theme');
+    if (saved === 'dark' || saved === 'light') setTheme(saved);
+  } catch (e) {}
+
+  // Делегирование клика по любому элементу с атрибутом [data-theme-toggle]
+  document.addEventListener('click', function (e) {
+    const t = e.target.closest('[data-theme-toggle]');
+    if (!t) return;
+    e.preventDefault();
+    setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
+
+    // После переключения на мобилке сворачиваем меню
+    const nav = document.getElementById('topnav');
+    if (nav && nav.classList.contains('show') && window.bootstrap?.Collapse) {
+      new bootstrap.Collapse(nav, { toggle: false }).hide();
+    }
+  });
+})();
 </script>
 
 </body>

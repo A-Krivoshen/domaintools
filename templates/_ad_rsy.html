@@ -1,0 +1,27 @@
+<div class="container my-4">
+  <div class="card shadow-sm">
+    <div class="card-body">
+      <!-- Рекомендательный блок РСЯ -->
+      <div id="yandex_rtb_{{ yandex_rtb_block_id|replace('-','_') }}"
+           class="w-100" style="min-height: 180px;"></div>
+
+      <script>
+        window.yaContextCb = window.yaContextCb || [];
+        window.yaContextCb.push(function () {
+          try {
+            Ya.Context.AdvManager.render({
+              blockId: "{{ yandex_rtb_block_id }}",
+              renderTo: "yandex_rtb_{{ yandex_rtb_block_id|replace('-','_') }}",
+              pageNumber: 1
+            });
+          } catch (e) { /* тихо игнорируем, если заблокировано */ }
+        });
+      </script>
+
+      <!-- Фолбэк, если баннер заблокирован -->
+      <noscript>
+        <div class="text-center text-muted small">Рекомендации недоступны — включите JavaScript.</div>
+      </noscript>
+    </div>
+  </div>
+</div>
