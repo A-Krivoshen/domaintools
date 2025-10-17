@@ -74,6 +74,7 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   border-color: var(--bs-primary);
   background: rgba(var(--bs-primary-rgb), .06);
 }
+
 /* Уважать «меньше анимаций» в системе */
 @media (prefers-reduced-motion: reduce) {
   .feature-card,
@@ -103,4 +104,32 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 /* липкий навбар */
 .navbar { position: sticky; top: 0; z-index: 1030; }
 
-.before-footer-ad { margin: 16px 0 20px; }
+/* ============================= */
+/* Ad widget (Yandex RTB/RSYA)  */
+/* ============================= */
+
+/* контейнер перед футером */
+.before-footer-ad {
+}
+
+/* сам рендер-контейнер виджета */
+.before-footer-ad [id^="yandex_rtb_"] {
+  display: flex;
+  justify-content: center;    /* выравниваем по центру */
+  align-items: stretch;
+  width: 100%;
+  min-height: 180px;          /* чтобы не дёргалось до загрузки */
+  overflow: hidden;           /* обрезаем всё, что вылезает */
+}
+
+/* что бы ни вставил Яндекс (div/iframe), не позволяем шире контейнера */
+.before-footer-ad [id^="yandex_rtb_"] > *,
+.before-footer-ad [id^="yandex_rtb_"] iframe {
+  max-width: 100% !important;
+}
+
+/* мобильные мелочи */
+@media (max-width: 576px) {
+  .before-footer-ad { margin: 12px 0 16px; }
+  .before-footer-ad [id^="yandex_rtb_"] { min-height: 150px; }
+}

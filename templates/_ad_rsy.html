@@ -1,27 +1,54 @@
-<div class="container my-4">
-  <div class="card shadow-sm">
-    <div class="card-body">
-      <!-- Рекомендательный блок РСЯ -->
-      <div id="yandex_rtb_{{ yandex_rtb_block_id|replace('-','_') }}"
-           class="w-100" style="min-height: 180px;"></div>
+<div class="before-footer-ad container my-4">
+  <!-- Рекомендательный/RTB блок -->
+  <div id="yandex_rtb_{{ yandex_rtb_block_id|replace('-', '_') }}"
+       class="w-100" style="min-height:180px"></div>
 
-      <script>
+  <script>
+    (function () {
+      var bid = "{{ yandex_rtb_block_id }}";
+      var renderTo = "yandex_rtb_{{ yandex_rtb_block_id|replace('-', '_') }}";
+      var el = document.getElementById(renderTo);
+      if (!el) return;
+
+      function doRender() {
+        if (el.dataset.rtbRendered) return; // не рисуем повторно
+        el.dataset.rtbRendered = "1";
+
+        // C-A — рекомендательный виджет, R-A — обычный RTB
+        if (bid.indexOf("C-A-") === 0 && window.Ya?.Context?.AdvManager?.renderWidget) {
+          Ya.Context.AdvManager.renderWidget({ renderTo: renderTo, blockId: bid });
+        } else if (window.Ya?.Context?.AdvManager?.render) {
+          Ya.Context.AdvManager.render({ renderTo: renderTo, blockId: bid, pageNumber: 1 });
+        }
+      }
+
+      function scheduleRender() {
         window.yaContextCb = window.yaContextCb || [];
-        window.yaContextCb.push(function () {
-          try {
-            Ya.Context.AdvManager.render({
-              blockId: "{{ yandex_rtb_block_id }}",
-              renderTo: "yandex_rtb_{{ yandex_rtb_block_id|replace('-','_') }}",
-              pageNumber: 1
-            });
-          } catch (e) { /* тихо игнорируем, если заблокировано */ }
-        });
-      </script>
+        window.yaContextCb.push(doRender);
+      }
 
-      <!-- Фолбэк, если баннер заблокирован -->
-      <noscript>
-        <div class="text-center text-muted small">Рекомендации недоступны — включите JavaScript.</div>
-      </noscript>
+      // Ленивая загрузка — как только блок приблизится к вьюпорту
+      if ('IntersectionObserver' in window) {
+        var started = false;
+        var obs = new IntersectionObserver(function (entries) {
+          if (started) return;
+          if (entries.some(function (e) { return e.isIntersecting; })) {
+            started = true;
+            obs.disconnect();
+            scheduleRender();
+          }
+        }, { rootMargin: '200px' });
+        obs.observe(el);
+      } else {
+        // Фолбэк для старых браузеров — рисуем сразу
+        scheduleRender();
+      }
+    })();
+  </script>
+
+  <noscript>
+    <div class="text-center text-muted small">
+      Рекомендации недоступны — включите JavaScript.
     </div>
-  </div>
+  </noscript>
 </div>
