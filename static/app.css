@@ -133,3 +133,6 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   .before-footer-ad { margin: 12px 0 16px; }
   .before-footer-ad [id^="yandex_rtb_"] { min-height: 150px; }
 }
+/* запас снизу под липкую рекламу, чтобы не перекрывала виджет */
+body { padding-bottom: 72px; }
+@media (max-width: 576px) { body { padding-bottom: 96px; } }

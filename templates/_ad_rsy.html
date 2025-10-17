@@ -1,54 +1,37 @@
-<div class="before-footer-ad container my-4">
-  <!-- Рекомендательный/RTB блок -->
-  <div id="yandex_rtb_{{ yandex_rtb_block_id|replace('-', '_') }}"
-       class="w-100" style="min-height:180px"></div>
+<div class="before-footer-ad container">
+  <!-- контейнер под рекомендательный виджет РСЯ -->
+  <div id="yandex_rtb_widget" class="w-100" style="min-height:180px"></div>
 
   <script>
     (function () {
-      var bid = "{{ yandex_rtb_block_id }}";
-      var renderTo = "yandex_rtb_{{ yandex_rtb_block_id|replace('-', '_') }}";
-      var el = document.getElementById(renderTo);
-      if (!el) return;
+      var blockId  = "{{ yandex_rtb_block_id }}";    // из env: YANDEX_RTB_BLOCK_ID=C-A-2086160-2
+      var renderTo = "yandex_rtb_widget";
 
-      function doRender() {
-        if (el.dataset.rtbRendered) return; // не рисуем повторно
-        el.dataset.rtbRendered = "1";
+      // если ID не пришёл — молча выходим
+      if (!blockId) { console.warn("RTB: empty blockId"); return; }
 
-        // C-A — рекомендательный виджет, R-A — обычный RTB
-        if (bid.indexOf("C-A-") === 0 && window.Ya?.Context?.AdvManager?.renderWidget) {
-          Ya.Context.AdvManager.renderWidget({ renderTo: renderTo, blockId: bid });
-        } else if (window.Ya?.Context?.AdvManager?.render) {
-          Ya.Context.AdvManager.render({ renderTo: renderTo, blockId: bid, pageNumber: 1 });
-        }
-      }
+      // очередь SDK РСЯ
+      window.yaContextCb = window.yaContextCb || [];
 
-      function scheduleRender() {
-        window.yaContextCb = window.yaContextCb || [];
-        window.yaContextCb.push(doRender);
-      }
-
-      // Ленивая загрузка — как только блок приблизится к вьюпорту
-      if ('IntersectionObserver' in window) {
-        var started = false;
-        var obs = new IntersectionObserver(function (entries) {
-          if (started) return;
-          if (entries.some(function (e) { return e.isIntersecting; })) {
-            started = true;
-            obs.disconnect();
-            scheduleRender();
+      // ленивый вызов: как только SDK готов — рендерим
+      window.yaContextCb.push(function () {
+        try {
+          // C-A-… — рекомендательный виджет
+          if (blockId.indexOf("C-A-") === 0 && window.Ya?.Context?.AdvManager?.renderWidget) {
+            Ya.Context.AdvManager.renderWidget({ renderTo: renderTo, blockId: blockId });
           }
-        }, { rootMargin: '200px' });
-        obs.observe(el);
-      } else {
-        // Фолбэк для старых браузеров — рисуем сразу
-        scheduleRender();
-      }
+          // на всякий случай fallback на обычный RTB (R-A-…)
+          else if (window.Ya?.Context?.AdvManager?.render) {
+            Ya.Context.AdvManager.render({ blockId: blockId, renderTo: renderTo, pageNumber: 1 });
+          }
+        } catch (e) {
+          console.warn("RTB render error:", e);
+        }
+      });
     })();
   </script>
 
   <noscript>
-    <div class="text-center text-muted small">
-      Рекомендации недоступны — включите JavaScript.
-    </div>
+    <div class="text-center text-muted small">Рекомендации недоступны — включите JavaScript.</div>
   </noscript>
 </div>
