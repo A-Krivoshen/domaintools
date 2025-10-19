@@ -136,3 +136,25 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 /* запас снизу под липкую рекламу, чтобы не перекрывала виджет */
 body { padding-bottom: 72px; }
 @media (max-width: 576px) { body { padding-bottom: 96px; } }
+/* === WHOIS: компактные заголовки таблицы и чипы === */
+.whois-table .w-th { width: 240px; }
+@media (max-width: 576px) {
+  .whois-table .w-th { width: 38%; }
+}
+
+/* чипы статусов/NS */
+.whois-chip {
+  background: rgba(var(--bs-primary-rgb), .06);
+  color: var(--bs-body-color);
+  border: 1px solid var(--bs-border-color);
+  border-radius: 999px;
+  padding: .25rem .5rem;
+  font-weight: 500;
+}
+.whois-chip:hover {
+  border-color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), .10);
+}
+
+/* контейнер под рекомендательный блок (аккуратные отступы) */
+.before-footer-ad { }

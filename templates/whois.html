@@ -1,32 +1,30 @@
 {% extends 'base.html' %}
 {% block title %}WHOIS — DomainTools{% endblock %}
 
+{% block jsonld_extra %}
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Home","item":"https://domaintools.site/"},
+{"@type":"ListItem","position":2,"name":"WHOIS","item":"https://domaintools.site/whois"}
+]}
+</script>
+{% endblock %}
+
 {% block content %}
 <div class="container my-4">
   <h1 class="mb-3">WHOIS</h1>
 
-  <!-- Форма (как на DNS) -->
   <form method="get" action="{{ url_for('whois_lookup') }}" class="mb-3" autocomplete="off">
-    <div class="input-group">
-      <input
-        type="text"
-        class="form-control form-control-lg"
-        name="query"
-        placeholder="example.com или 8.8.8.8"
-        value="{{ query or request.args.get('query','') }}"
-      >
-      <button class="btn btn-primary btn-lg" type="submit">Проверить</button>
+    <div class="input-group input-group-lg">
+      <input type="text" class="form-control" name="query" placeholder="example.com или 8.8.8.8" value="{{ query or request.args.get('query','') }}">
+      <button class="btn btn-primary" type="submit">Проверить</button>
     </div>
-
-    {% if permalink or result %}
-      <!-- Ссылки в одну строку, одинакового размера -->
-      <div class="d-flex flex-wrap gap-3 align-items-center mt-2 small">
-        {% if permalink %}
-          <a class="link-secondary text-decoration-none" href="{{ permalink }}">Постоянная ссылка</a>
-        {% endif %}
-        {% if result %}
-          <a class="link-secondary text-decoration-none" href="#" data-copy="#raw-whois">Скопировать WHOIS</a>
-        {% endif %}
+    {% if permalink %}
+      <div class="d-flex gap-3 small mt-2">
+        <a href="{{ permalink }}">Постоянная ссылка</a>
+        {% if result %}<a href="#" data-copy="#raw-whois">Скопировать WHOIS</a>{% endif %}
+        {% if result %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.json">Экспорт JSON</a>{% endif %}
+        {% if result %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.csv">Экспорт CSV</a>{% endif %}
       </div>
     {% endif %}
   </form>
@@ -36,87 +34,23 @@
   {% endif %}
 
   {% if result %}
-    <h2 class="h5">
-      Результаты для
-      <code>
-        {% if result.domain_unicode and result.domain_unicode != result.domain_name %}
-          {{ result.domain_unicode }} ({{ result.domain_name }})
-        {% else %}
-          {{ result.domain_name or result.query or query }}
-        {% endif %}
-      </code>
-    </h2>
-
+    <!-- таблица как у тебя ранее -->
+    <h2 class="h5">Результаты для <code>{{ result.domain_name or result.query or query }}</code></h2>
     <div class="table-responsive">
       <table class="table table-striped table-sm align-middle">
         <tbody>
-          {% if result.registrar %}
-            <tr><th style="width:240px" class="text-muted">Регистратор</th><td>{{ result.registrar }}</td></tr>
-          {% endif %}
-
-          {% if result.whois_server %}
-            <tr><th class="text-muted">WHOIS сервер</th><td><code>{{ result.whois_server }}</code></td></tr>
-          {% endif %}
-
-          {% if result.creation_date %}
-            <tr><th class="text-muted">Создан</th><td>{{ result.creation_date }}</td></tr>
-          {% endif %}
-
-          {% if result.updated_date %}
-            <tr><th class="text-muted">Обновлён</th><td>{{ result.updated_date }}</td></tr>
-          {% endif %}
-
-          {% if result.expiration_date %}
-            <tr>
-              <th class="text-muted">Истекает</th>
-              <td>
-                {{ result.expiration_date }}
-                {% if result.expires_soon %}
-                  <span class="badge bg-danger ms-2">скоро</span>
-                {% endif %}
-              </td>
-            </tr>
-          {% endif %}
-
+          {% if result.registrar %}<tr><th style="width:240px" class="text-muted">Регистратор</th><td>{{ result.registrar }}</td></tr>{% endif %}
+          {% if result.whois_server %}<tr><th class="text-muted">WHOIS сервер</th><td><code>{{ result.whois_server }}</code></td></tr>{% endif %}
+          {% if result.creation_date %}<tr><th class="text-muted">Создан</th><td>{{ result.creation_date }}</td></tr>{% endif %}
+          {% if result.updated_date %}<tr><th class="text-muted">Обновлён</th><td>{{ result.updated_date }}</td></tr>{% endif %}
+          {% if result.expiration_date %}<tr><th class="text-muted">Истекает</th><td>{{ result.expiration_date }}</td></tr>{% endif %}
           {% if result.status and result.status|length %}
-            <tr>
-              <th class="text-muted">Статусы</th>
-              <td>
-                {% for s in result.status %}
-                  <span class="badge text-bg-secondary me-1">{{ s }}</span>
-                {% endfor %}
-              </td>
-            </tr>
+          <tr><th class="text-muted">Статусы</th><td>{% for s in result.status %}<span class="badge text-bg-secondary me-1">{{ s }}</span>{% endfor %}</td></tr>
           {% endif %}
-
           {% if result.name_servers and result.name_servers|length %}
-            <tr>
-              <th class="text-muted">NS</th>
-              <td>
-                {% for ns in result.name_servers %}
-                  <a class="text-decoration-none me-1" href="{{ url_for('dns_lookup') }}?q={{ ns }}">
-                    <span class="badge text-bg-light border"><code>{{ ns }}</code></span>
-                  </a>
-                {% endfor %}
-              </td>
-            </tr>
+          <tr><th class="text-muted">NS</th><td>{% for ns in result.name_servers %}<a class="text-decoration-none me-1" href="{{ url_for('dns_lookup') }}?q={{ ns }}"><span class="badge text-bg-light border"><code>{{ ns }}</code></span></a>{% endfor %}</td></tr>
           {% endif %}
-
-          {% if result.org or result.name %}
-            <tr><th class="text-muted">Владелец</th><td>{{ result.org or result.name }}</td></tr>
-          {% endif %}
-
-          {% if result.asn or result.asn_description or result.asn_country_code %}
-            {% if result.asn %}
-              <tr><th class="text-muted">ASN</th><td>{{ result.asn }}</td></tr>
-            {% endif %}
-            {% if result.asn_description %}
-              <tr><th class="text-muted">ASN описание</th><td>{{ result.asn_description }}</td></tr>
-            {% endif %}
-            {% if result.asn_country_code %}
-              <tr><th class="text-muted">Страна (ASN)</th><td>{{ country_flag(result.asn_country_code) }} {{ result.asn_country_code }}</td></tr>
-            {% endif %}
-          {% endif %}
+          {% if result.org or result.name %}<tr><th class="text-muted">Владелец</th><td>{{ result.org or result.name }}</td></tr>{% endif %}
         </tbody>
       </table>
     </div>
@@ -127,38 +61,7 @@
     </details>
   {% endif %}
 
-  <!-- Карточки-подсказки -->
-  <div class="row g-3 mt-4">
-    <div class="col-12 col-md-4">
-      <div class="card feature-card h-100">
-        <div class="card-body">
-          <div class="icon-wrap"><i class="fa-solid fa-database" aria-hidden="true"></i></div>
-          <h2 class="h6 card-title mb-2">Проверить DNS записи</h2>
-          <p class="text-muted mb-2">A/AAAA/CNAME/MX/NS/TXT/SOA — быстрый просмотр конфигурации домена.</p>
-          <a class="stretched-link" href="{{ url_for('dns_lookup') }}">К DNS</a>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-4">
-      <div class="card feature-card h-100">
-        <div class="card-body">
-          <div class="icon-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></div>
-          <h2 class="h6 card-title mb-2">Подбор свободного домена</h2>
-          <p class="text-muted mb-2">Проверим доступность и подскажем альтернативы в популярных зонах.</p>
-          <a class="stretched-link" href="{{ url_for('domain_search') }}">Искать домен</a>
-        </div>
-      </div>
-    </div>
-    <div class="col-12 col-md-4">
-      <div class="card feature-card h-100">
-        <div class="card-body">
-          <div class="icon-wrap"><i class="fa-solid fa-globe" aria-hidden="true"></i></div>
-          <h2 class="h6 card-title mb-2">GeoIP по IP/домену</h2>
-          <p class="text-muted mb-2">ASN, страна, сеть по IP адресу или доменному имени.</p>
-          <a class="stretched-link" href="{{ url_for('geo_lookup') }}">К GeoIP</a>
-        </div>
-      </div>
-    </div>
-  </div>
+  <!-- карточки как раньше -->
+  {% include "_cards_under_tools.html" %}
 </div>
 {% endblock %}

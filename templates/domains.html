@@ -1,94 +1,79 @@
 {% extends "base.html" %}
-{% block title %}Поиск домена — python.domaintools.site{% endblock %}
+{% block title %}Domains — DomainTools{% endblock %}
+
+{% block jsonld_extra %}
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
+{"@type":"ListItem","position":1,"name":"Home","item":"https://domaintools.site/"},
+{"@type":"ListItem","position":2,"name":"Domains","item":"https://domaintools.site/domains"}
+]}
+</script>
+{% endblock %}
 
 {% block content %}
-<div class="card shadow-sm">
-  <div class="card-body">
-    <form method="post" class="row g-2 align-items-center">
-      <div class="col-md-8">
-        <input type="text" name="q" value="{{ q or '' }}" class="form-control" placeholder="например: mybrand" required>
-      </div>
-      <div class="col-md-4 d-grid">
-        <button class="btn btn-primary">{{ _('Поиск домена') }}</button>
-      </div>
-    </form>
+<h1 class="mb-2">Domains</h1>
+<p class="text-muted">
+  Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:
+  <strong>.рф</strong>, <strong>.рус</strong>, <strong>.онлайн</strong>, <strong>.сайт</strong>, <strong>.москва</strong>, <strong>.дети</strong>,
+  а также международные зоны (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> и др.).
+  Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.
+</p>
 
-    {% if error %}
-      <div class="alert alert-danger mt-3">{{ error }}</div>
-    {% endif %}
-
-    {% if items and not error %}
-    <div class="table-responsive mt-3">
-      <table class="table align-middle mb-0">
-        <thead class="table-light">
-          <tr>
-            <th>{{ _('Домен') }}</th>
-            <th class="text-center">{{ _('Статус') }}</th>
-            <th class="text-end">{{ _('Действие') }}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for it in items %}
-          <tr class="{{ 'table-success' if it.available else 'table-danger' }}">
-            <td class="fw-semibold">{{ it.fqdn }}</td>
-            <td class="text-center">
-              {% if it.available %}
-                <span class="badge bg-success">{{ _('Свободен') }}</span>
-              {% else %}
-                <span class="badge bg-danger">{{ _('Занят') }}</span>
-              {% endif %}
-              {% if it.error %}
-                <div class="small text-muted">{{ it.error }}</div>
-              {% endif %}
-            </td>
-            <td class="text-end">
-              {% if it.available %}
-                <a class="btn btn-sm btn-success" href="{{ buy_base.format(domain=it.fqdn) }}" target="_blank" rel="nofollow noopener">
-                  {{ _('Купить') }}
-                </a>
-              {% else %}
-                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">
-                  WHOIS
-                </a>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% endif %}
+<form method="get" class="mb-3" autocomplete="off">
+  <div class="input-group input-group-lg">
+    <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="например: mybrand" required>
+    <button class="btn btn-primary">Поиск домена</button>
   </div>
+  {% if suggestions and suggestions|length %}
+    <div class="form-text mt-1">
+      Варианты транслитерации:
+      {% for s in suggestions %}
+        <a class="badge text-bg-light border me-1" href="{{ url_for('domain_search') }}?query={{ s }}">{{ s }}</a>
+      {% endfor %}
+    </div>
+  {% endif %}
+</form>
+
+{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+
+{% if items and not error %}
+<div class="table-responsive">
+  <table class="table align-middle">
+    <thead class="table-light">
+      <tr>
+        <th style="min-width:260px">Домен</th>
+        <th class="text-muted">punycode</th>
+        <th class="text-center">Статус</th>
+        <th class="text-end">Действие</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for it in items %}
+      <tr class="{{ 'table-success' if it.available else 'table-danger' }}">
+        <td class="fw-semibold">{{ it.fqdn }}</td>
+        <td class="text-muted small"><code>{{ it.puny }}</code></td>
+        <td class="text-center">
+          {% if it.available %}
+            <span class="badge bg-success">Свободен</span>
+          {% else %}
+            <span class="badge bg-danger">Занят</span>
+          {% endif %}
+          {% if it.error %}<div class="small text-muted">{{ it.error }}</div>{% endif %}
+        </td>
+        <td class="text-end">
+          {% if it.available %}
+            <a class="btn btn-sm btn-success" href="{{ buy_base.format(domain=it.fqdn) }}" target="_blank" rel="nofollow noopener">Купить</a>
+          {% else %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">WHOIS</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ it.fqdn }}">DNS</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
+{% endif %}
 
-<!-- info-cards-injected -->
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-4">
-  <div class="col">
-    <div class="card card-soft h-100 text-center">
-      <div class="card-body">
-        <div class="mb-3 text-primary"><i class="fa-solid fa-magnifying-glass fa-2x"></i></div>
-        <h5 class="card-title">{{ _('Проверка доступности доменного имени') }}</h5>
-        <p class="card-text">{{ _('Проверьте, свободно ли доменное имя для регистрации с помощью нашего инструмента поиска доменов.') }}</p>
-      </div>
-    </div>
-  </div>
-  <div class="col">
-    <div class="card card-soft h-100 text-center">
-      <div class="card-body">
-        <div class="mb-3 text-primary"><i class="fa-solid fa-address-card fa-2x"></i></div>
-        <h5 class="card-title">{{ _('Информация о владельце домена (WHOIS)') }}</h5>
-        <p class="card-text">{{ _('Узнайте владельца, регистратор, даты регистрации и другие данные домена через сервис WHOIS.') }}</p>
-      </div>
-    </div>
-  </div>
-  <div class="col">
-    <div class="card card-soft h-100 text-center">
-      <div class="card-body">
-        <div class="mb-3 text-primary"><i class="fa-solid fa-calendar-check fa-2x"></i></div>
-        <h5 class="card-title">{{ _('Узнать срок действия домена') }}</h5>
-        <p class="card-text">{{ _('Когда истекает регистрация домена и будет ли он доступен — проверьте срок через WHOIS и поиск доменов.') }}</p>
-      </div>
-    </div>
-  </div>
-</div>
+{% include "_cards_under_tools.html" %}
 {% endblock %}

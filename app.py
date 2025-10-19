@@ -6,18 +6,20 @@ import json
 import hashlib
 import time
 import logging
-from datetime import datetime, timedelta
+import io
+import csv
+import subprocess
+from datetime import datetime
 from typing import Optional, Dict, List, Tuple
 
 import redis
 import whois
-from whois.exceptions import WhoisError  # для точного перехвата
+from whois.exceptions import WhoisError
 import dns.resolver
 import dns.exception
 from ipwhois import IPWhois
 import idna
 import ipaddress
-import subprocess
 
 from geopy.geocoders import Nominatim
 
@@ -34,12 +36,12 @@ from flask import (
 )
 from flask_babel import Babel, gettext as _, get_locale as babel_get_locale
 from flask_caching import Cache
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 # -------------------------------------------------
 # App & config
 # -------------------------------------------------
 app = Flask(__name__, template_folder="templates", static_folder="static")
-from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 
@@ -58,18 +60,26 @@ app.config.update(
         "AFFILIATE_BUY_BASE",
         "https://beget.com/p754742/domains/search/{domain}",
     ),
+    # TLDs (включая IDN и транслит-зоны)
     TLD_LIST=os.environ.get(
         "TLD_LIST",
-        "ru,su,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
+        "ru,su,рф,рус,онлайн,сайт,москва,дети,ком,нет,орг,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
     ).split(","),
 )
 
-# Redis (DB=3 по умолчанию)
+# Зоны, в которых разумно показывать кириллические метки (IDN)
+IDN_READY_TLDS = {
+    "рф", "рус", "онлайн", "сайт", "москва", "дети",
+    "ком", "нет", "орг",
+    "com", "net", "org", "info", "pro", "site", "online", "store",
+}
+
+# Redis
 app.config.setdefault("REDIS_URL", os.getenv("REDIS_URL", "redis://127.0.0.1:6379/3"))
 r = redis.from_url(app.config["REDIS_URL"], decode_responses=True)
-HIST_NS = "dt:history"          # dt:history:{kind}:{id}
-HIST_ZSET = "dt:history:index"  # zset с "kind:id" (score=ts)
-HIST_LIMIT = 5000               # ограничение по количеству записей
+HIST_NS = "dt:history"
+HIST_ZSET = "dt:history:index"
+HIST_LIMIT = 5000
 
 cache = Cache(app)
 
@@ -87,7 +97,9 @@ def _locale_selector():
 
 babel.init_app(app, locale_selector=_locale_selector)
 
-# Сделаем функции/фильтры доступными в Jinja
+# -------------------------------------------------
+# Jinja helpers
+# -------------------------------------------------
 @app.context_processor
 def jinja_globals():
     return {"get_locale": lambda: str(babel_get_locale())}
@@ -107,7 +119,6 @@ def jinja_enumerate(seq):
         return []
 
 def country_flag(cc: str) -> str:
-    """FR -> 🇫🇷 (если код корректный)."""
     if not cc or len(cc) != 2 or not cc.isalpha():
         return ""
     base = 127397
@@ -155,7 +166,6 @@ def make_id(kind: str, query: str) -> str:
     return hashlib.sha1(payload.encode("utf-8")).hexdigest()[:16]
 
 def save_history(kind: str, query: str, result: dict) -> str:
-    """Сохранить снэпшот в Redis и вернуть стабильный id."""
     hid = make_id(kind, query)
     key = f"{HIST_NS}:{kind}:{hid}"
     ts = int(time.time())
@@ -165,7 +175,6 @@ def save_history(kind: str, query: str, result: dict) -> str:
         r.hset(key, mapping={"json": json.dumps(doc, ensure_ascii=False)})
         r.zadd(HIST_ZSET, {f"{kind}:{hid}": ts})
 
-        # безопасный трим
         try:
             total = r.zcard(HIST_ZSET) or 0
             if total > HIST_LIMIT:
@@ -191,7 +200,23 @@ def _split_kind_id(s: str) -> Optional[Tuple[str, str]]:
         return None
     return k, i
 
+def cache_json(key: str, ttl: int, compute):
+    """Простой JSON-кэш поверх Redis."""
+    try:
+        raw = r.get(key)
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    val = compute()
+    try:
+        r.setex(key, ttl, json.dumps(val, ensure_ascii=False))
+    except Exception:
+        pass
+    return val
+
 def _normalize_domain_query(value: str):
+    """Возвращает (punycode_ascii, None) либо (None, 'ошибка')."""
     if not value:
         return None, _("Invalid domain name.")
     q = value.strip()
@@ -202,24 +227,35 @@ def _normalize_domain_query(value: str):
     except Exception:
         pass
     q = q.rstrip(".").lower()
+
     # IP?
     try:
         ipaddress.ip_address(q)
         return q, None
     except Exception:
         pass
+
     if "." not in q:
         return None, _("Invalid domain name.")
+
+    # Приводим к punycode (ascii)
     try:
         if not q.isascii():
             q = idna.encode(q, uts46=True).decode("ascii")
     except Exception:
         return None, _("Invalid domain name.")
+
     if not DOMAIN_RE.match(q):
         return None, _("Invalid domain name.")
     return q, None
 
-# --- Fallback-парсер текста whois (минимум полезных полей) ---
+def _to_unicode(domain: str) -> str:
+    try:
+        return idna.decode(domain)
+    except Exception:
+        return domain
+
+# --- Минимальный парсер текста WHOIS (generic) -------------------------------
 WHOIS_PATTERNS = {
     "registrar": re.compile(r"Registrar:\s*(.+)", re.I),
     "whois_server": re.compile(r"Whois Server:\s*(.+)", re.I),
@@ -233,10 +269,7 @@ WHOIS_PATTERNS = {
 }
 
 def parse_whois_text(domain: str, text: str) -> Dict:
-    data: Dict[str, object] = {
-        "domain_name": domain,
-        "text": text or "",
-    }
+    data: Dict[str, object] = {"domain_name": domain, "text": text or ""}
     if not text:
         return data
 
@@ -259,7 +292,7 @@ def parse_whois_text(domain: str, text: str) -> Dict:
     if statuses:
         data["status"] = statuses
 
-    nss = [ns.strip().rstrip(".") for ns in WHOIS_PATTERNS["name_server"].findall(text)]
+    nss = [ns.strip().rstrip(".").upper() for ns in WHOIS_PATTERNS["name_server"].findall(text)]
     if nss:
         data["name_servers"] = sorted(set(nss))
 
@@ -271,28 +304,11 @@ def parse_whois_text(domain: str, text: str) -> Dict:
 
     return data
 
-def run_system_whois(domain: str, timeout: int = 8) -> str:
-    """Вызвать системную утилиту 'whois'. Вернуть сырой текст или пустую строку."""
-    try:
-        out = subprocess.run(
-            ["whois", domain],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            timeout=timeout,
-        )
-        return out.stdout or ""
-    except Exception:
-        return ""
-
 # --- RU/TCI WHOIS parser ------------------------------------------------------
 import re as _re
-
 def _parse_ru_whois_text(text: str) -> dict:
     """
-    Быстро распарсить raw WHOIS от whois.tcinet.ru (ru/rf-зоны) и вернуть
-    словарь с ключами как у обычного whois: registrar, creation_date, expiration_date,
-    status (list), name_servers (list), org, name, country, domain_name, updated_date.
+    Быстрый парсер ответа whois.tcinet.ru (ru/su/рф).
     """
     out: dict = {}
     if not text:
@@ -303,13 +319,11 @@ def _parse_ru_whois_text(text: str) -> dict:
         if not line:
             continue
 
-        # Пример: "last updated on 2025-10-16T19:13:01Z"
         m = _re.match(r"last updated on\s+(\S+)", line, _re.I)
         if m:
             out["updated_date"] = m.group(1)
             continue
 
-        # Пример: "created: 1999-07-12T14:40:22Z" / "paid-till: 2026-07-31T21:00:00Z"
         m = _re.match(r"([a-z\-]+):\s*(.+)$", line, _re.I)
         if not m:
             continue
@@ -327,10 +341,8 @@ def _parse_ru_whois_text(text: str) -> dict:
         elif key == "free-date":
             out["free_date"] = val
         elif key == "state":
-            # "REGISTERED, DELEGATED, VERIFIED"
             out["status"] = [s.strip() for s in _re.split(r"[,\s]+", val) if s.strip()]
         elif key == "nserver":
-            # "ns1.example.ru." берем первый токен и без точки
             host = val.split()[0].rstrip(".")
             out.setdefault("name_servers", []).append(host)
         elif key == "org":
@@ -340,93 +352,131 @@ def _parse_ru_whois_text(text: str) -> dict:
         elif key == "country":
             out["country"] = val
 
-    # для красоты укажем сервер-источник
     if "whois_server" not in out:
         out["whois_server"] = "whois.tcinet.ru"
     return out
 
-# --- Нормализация и спец-WHOIS для RU/SU/РФ -----------------------------------
-def _pick_first(v):
-    if isinstance(v, (list, tuple)):
-        return v[0] if v else None
-    return v
-
-def _to_iso(val):
+# --- WHOIS low-level helpers --------------------------------------------------
+def _whois_call(cmd: List[str], timeout: int) -> str:
+    """
+    Запуск системной утилиты `whois`. Возвращает stdout (может быть пустым).
+    """
     try:
-        if hasattr(val, "isoformat"):
-            return val.isoformat()
-        if isinstance(val, (list, tuple)) and val:
-            v0 = val[0]
-            return v0.isoformat() if hasattr(v0, "isoformat") else str(v0)
-        return str(val) if val is not None else None
+        out = subprocess.run(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=timeout,
+        )
+        return (out.stdout or "").strip()
     except Exception:
-        return str(val) if val is not None else None
+        return ""
 
-def _listify(v):
-    if v is None:
-        return []
-    if isinstance(v, (list, tuple, set)):
-        return [str(x) for x in v if x]
-    return [str(v)]
-
-def _whois_tcinet(domain_ascii: str) -> str:
-    """Вернуть RAW whois-текст от whois.tcinet.ru (порт 43)."""
-    host = "whois.tcinet.ru"
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.settimeout(6)
-    s.connect((host, 43))
-    s.send((domain_ascii + "\r\n").encode("utf-8"))
-    chunks = []
-    while True:
-        b = s.recv(4096)
-        if not b:
-            break
-        chunks.append(b)
-    s.close()
-    return b"".join(chunks).decode("utf-8", "ignore")
-
-def _normalize_whois_dict(d: dict, query: str) -> dict:
-    out = dict(d or {})
-    out["domain_name"] = out.get("domain_name") or out.get("domain") or query
-
-    # списки/строки
-    out["status"] = _listify(out.get("status"))
-    out["name_servers"] = [ns.strip().rstrip(".") for ns in _listify(out.get("name_servers"))]
-
-    # даты -> строки ISO где возможно
-    for k in ("creation_date", "updated_date", "expiration_date"):
-        out[k] = _to_iso(out.get(k))
-
-    # punycode -> юникод для показа
+def _whois_port43(server: str, domain: str, timeout: int = 10) -> str:
+    """
+    Прямой WHOIS по TCP/43 — на случай, когда системная утилита вернула пусто.
+    """
     try:
-        out["domain_unicode"] = idna.decode(out["domain_name"])
+        with socket.create_connection((server, 43), timeout=timeout) as s:
+            s.settimeout(timeout)
+            q = (domain + "\r\n").encode("utf-8", errors="ignore")
+            s.sendall(q)
+            chunks = []
+            while True:
+                buf = s.recv(4096)
+                if not buf:
+                    break
+                chunks.append(buf)
+        text = b"".join(chunks).decode("utf-8", errors="replace")
+        return text.strip()
     except Exception:
-        out["domain_unicode"] = out["domain_name"]
+        return ""
 
-    # флаг «скоро истекает»
-    out["expires_soon"] = False
-    try:
-        ed = out.get("expiration_date") or ""
-        candidates = [
-            ("%Y-%m-%dT%H:%M:%S", ed[:19]),
-            ("%Y-%m-%d %H:%M:%S", ed[:19]),
-            ("%Y-%m-%d", ed[:10]),
-            ("%Y.%m.%d %H:%M:%S", ed[:19]),
-            ("%Y.%m.%d", ed[:10]),
-        ]
-        dt = None
-        for fmt, val in candidates:
-            try:
-                dt = datetime.strptime(val, fmt)
-                break
-            except Exception:
-                continue
-        if dt:
-            out["expires_soon"] = (dt - datetime.utcnow()) <= timedelta(days=30)
-    except Exception:
-        pass
+def _extract_referral(text: str) -> Optional[str]:
+    """
+    Ищем сервер, на который ссылаются: 'refer:' (IANA), 'whois:', 'ReferralServer:'.
+    """
+    for pat in (
+        r"(?im)^\s*refer:\s*([^\s]+)",
+        r"(?im)^\s*whois:\s*([^\s]+)",
+        r"(?im)^\s*ReferralServer:\s*whois://([^\s:/]+)",
+    ):
+        m = re.search(pat, text)
+        if m:
+            return m.group(1).strip()
+    return None
 
-    return out
+# --- «Устойчивый» системный WHOIS --------------------------------------------
+def run_system_whois(domain: str, timeout: int = 10) -> str:
+    """
+    Стойкий WHOIS-запрос:
+      1) ru/su/рф: пробуем whois.tcinet.ru → whois.ripn.net → whois.nic.ru
+         (по 3 попытки; если утилита вернула пусто — дублируем запрос через TCP/43).
+      2) затем обычный 'whois <domain>'
+      3) затем whois.iana.org; если есть referral — идём туда (сначала утилита, затем TCP/43).
+    Возвращаем первый непустой ответ (stripped) либо "".
+    """
+    d = (domain or "").strip().lower().rstrip(".")
+    tld = d.rsplit(".", 1)[-1] if "." in d else d
+
+    # приоритетные сервера для ru/su/рф
+    ru_chain: List[str] = ["whois.tcinet.ru", "whois.ripn.net", "whois.nic.ru"]
+
+    candidates: List[Optional[str]] = []
+    if tld in ("ru", "su", "xn--p1ai"):
+        candidates += ru_chain
+    candidates += [None, "whois.iana.org"]  # None => системный без -h
+
+    def _try_one(server: Optional[str]) -> str:
+        for attempt in range(3):
+            cmd = ["whois"]
+            if server:
+                cmd += ["-h", server]
+            cmd.append(domain)
+            text = _whois_call(cmd, timeout)
+            if text:
+                ref = _extract_referral(text)
+                if ref and ref.lower() != (server or "").lower():
+                    ref_text = _whois_call(["whois", "-h", ref, domain], timeout)
+                    if not ref_text:
+                        ref_text = _whois_port43(ref, domain, timeout)
+                    if ref_text:
+                        return ref_text.strip()
+                return text.strip()
+
+            # утилита вернула пусто — если знаем сервер, попробуем порт-43
+            if server:
+                raw43 = _whois_port43(server, domain, timeout)
+                if raw43:
+                    return raw43.strip()
+
+            time.sleep(0.25)  # маленькая пауза между попытками
+        return ""
+
+    # основной цикл по кандидатам
+    for srv in candidates:
+        txt = _try_one(srv)
+        if txt:
+            return txt
+
+    # финальный fallback: пройти ru-цепочку по порт-43 напрямую
+    if tld in ("ru", "su", "xn--p1ai"):
+        for srv in ru_chain:
+            txt = _whois_port43(srv, domain, timeout)
+            if txt:
+                return txt.strip()
+
+    return ""
+
+# --- Транслитерация для подсказок --------------------------------------------
+RU_MAP = str.maketrans({
+    "а":"a","б":"b","в":"v","г":"g","д":"d","е":"e","ё":"e","ж":"zh","з":"z","и":"i","й":"y",
+    "к":"k","л":"l","м":"m","н":"n","о":"o","п":"p","р":"r","с":"s","т":"t","у":"u","ф":"f",
+    "х":"h","ц":"c","ч":"ch","ш":"sh","щ":"sch","ъ":"","ы":"y","ь":"","э":"e","ю":"yu","я":"ya"
+})
+def _translit_ru(label: str) -> str:
+    return "".join((ch.translate(RU_MAP) if ch in RU_MAP else ch) for ch in label.lower())
 
 # -------------------------------------------------
 # Routes
@@ -460,9 +510,9 @@ def sitemap():
         url_for("dns_lookup", _external=True),
         url_for("whois_lookup", _external=True),
         url_for("geo_lookup", _external=True),
+        url_for("domain_search", _external=True),
         url_for("history_list", _external=True),
     ]
-    # последние 200 из истории
     keys = r.zrevrange(HIST_ZSET, 0, 199)
     hist_urls = []
     for s in keys:
@@ -486,12 +536,10 @@ def index():
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
-    # Page meta
     meta = {
         "title": "DNS Lookup",
         "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
     }
-
     query = (request.args.get("q") or "").strip()
     if not query:
         return render_template("dns.html", meta=meta, result=None, records={}, error=None, query="", permalink=None)
@@ -520,11 +568,21 @@ def dns_lookup():
 
 # ---------- Domains ----------
 def _normalize_label(label: str) -> str:
-    label = (label or "").strip().lower()
-    label = re.sub(r"[^a-z0-9-]+", "-", label)
+    """
+    Нормализация метки:
+    - разрешаем Unicode (IDN),
+    - пробелы/подчёркивания -> дефис,
+    - оставляем только буквы/цифры/дефис,
+    - длина <= 63.
+    """
+    label = (label or "").strip()
+    label = re.sub(r"[\s_]+", "-", label)
+    label = "".join(ch for ch in label if ch.isalnum() or ch == "-")
     label = re.sub(r"-{2,}", "-", label).strip("-")
     if not label:
         raise ValueError(_("Введите корректное имя"))
+    if len(label) > 63:
+        label = label[:63].rstrip("-")
     return label
 
 def _is_available_via_dns(fqdn: str) -> bool:
@@ -557,37 +615,60 @@ def _is_available_via_whois(fqdn: str) -> bool:
         return any(p in msg for p in patterns)
 
 def _check_candidates(label: str, tlds) -> list[dict]:
+    """
+    Подбор имён <label>.<tld>.
+    Для кириллических меток показываем только зоны из IDN_READY_TLDS.
+    Проверяем доступность через DNS/WHOIS. Везде используем punycode.
+    """
     out = []
+    is_idn_label = not label.isascii()
+
     for t in tlds:
         t = t.strip().lstrip(".")
         if not t:
             continue
-        fqdn = f"{label}.{t}"
-        puny = idna.encode(fqdn).decode()
+        if is_idn_label and t not in IDN_READY_TLDS:
+            continue
+
+        fqdn_unicode = f"{label}.{t}"
         try:
+            puny = idna.encode(fqdn_unicode, uts46=True).decode("ascii")
             avail_dns = _is_available_via_dns(puny)
             avail = _is_available_via_whois(puny) if avail_dns else False
-            out.append({"fqdn": fqdn, "available": bool(avail), "error": None})
+            out.append({"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None})
         except Exception as e:
-            out.append({"fqdn": fqdn, "available": False, "error": str(e)})
+            out.append({"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"})
     return out
 
 @app.route("/domains", methods=["GET", "POST"])
 def domain_search():
-    query = ""
+    query = (request.args.get("query") or request.args.get("q") or request.form.get("q") or "").strip()
     items = []
     error = None
-    if request.method == "POST" or (request.method == "GET" and request.args.get("query")):
-        query = (request.form.get("q") or "").strip()
+    suggestions = []
+
+    if query:
         try:
             if "." in query:
                 query = query.split(".")[0]
             label = _normalize_label(query)
+            if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                suggestions = sorted(set([
+                    _translit_ru(label),
+                    _translit_ru(label).replace("sch", "sh").replace("ya", "a"),
+                ]))
             items = _check_candidates(label, app.config.get("TLD_LIST", []))
         except Exception as e:
             error = str(e)
-    return render_template("domains.html", q=query, items=items,
-                           error=error, buy_base=app.config.get("AFFILIATE_BUY_BASE"))
+
+    return render_template(
+        "domains.html",
+        q=query,
+        items=items,
+        error=error,
+        suggestions=suggestions,
+        buy_base=app.config.get("AFFILIATE_BUY_BASE"),
+    )
 
 # ---------- WHOIS ----------
 @app.route("/whois", methods=["GET", "POST"])
@@ -597,20 +678,19 @@ def whois_lookup():
     query = None
     permalink = None
 
-    # работаем и с GET (?query=) и с POST (форма)
     if request.method == "POST" or (request.method == "GET" and request.args.get("query")):
-        query = (request.form.get("query") or request.args.get("query") or "").strip()
-        query, err = _normalize_domain_query(query)
+        raw = (request.form.get("query") or request.args.get("query") or "").strip()
+        query, err = _normalize_domain_query(raw)
         if err:
             error = err
-            return render_template("whois.html", result=None, error=error, query=(query or ""), permalink=None)
+            return render_template("whois.html", result=None, error=error, query=(query or raw), permalink=None)
 
         try:
-            # IP или домен?
+            # IP?
             try:
-                socket.inet_aton(query)
+                ipaddress.ip_address(query)
                 is_ip = True
-            except OSError:
+            except ValueError:
                 is_ip = False
 
             if is_ip:
@@ -623,41 +703,53 @@ def whois_lookup():
                     "network": lookup.get("network", {}),
                 }
             else:
+                # ДОМЕН
                 validate_domain(query)
-                tld = query.rsplit(".", 1)[-1].lower()
 
-                # Спец: .ru / .su / .рф
-                if tld in {"ru", "su", "xn--p1ai"}:
-                    raw_text = _whois_tcinet(query)
-                    parsed = _parse_ru_whois_text(raw_text)
-                    parsed["text"] = raw_text
-                    data = _normalize_whois_dict(parsed, query)
+                def _compute_whois():
+                    base: Dict[str, object] = {}
+                    whois_ok = False
+                    whois_err: Optional[str] = None
+                    # 1) python-whois
+                    try:
+                        w = whois.whois(query)
+                        base = {
+                            k: (", ".join(v) if isinstance(v, (list, tuple)) else str(v))
+                            for k, v in w.__dict__.items()
+                            if not k.startswith("_")
+                        }
+                        whois_ok = True
+                    except Exception as e:
+                        whois_err = str(e)
 
-                else:
-                    # 1) пробуем python-whois
-                    w = whois.whois(query)
-                    raw_dict = {k: v for k, v in w.__dict__.items() if not k.startswith("_")}
-                    text_from_lib = (raw_dict.get("text") or raw_dict.get("raw") or "") if isinstance(raw_dict.get("text") or "", str) else ""
-                    normalized = _normalize_whois_dict(raw_dict, query)
+                    # 2) устойчивый системный whois
+                    if not whois_ok:
+                        text = run_system_whois(query, timeout=12)
+                        if not text:
+                            raise RuntimeError(whois_err or "whois failed without output")
 
-                    # 2) если не хватает ключевых полей — добираем системным whois + парсером текста
-                    important = any(normalized.get(k) for k in ("registrar", "creation_date", "expiration_date", "status", "name_servers"))
-                    if not important:
-                        sys_text = run_system_whois(query)
-                        # если у либы был сырой текст — допишем; иначе возьмём из системного
-                        normalized["text"] = text_from_lib or sys_text or ""
-                        # парсинг генерализованный
-                        parsed_txt = parse_whois_text(query, normalized["text"])
-                        # объединяем, чтобы не потерять возможные даты из python-whois
-                        for k, v in parsed_txt.items():
-                            if k not in normalized or not normalized[k]:
-                                normalized[k] = v
-                        normalized = _normalize_whois_dict(normalized, query)
-                    else:
-                        # просто убедимся, что text присутствует для блока «Показать полный WHOIS»
-                        normalized["text"] = text_from_lib or normalized.get("text") or ""
+                        parsed = _parse_ru_whois_text(text) or parse_whois_text(query, text)
+                        base = parsed
+                        base.setdefault("text", text)
 
-                    data = normalized
+                    # если в base только raw-текст без ключевых полей — ещё раз попробуем парсить
+                    maybe_text = str(base.get("text") or base.get("raw") or "")
+                    important = any(base.get(k) for k in ("registrar", "creation_date", "expiration_date", "status", "name_servers"))
+                    if maybe_text and not important:
+                        parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(query, maybe_text)
+                        base.update(parsed)
+
+                    # домен для отображения
+                    base.setdefault("domain_name", query)
+                    du = _to_unicode(query)
+                    if du and du != query:
+                        base["domain_unicode"] = du
+                    return base
+
+                # кэшируем whois на короткое время, чтобы не упереться в лимиты
+                cache_key = f"cache:whois:{query}"
+                ttl = 300  # 5 минут
+                data = cache_json(cache_key, ttl, _compute_whois)
 
             hid = save_history("whois", query, data)
             permalink = url_for("history_view", kind="whois", hid=hid, _external=True)
@@ -665,10 +757,9 @@ def whois_lookup():
         except ValueError as ve:
             error = str(ve)
         except Exception:
-            app.logger.exception("WHOIS error")
+            app.logger.exception("WHOIS error for %s", query)
             error = _("Unexpected error during WHOIS lookup.")
 
-    # форма у нас отправляет GET — это важно, чтобы работа совпадала со стилем DNS
     return render_template("whois.html", result=data, error=error, query=query, permalink=permalink)
 
 # ---------- GEO ----------
@@ -693,28 +784,27 @@ def geo_lookup():
             except ValueError:
                 ip = socket.gethostbyname(query)
 
-            app.logger.info(f"Geo lookup for: {ip}")
-            lookup = IPWhois(ip).lookup_rdap()
-            asn = lookup.get("asn_description") or "N/A"
-            country_code = lookup.get("asn_country_code") or "N/A"
+            def _compute_geo():
+                app.logger.info(f"Geo lookup for: {ip}")
+                lookup = IPWhois(ip).lookup_rdap()
+                asn = lookup.get("asn_description") or "N/A"
+                country_code = lookup.get("asn_country_code") or "N/A"
+                country_name = country_code
+                try:
+                    geolocator = Nominatim(user_agent="domaintools-geo")
+                    geo = geolocator.geocode(country_code, timeout=5)
+                    if geo and geo.address:
+                        country_name = geo.address
+                except Exception:
+                    pass
+                return {
+                    "ip": ip,
+                    "asn": asn,
+                    "country_code": country_code,
+                    "country_name": country_name,
+                }
 
-            # человекочитаемое имя страны (best effort)
-            country_name = country_code
-            try:
-                geolocator = Nominatim(user_agent="domaintools-geo")
-                geo = geolocator.geocode(country_code, timeout=5)
-                if geo and geo.address:
-                    country_name = geo.address
-            except Exception:
-                pass
-
-            result = {
-                "ip": ip,
-                "asn": asn,
-                "country_code": country_code,
-                "country_name": country_name,
-            }
-
+            result = cache_json(f"cache:geo:{ip}", 900, _compute_geo)
             hid = save_history("geo", query, result)
             permalink = url_for("history_view", kind="geo", hid=hid, _external=True)
 
@@ -729,7 +819,7 @@ def geo_lookup():
 # ---------- История ----------
 @app.get("/history")
 def history_list():
-    keys = r.zrevrange(HIST_ZSET, 0, 49)  # последние 50
+    keys = r.zrevrange(HIST_ZSET, 0, 49)
     items = []
     for s in keys:
         pair = _split_kind_id(s)
@@ -768,13 +858,52 @@ def history_view(kind: str, hid: str):
         return render_template("geo.html", result=res, error=None, query=q, permalink=permalink)
     abort(404)
 
-# ЧПУ для /whois/<domain>
-@app.route("/whois/<path:domain>", methods=["GET", "POST"])
-def whois_domain_lookup(domain):
-    q = (domain or '').strip().rstrip('.').lower()
-    # На любой метод уводим на базовый /whois с query,
-    # чтобы форма всегда работала и не ловила 405.
-    return redirect(url_for('whois_lookup', query=q), code=302)
+# ---------- Экспорт ----------
+@app.get("/export/<kind>/<hid>.<fmt>")
+def export_result(kind: str, hid: str, fmt: str):
+    if kind not in {"dns", "whois", "geo"}:
+        abort(404)
+    doc = load_history(kind, hid)
+    if not doc:
+        abort(404)
+    result = doc.get("result") or {}
+    fn = f"{kind}-{hid}.{fmt.lower()}"
+
+    if fmt.lower() == "json":
+        return Response(json.dumps(result, ensure_ascii=False, indent=2), mimetype="application/json",
+                        headers={"Content-Disposition": f'attachment; filename="{fn}"'})
+
+    if fmt.lower() == "csv":
+        si = io.StringIO()
+        writer = csv.writer(si)
+        if kind == "whois":
+            fields = ["domain_name","registrar","whois_server","creation_date","updated_date",
+                      "expiration_date","status","name_servers","org","name","country"]
+            writer.writerow(fields)
+            row = []
+            for f in fields:
+                val = result.get(f, "")
+                if isinstance(val, (list, tuple)):
+                    val = ", ".join(val)
+                row.append(val)
+            writer.writerow(row)
+        elif kind == "geo":
+            fields = ["ip","asn","country_code","country_name"]
+            writer.writerow(fields)
+            writer.writerow([result.get(f,"") for f in fields])
+        elif kind == "dns":
+            writer.writerow(["type","values"])
+            recs = result.get("records") or {}
+            for t, vals in recs.items():
+                if isinstance(vals, (list, tuple)):
+                    writer.writerow([t, " | ".join(vals)])
+                else:
+                    writer.writerow([t, str(vals)])
+        data = si.getvalue()
+        return Response(data, mimetype="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{fn}"'})
+
+    abort(404)
 
 # -------------------------------------------------
 # Error handlers
@@ -793,3 +922,9 @@ def server_error(e):
 # -------------------------------------------------
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=True)
+
+# ЧПУ для /whois/<domain>
+@app.route("/whois/<path:domain>", methods=["GET", "POST"])
+def whois_domain_lookup(domain):
+    q = (domain or '').strip().rstrip('.').lower()
+    return redirect(url_for('whois_lookup', query=q), code=302)

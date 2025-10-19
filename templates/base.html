@@ -27,7 +27,7 @@
   <script>window.yaContextCb = window.yaContextCb || [];</script>
   <script async src="https://yandex.ru/ads/system/context.js"></script>
 
-  <!-- Раннее применение сохранённой темы, чтобы не мигало -->
+  <!-- Раннее применение сохранённой темы -->
   <script>
   (function () {
     try {
@@ -38,6 +38,39 @@
     } catch (e) {}
   })();
   </script>
+
+  <!-- JSON-LD: Organization + Website + SiteSearch -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    "name": "DomainTools",
+    "url": "https://domaintools.site/",
+    "logo": "{{ url_for('static', filename='og.png', _external=True) }}"
+  }
+  </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    "name": "DomainTools",
+    "url": "https://domaintools.site/",
+    "potentialAction": [{
+      "@type": "SearchAction",
+      "target": "https://domaintools.site/whois?query={query}",
+      "query-input": "required name=query"
+    },{
+      "@type": "SearchAction",
+      "target": "https://domaintools.site/dns?q={q}",
+      "query-input": "required name=q"
+    },{
+      "@type": "SearchAction",
+      "target": "https://domaintools.site/domains?query={query}",
+      "query-input": "required name=query"
+    }]
+  }
+  </script>
+  {% block jsonld_extra %}{% endblock %}
 </head>
 
 <body class="bg-light">
@@ -90,32 +123,16 @@
 {% block before_footer %}{% include "_ad_rsy.html" %}{% endblock %}
 {% include "_footer.html" %}
 
-<!-- Единый обработчик переключения темы -->
+<!-- Переключатель темы -->
 <script>
 (function () {
   const root = document.documentElement;
-
-  function setTheme(mode) {
-    root.setAttribute('data-bs-theme', mode);
-    try { localStorage.setItem('theme', mode); } catch (e) {}
-  }
-  function currentTheme() {
-    return root.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
-  }
-
-  // Подстраховка: если head-скрипт не применил тему
-  try {
-    const saved = localStorage.getItem('theme');
-    if (saved === 'dark' || saved === 'light') setTheme(saved);
-  } catch (e) {}
-
+  function setTheme(mode) { root.setAttribute('data-bs-theme', mode); try { localStorage.setItem('theme', mode); } catch (e) {} }
+  function currentTheme() { return root.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light'; }
+  try { const saved = localStorage.getItem('theme'); if (saved === 'dark' || saved === 'light') setTheme(saved); } catch (e) {}
   document.addEventListener('click', function (e) {
-    const t = e.target.closest('[data-theme-toggle]');
-    if (!t) return;
-    e.preventDefault();
-    setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
-
-    // Сворачиваем мобильное меню
+    const t = e.target.closest('[data-theme-toggle]'); if (!t) return;
+    e.preventDefault(); setTheme(currentTheme() === 'dark' ? 'light' : 'dark');
     const nav = document.getElementById('topnav');
     if (nav && nav.classList.contains('show') && window.bootstrap?.Collapse) {
       new bootstrap.Collapse(nav, { toggle: false }).hide();
@@ -124,28 +141,14 @@
 })();
 </script>
 
-<!-- Доп. RTB форматы (как у тебя) -->
-<!-- Yandex.RTB R-A-2086160-4 -->
+<!-- Доп. RTB форматы -->
 <script>
 window.yaContextCb.push(() => {
-  Ya.Context.AdvManager.render({
-    blockId: "R-A-2086160-4",
-    type: "fullscreen",
-    platform: "touch"
-  });
+  Ya.Context.AdvManager.render({ blockId: "R-A-2086160-4", type: "fullscreen", platform: "touch" });
 });
-</script>
-
-<!-- Yandex.RTB R-A-2086160-5 -->
-<script>
 window.yaContextCb.push(() => {
-  Ya.Context.AdvManager.render({
-    blockId: "R-A-2086160-5",
-    type: "floorAd",
-    platform: "touch"
-  });
+  Ya.Context.AdvManager.render({ blockId: "R-A-2086160-5", type: "floorAd", platform: "touch" });
 });
 </script>
-
 </body>
 </html>
