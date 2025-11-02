@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Site Checker — DomainTools{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="card" style="margin:20px auto; max-width:980px;">
+    <div class="card-body">
+      <h1 class="h4" style="text-align:center;margin-bottom:10px;">
+        🔎 Проверка доступности сайта — инструмент от Dr. Slon
+      </h1>
+      <p style="text-align:center;color:#666;margin-bottom:18px;">
+        Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.
+      </p>
+
+      <form method="post" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;">
+        <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com"
+               required style="min-width:260px;max-width:420px;width:100%;padding:10px 12px;border:1px solid #e3eaf2;border-radius:7px;">
+        <button type="submit" class="btn btn-primary">Поиск сайта</button>
+        <a class="btn btn-light" href="{{ url_for('site_checker.site_checker') }}">Очистить</a>
+      </form>
+
+      {% include "site_checker/_content.html" %}
+
+      <script>
+        function copyWpscResult(){
+          var t = document.getElementById('wpsc-result')?.innerText || '';
+          if (!t) return;
+          if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(t).then(function(){ alert('Результат скопирован!'); });
+          } else {
+            alert('Скопируйте вручную:\n\n' + t);
+          }
+        }
+      </script>
+    </div>
+  </div>
+</div>
+{% endblock %}

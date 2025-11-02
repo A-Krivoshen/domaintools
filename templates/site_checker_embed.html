@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block title %}Site Checker — проверка доступности{% endblock %}
+{% block meta_description %}Проверка домена по DNS, HTTP, IP-инфо и наличию в реестре РКН. Онлайн-инструмент от Dr. Slon.{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  {# Нав-табы «квадратики» — как на других страницах #}
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/dns') else 'btn-outline-secondary' }}"
+       href="{{ url_for('dns_lookup') }}">DNS</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/domains') else 'btn-outline-secondary' }}"
+       href="{{ url_for('domain_search') }}">Domains</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/whois') else 'btn-outline-secondary' }}"
+       href="{{ url_for('whois_lookup') }}">WHOIS</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/geo') else 'btn-outline-secondary' }}"
+       href="{{ url_for('geo_lookup') }}">GeoIP</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/site-checker') else 'btn-outline-secondary' }}"
+       href="{{ url_for('site_checker.index') if 'site_checker.index' in current_app.view_functions else '/site-checker' }}">
+      Site Checker
+    </a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/history') else 'btn-outline-secondary' }}"
+       href="{{ url_for('history_list') }}">History</a>
+  </div>
+
+  {# Вставляем уже готовую разметку чекера «как есть» #}
+  <div class="site-checker-wrapper">
+    {{ html|safe }}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,92 @@
+{% if domain %}
+<div id="wpsc-result"
+     style="background:#fafdff;border:2px solid #3396e6;border-radius:13px;padding:18px 18px 14px 18px;
+            max-width:740px;margin:0 auto 10px auto;box-shadow:0 6px 24px rgba(51,150,230,0.10);position:relative;">
+  <button type="button" onclick="copyWpscResult()"
+          style="position:absolute;top:10px;right:12px;background:#fff;border:1.5px solid #d5e6f7;border-radius:8px;
+                 padding:5px 10px;font-size:14px;color:#2271b1;cursor:pointer;">📋 Скопировать</button>
+
+  <div style="display:flex;justify-content:center;align-items:center;margin-bottom:10px;">
+    <span style="background:#eef7ff;color:#1761a0;font-size:18px;font-weight:600;padding:5px 16px;border-radius:8px;
+                 letter-spacing:.2px;box-shadow:0 1px 6px #e7f0fa;border:1.2px solid #c6e3fb;">
+      {{ domain }}
+    </span>
+  </div>
+
+  {# DNS #}
+  <div style="margin-top:2px;">
+    <b>DNS</b>
+    {% if dns_records %}
+      <ul style="margin:6px 0 0 18px;">
+        {% for rtype, values in dns_records.items() %}
+          {% if rtype == 'A' %}
+            <li><span style="color:#17943d;">A:</span>
+              {{ values|join(', ') }}
+            </li>
+          {% elif rtype == 'AAAA' %}
+            <li><span style="color:#1565c0;">AAAA:</span>
+              {{ values|join(', ') }}
+            </li>
+          {% elif rtype == 'MX' %}
+            <li><span style="color:#7a47b7;">MX:</span>
+              {{ values|join(', ') }}
+            </li>
+          {% endif %}
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div style="color:#cc0000;">❌ DNS-записи не найдены.</div>
+    {% endif %}
+  </div>
+
+  {# HTTP #}
+  <div style="margin-top:10px;">
+    <b>HTTP-доступ:</b><br>
+    {% if http.error %}
+      <span style="color:#cc0000;">✖ Ошибка: {{ http.error }}</span>
+    {% else %}
+      {% set code = http.http_code or 0 %}
+      {% if 200 <= code < 400 %}
+        <span style="color:#17943d;">✔ Код: <b>{{ code }}</b></span>
+      {% else %}
+        <span style="color:#cc0000;">✖ Код: <b>{{ code }}</b></span>
+      {% endif %}
+      {% if http.url %}
+        <br>URL: <a href="{{ http.url }}" target="_blank">{{ http.url }}</a>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  {# IP info #}
+  <div style="margin-top:10px;">
+    <b>Информация об IP:</b><br>
+    {% if ip_info.error %}
+      <span style="color:#cc0000;">❌ {{ ip_info.error }}</span>
+    {% else %}
+      ASN: {{ ip_info.asn or '—' }}<br>
+      Страна: {{ ip_info.country or '—' }}<br>
+      Провайдер: {{ ip_info.org or '—' }}<br>
+      Город: {{ ip_info.city or '—' }}
+    {% endif %}
+  </div>
+
+  {# RKN #}
+  <div style="margin-top:10px;">
+    <b>Проверка в реестре РКН:</b><br>
+    {% if rkn_flag is none %}
+      <span style="color:#888;">Не удалось получить список РКН.</span>
+    {% elif rkn_flag %}
+      <span style="color:#cc0000;">⚠️ <b>Домен найден в реестре блокировок.</b></span>
+    {% else %}
+      <span style="color:#17943d;">✅ <b>Домен не найден в реестре.</b></span>
+      <div style="font-size:14px;margin-top:8px;background:#fffbe4;padding:10px 14px;border-radius:8px;
+                  border:1.3px dashed #f1c40f;color:#8a6700;">
+        ⚠️ <b>Важно:</b> данные reestr.rublacklist.net могут обновляться с задержкой.<br>
+        <a href="https://reestr.digital.gov.ru/" target="_blank"
+           style="text-decoration:underline;color:#1761a0;font-weight:600;">Проверь на официальном сайте РКН →</a>
+      </div>
+    {% endif %}
+  </div>
+
+</div>
+{% endif %}

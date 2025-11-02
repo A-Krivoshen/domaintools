@@ -84,42 +84,47 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   }
 }
 
-/* Горизонтальная лента кнопок в моб.меню */
-.nav-scroller {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  white-space: nowrap;
-}
-.nav-scroller .btn {
-  flex: 0 0 auto;
-  border-radius: 999px;
-}
-
-/* (опц.) чуть компактнее общий отступ контейнера меню */
-#topnav .btn { padding-inline: .75rem; }
-
-/* крупнее тач-таргеты */
-.nav-scroller .btn { padding: .45rem .9rem; }
-
 /* липкий навбар */
 .navbar { position: sticky; top: 0; z-index: 1030; }
+
+/* ============================= */
+/*  Mobile navbar look & feel    */
+/* ============================= */
+@media (max-width: 991.98px) { /* < lg */
+  .navbar-collapse {
+    background: #0f172a; /* тёмный фон в мобайле */
+    padding: .75rem 1rem;
+    border-radius: .75rem;
+    border: 1px solid rgba(255,255,255,.08);
+    box-shadow: 0 10px 30px rgba(0,0,0,.35);
+    margin-top: .5rem;
+  }
+  .navbar .nav-link {
+    border-radius: .5rem;
+    padding: .5rem .75rem;
+  }
+}
+.navbar .nav-link:hover,
+.navbar .nav-link:focus,
+.navbar .nav-link.active {
+  background: rgba(255,255,255,.12);
+}
 
 /* ============================= */
 /* Ad widget (Yandex RTB/RSYA)  */
 /* ============================= */
 
 /* контейнер перед футером */
-.before-footer-ad {
-}
+.before-footer-ad { }
 
 /* сам рендер-контейнер виджета */
 .before-footer-ad [id^="yandex_rtb_"] {
   display: flex;
-  justify-content: center;    /* выравниваем по центру */
+  justify-content: center;
   align-items: stretch;
   width: 100%;
-  min-height: 180px;          /* чтобы не дёргалось до загрузки */
-  overflow: hidden;           /* обрезаем всё, что вылезает */
+  min-height: 180px;
+  overflow: hidden;
 }
 
 /* что бы ни вставил Яндекс (div/iframe), не позволяем шире контейнера */
@@ -133,9 +138,11 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   .before-footer-ad { margin: 12px 0 16px; }
   .before-footer-ad [id^="yandex_rtb_"] { min-height: 150px; }
 }
+
 /* запас снизу под липкую рекламу, чтобы не перекрывала виджет */
 body { padding-bottom: 72px; }
 @media (max-width: 576px) { body { padding-bottom: 96px; } }
+
 /* === WHOIS: компактные заголовки таблицы и чипы === */
 .whois-table .w-th { width: 240px; }
 @media (max-width: 576px) {
@@ -155,6 +162,3 @@ body { padding-bottom: 72px; }
   border-color: var(--bs-primary);
   background: rgba(var(--bs-primary-rgb), .10);
 }
-
-/* контейнер под рекомендательный блок (аккуратные отступы) */
-.before-footer-ad { }

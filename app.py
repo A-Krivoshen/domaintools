@@ -14,12 +14,13 @@ from typing import Optional, Dict, List, Tuple
 
 import redis
 import whois
-from whois.exceptions import WhoisError
+from whois.exceptions import WhoisError  # noqa: F401
 import dns.resolver
 import dns.exception
 from ipwhois import IPWhois
 import idna
 import ipaddress
+import requests
 
 from geopy.geocoders import Nominatim
 
@@ -37,6 +38,10 @@ from flask import (
 from flask_babel import Babel, gettext as _, get_locale as babel_get_locale
 from flask_caching import Cache
 from werkzeug.middleware.proxy_fix import ProxyFix
+
+# === Блюпринт Site Checker ====================================
+from flask_site_checker.blueprint import site_checker_bp
+# ===============================================================
 
 # -------------------------------------------------
 # App & config
@@ -66,6 +71,9 @@ app.config.update(
         "ru,su,рф,рус,онлайн,сайт,москва,дети,ком,нет,орг,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
     ).split(","),
 )
+
+# Регистрируем блюпринт (он обслуживает /site-checker)
+app.register_blueprint(site_checker_bp)
 
 # Зоны, в которых разумно показывать кириллические метки (IDN)
 IDN_READY_TLDS = {
@@ -410,17 +418,11 @@ def _extract_referral(text: str) -> Optional[str]:
 # --- «Устойчивый» системный WHOIS --------------------------------------------
 def run_system_whois(domain: str, timeout: int = 10) -> str:
     """
-    Стойкий WHOIS-запрос:
-      1) ru/su/рф: пробуем whois.tcinet.ru → whois.ripn.net → whois.nic.ru
-         (по 3 попытки; если утилита вернула пусто — дублируем запрос через TCP/43).
-      2) затем обычный 'whois <domain>'
-      3) затем whois.iana.org; если есть referral — идём туда (сначала утилита, затем TCP/43).
-    Возвращаем первый непустой ответ (stripped) либо "".
+    Стойкий WHOIS-запрос…
     """
     d = (domain or "").strip().lower().rstrip(".")
     tld = d.rsplit(".", 1)[-1] if "." in d else d
 
-    # приоритетные сервера для ru/su/рф
     ru_chain: List[str] = ["whois.tcinet.ru", "whois.ripn.net", "whois.nic.ru"]
 
     candidates: List[Optional[str]] = []
@@ -445,22 +447,19 @@ def run_system_whois(domain: str, timeout: int = 10) -> str:
                         return ref_text.strip()
                 return text.strip()
 
-            # утилита вернула пусто — если знаем сервер, попробуем порт-43
             if server:
                 raw43 = _whois_port43(server, domain, timeout)
                 if raw43:
                     return raw43.strip()
 
-            time.sleep(0.25)  # маленькая пауза между попытками
+            time.sleep(0.25)
         return ""
 
-    # основной цикл по кандидатам
     for srv in candidates:
         txt = _try_one(srv)
         if txt:
             return txt
 
-    # финальный fallback: пройти ru-цепочку по порт-43 напрямую
     if tld in ("ru", "su", "xn--p1ai"):
         for srv in ru_chain:
             txt = _whois_port43(srv, domain, timeout)
@@ -512,6 +511,8 @@ def sitemap():
         url_for("geo_lookup", _external=True),
         url_for("domain_search", _external=True),
         url_for("history_list", _external=True),
+        # ссылка на маршрут блюпринта
+        url_for("site_checker.site_checker", _external=True),
     ]
     keys = r.zrevrange(HIST_ZSET, 0, 199)
     hist_urls = []
@@ -561,7 +562,7 @@ def dns_lookup():
     for rt in ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]:
         fetch(rt)
 
-    result = {"domain": query, "has_records": bool(records)}
+    result = {"domain": query, "has_records": bool(records), "records": records}
     permalink = url_for("dns_lookup", q=query, _external=False)
 
     return render_template("dns.html", meta=meta, result=result, records=records, error=error, query=query, permalink=permalink)
@@ -569,11 +570,7 @@ def dns_lookup():
 # ---------- Domains ----------
 def _normalize_label(label: str) -> str:
     """
-    Нормализация метки:
-    - разрешаем Unicode (IDN),
-    - пробелы/подчёркивания -> дефис,
-    - оставляем только буквы/цифры/дефис,
-    - длина <= 63.
+    Нормализация метки…
     """
     label = (label or "").strip()
     label = re.sub(r"[\s_]+", "-", label)
@@ -616,9 +613,7 @@ def _is_available_via_whois(fqdn: str) -> bool:
 
 def _check_candidates(label: str, tlds) -> list[dict]:
     """
-    Подбор имён <label>.<tld>.
-    Для кириллических меток показываем только зоны из IDN_READY_TLDS.
-    Проверяем доступность через DNS/WHOIS. Везде используем punycode.
+    Подбор имён <label>.<tld>…
     """
     out = []
     is_idn_label = not label.isascii()
@@ -732,21 +727,18 @@ def whois_lookup():
                         base = parsed
                         base.setdefault("text", text)
 
-                    # если в base только raw-текст без ключевых полей — ещё раз попробуем парсить
                     maybe_text = str(base.get("text") or base.get("raw") or "")
                     important = any(base.get(k) for k in ("registrar", "creation_date", "expiration_date", "status", "name_servers"))
                     if maybe_text and not important:
                         parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(query, maybe_text)
                         base.update(parsed)
 
-                    # домен для отображения
                     base.setdefault("domain_name", query)
                     du = _to_unicode(query)
                     if du and du != query:
                         base["domain_unicode"] = du
                     return base
 
-                # кэшируем whois на короткое время, чтобы не упереться в лимиты
                 cache_key = f"cache:whois:{query}"
                 ttl = 300  # 5 минут
                 data = cache_json(cache_key, ttl, _compute_whois)
@@ -905,6 +897,15 @@ def export_result(kind: str, hid: str, fmt: str):
 
     abort(404)
 
+# ---------- ЧПУ для WHOIS ----------
+@app.route("/whois/<path:domain>", methods=["GET", "POST"])
+def whois_domain_lookup(domain):
+    q = (domain or '').strip().rstrip('.').lower()
+    return redirect(url_for('whois_lookup', query=q), code=302)
+
+# ВНИМАНИЕ: отдельный legacy-роут на /site-checker не нужен,
+# т.к. этот путь обслуживает блюпринт. Так избегаем коллизии правил.
+
 # -------------------------------------------------
 # Error handlers
 # -------------------------------------------------
@@ -922,9 +923,3 @@ def server_error(e):
 # -------------------------------------------------
 if __name__ == "__main__":
     app.run(host="127.0.0.1", port=8000, debug=True)
-
-# ЧПУ для /whois/<domain>
-@app.route("/whois/<path:domain>", methods=["GET", "POST"])
-def whois_domain_lookup(domain):
-    q = (domain or '').strip().rstrip('.').lower()
-    return redirect(url_for('whois_lookup', query=q), code=302)

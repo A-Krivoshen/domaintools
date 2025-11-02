@@ -1,0 +1,55 @@
+{# локальная навигация, как на остальных страницах #}
+<div class="d-flex flex-wrap gap-2 mb-4">
+  <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/dns') else 'btn-outline-secondary' }}"
+     href="{{ url_for('dns_lookup') }}">DNS</a>
+
+  <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/domains') else 'btn-outline-secondary' }}"
+     href="{{ url_for('domain_search') }}">Domains</a>
+
+  <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/whois') else 'btn-outline-secondary' }}"
+     href="{{ url_for('whois_lookup') }}">WHOIS</a>
+
+  <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/geo') else 'btn-outline-secondary' }}"
+     href="{{ url_for('geo_lookup') }}">GeoIP</a>
+
+  <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/site-checker') else 'btn-outline-secondary' }}"
+     href="{{ url_for('site_checker.site_checker') }}">Site Checker</a>
+
+  <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/history') else 'btn-outline-secondary' }}"
+     href="{{ url_for('history_list') }}">History</a>
+</div>
+
+{% extends "base.html" %}
+
+{% block title %}Site Checker — проверка доступности{% endblock %}
+{% block meta_description %}Проверка домена по DNS, HTTP, IP-информации и наличию в реестре РКН. Онлайн-инструмент от Dr. Slon.{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+
+  <!-- Вкладки навигации в едином стиле -->
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/dns') else 'btn-outline-secondary' }}"
+       href="{{ url_for('dns_lookup') }}">DNS</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/domains') else 'btn-outline-secondary' }}"
+       href="{{ url_for('domain_search') }}">Domains</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/whois') else 'btn-outline-secondary' }}"
+       href="{{ url_for('whois_lookup') }}">WHOIS</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/geo') else 'btn-outline-secondary' }}"
+       href="{{ url_for('geo_lookup') }}">GeoIP</a>
+
+    <!-- endpoint: blueprint "site_checker", view "site_checker" -->
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/site-checker') else 'btn-outline-secondary' }}"
+       href="{{ url_for('site_checker.site_checker') }}">Site Checker</a>
+
+    <a class="btn btn-sm {{ 'btn-primary' if request.path.startswith('/history') else 'btn-outline-secondary' }}"
+       href="{{ url_for('history_list') }}">History</a>
+  </div>
+
+  <!-- Подключаем твой прежний шаблон без изменений -->
+  {% include "site_checker/_content.html" %}
+</div>
+{% endblock %}
