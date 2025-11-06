@@ -1,24 +1,39 @@
 {% extends 'base.html' %}
-{% block title %}History{% endblock %}
+
+{% block title %}History — DomainTools{% endblock %}
+
 {% block content %}
-<div class="card card-soft p-4">
-  <h5 class="mb-3">Последние запросы</h5>
-  {% if items and items|length %}
+<div class="container my-4">
+  <h1 class="h3 mb-3">Последние запросы</h1>
+
+  {% if items %}
     <div class="list-group">
       {% for it in items %}
-      <a class="list-group-item list-group-item-action" href="{{ it.url }}">
-        <div class="d-flex w-100 justify-content-between">
-          <div class="result-header">
-            <span class="badge text-bg-secondary badge-pill">{{ it.kind|upper }}</span>
-            <strong>{{ it.query }}</strong>
+        <div class="list-group-item position-relative">
+          <div class="d-flex justify-content-between align-items-center">
+            <div class="flex-grow-1 me-3">
+              <span class="badge text-bg-secondary me-2">{{ it.kind|upper }}</span>
+              <span class="fw-semibold">{{ it.query or '—' }}</span>
+            </div>
+            {% if it.ts %}
+              <small class="text-muted">{{ it.ts|dt }}</small>
+            {% endif %}
           </div>
-          <small class="text-muted">{{ it.ts }}</small>
+
+          {# кликабелен весь элемент: ведёт на сохранённый результат #}
+          <a href="{{ it.view_url }}" class="stretched-link" aria-label="Открыть сохранённый результат"></a>
+
+          <div class="mt-2">
+            {% if it.repeat_url %}
+              <a class="btn btn-sm btn-outline-primary me-2" href="{{ it.repeat_url }}">Повторить</a>
+            {% endif %}
+            <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">Сохранённый результат</a>
+          </div>
         </div>
-      </a>
       {% endfor %}
     </div>
   {% else %}
-    <p class="text-muted m-0">Пока пусто — сделайте первый запрос.</p>
+    <p class="text-muted">История пуста.</p>
   {% endif %}
 </div>
 {% endblock %}
