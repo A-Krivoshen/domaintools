@@ -19,7 +19,21 @@
         <a class="btn btn-light" href="{{ url_for('site_checker.site_checker') }}">Очистить</a>
       </form>
 
+      {% if error %}
+      <div class="alert alert-warning" role="alert" style="max-width:740px;margin:0 auto 14px auto;">
+        {{ error }}
+      </div>
+      {% endif %}
+
+      {% if not error %}
       {% include "site_checker/_content.html" %}
+
+      {% if result %}
+      {% set data = result %}
+      {% set title = 'Показать Site Checker в табличном виде (максимум полей)' %}
+      {% include "_json_table.html" %}
+      {% endif %}
+      {% endif %}
 
       <script>
         function copyWpscResult(){
