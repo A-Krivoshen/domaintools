@@ -110,38 +110,87 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   background: rgba(255,255,255,.12);
 }
 
+.theme-toggle-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-bs-theme="dark"] .theme-toggle-btn {
+  border-color: rgba(255,255,255,.45);
+}
+
+[data-bs-theme="dark"] body {
+  color: #e7ecf4;
+}
+
+[data-bs-theme="dark"] .card-soft,
+[data-bs-theme="dark"] .feature-card,
+[data-bs-theme="dark"] .list-group-item,
+[data-bs-theme="dark"] .table,
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .input-group-text {
+  background-color: #1b2330;
+  border-color: #2a3444;
+  color: #e7ecf4;
+}
+
+[data-bs-theme="dark"] .text-muted,
+[data-bs-theme="dark"] .muted,
+[data-bs-theme="dark"] .card-text {
+  color: #b6c2d3 !important;
+}
+
+[data-bs-theme="dark"] .navbar {
+  background: #0f1724 !important;
+  border-bottom: 1px solid #253044;
+}
+
+[data-bs-theme="dark"] .navbar .nav-link {
+  color: #c7d3e5;
+}
+
+[data-bs-theme="dark"] .navbar .nav-link.active,
+[data-bs-theme="dark"] .navbar .nav-link:hover,
+[data-bs-theme="dark"] .navbar .nav-link:focus {
+  color: #f4f7ff;
+  background: rgba(72, 135, 255, .25);
+}
+
+[data-bs-theme="dark"] .form-control::placeholder {
+  color: #9ca9bc;
+}
+
+[data-bs-theme="dark"] footer {
+  border-top-color: #2a3444 !important;
+}
+
 /* ============================= */
-/* Ad widget (Yandex RTB/RSYA)  */
+/* Before-footer referral banner */
 /* ============================= */
 
-/* контейнер перед футером */
-.before-footer-ad { }
-
-/* сам рендер-контейнер виджета */
-.before-footer-ad [id^="yandex_rtb_"] {
+.before-footer-ad {
   display: flex;
   justify-content: center;
-  align-items: stretch;
   width: 100%;
-  min-height: 180px;
-  overflow: hidden;
 }
 
-/* что бы ни вставил Яндекс (div/iframe), не позволяем шире контейнера */
-.before-footer-ad [id^="yandex_rtb_"] > *,
-.before-footer-ad [id^="yandex_rtb_"] iframe {
-  max-width: 100% !important;
+.ref-banner-link {
+  display: flex;
+  justify-content: center;
+  width: min(100%, 728px);
+  margin-inline: auto;
 }
 
-/* мобильные мелочи */
-@media (max-width: 576px) {
-  .before-footer-ad { margin: 12px 0 16px; }
-  .before-footer-ad [id^="yandex_rtb_"] { min-height: 150px; }
+.ref-banner-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: .5rem;
+  margin-inline: auto;
 }
-
-/* запас снизу под липкую рекламу, чтобы не перекрывала виджет */
-body { padding-bottom: 72px; }
-@media (max-width: 576px) { body { padding-bottom: 96px; } }
 
 /* === WHOIS: компактные заголовки таблицы и чипы === */
 .whois-table .w-th { width: 240px; }
