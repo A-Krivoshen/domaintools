@@ -103,6 +103,10 @@
       </div>
     </div>
 
+    {% set data = result %}
+    {% set title = 'Показать Reverse-результат в табличном виде (максимум полей)' %}
+    {% include "_json_table.html" %}
+
   {% else %}
     {% include "_cards_under_tools.html" %}
   {% endif %}

@@ -147,6 +147,16 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   background: rgba(var(--bs-primary-rgb), .06);
 }
 
+/* Табличное представление JSON/сложных структур */
+.json-table code {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.json-table__value {
+  max-width: 0;
+}
+
 /* Уважать «меньше анимаций» в системе */
 @media (prefers-reduced-motion: reduce) {
   .feature-card,
