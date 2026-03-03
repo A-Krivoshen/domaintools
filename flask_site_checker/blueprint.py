@@ -2,6 +2,7 @@ from flask import Blueprint, request, render_template, Response, current_app
 from .services import resolve_dns, http_check, ip_info_for_domain, rkn_domain_list, is_in_rkn
 import time
 import html as _html
+import re
 
 # Шаблоны лежат в пакете flask_site_checker/templates
 site_checker_bp = Blueprint("site_checker", __name__, template_folder="templates")
@@ -9,6 +10,20 @@ site_checker_bp = Blueprint("site_checker", __name__, template_folder="templates
 # --- простецкий кэш для РКН ---------------------------------
 _RKN_CACHE = {"data": None, "data_set": None, "ts": 0}
 _RKN_TTL = 3 * 3600  # 3 часа
+
+_DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", re.IGNORECASE)
+
+
+def _is_valid_domain(raw: str) -> bool:
+    d = (raw or "").strip().rstrip(".")
+    if not d:
+        return False
+    try:
+        # Приводим IDN к ASCII для корректной проверки меток
+        d = d.encode("idna").decode("ascii")
+    except Exception:
+        return False
+    return bool(_DOMAIN_RE.match(d))
 
 def _get_rkn_cached():
     now = time.time()
@@ -181,12 +196,17 @@ function copyWpscResult() {
 def site_checker():
     domain = (request.form.get("domain") or request.args.get("domain") or "").strip()
 
+    error = None
+    is_invalid = bool(domain) and not _is_valid_domain(domain)
+    if is_invalid:
+        error = "Проверьте корректность домена. Пример: example.com"
+
     # вычисления
-    dns_list = resolve_dns(domain) if domain else []
+    dns_list = resolve_dns(domain) if (domain and not is_invalid) else []
     dns_map = _group_dns(dns_list)
-    http_res = http_check(domain) if domain else {"http_code": 0, "url": None, "error": None}
-    ip_info = ip_info_for_domain(domain) if domain else {"ip": None, "org": None, "country": None, "city": None, "error": None}
-    if domain:
+    http_res = http_check(domain) if (domain and not is_invalid) else {"http_code": 0, "url": None, "error": None}
+    ip_info = ip_info_for_domain(domain) if (domain and not is_invalid) else {"ip": None, "org": None, "country": None, "city": None, "error": None}
+    if domain and not is_invalid:
         _get_rkn_cached()
         rkn_flag = is_in_rkn(domain, _RKN_CACHE.get("data_set"))
     else:
@@ -207,7 +227,7 @@ def site_checker():
         "http": http_res,
         "ip_info": ip_info,
         "rkn_flag": rkn_flag,
-        "error": None,
+        "error": error,
     }
 
     # пробуем нормальные шаблоны (с меню); при фейле — inline
