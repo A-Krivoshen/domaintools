@@ -110,6 +110,63 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   background: rgba(255,255,255,.12);
 }
 
+.theme-toggle-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-bs-theme="dark"] .theme-toggle-btn {
+  border-color: rgba(255,255,255,.45);
+}
+
+[data-bs-theme="dark"] body {
+  color: #e7ecf4;
+}
+
+[data-bs-theme="dark"] .card-soft,
+[data-bs-theme="dark"] .feature-card,
+[data-bs-theme="dark"] .list-group-item,
+[data-bs-theme="dark"] .table,
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .input-group-text {
+  background-color: #1b2330;
+  border-color: #2a3444;
+  color: #e7ecf4;
+}
+
+[data-bs-theme="dark"] .text-muted,
+[data-bs-theme="dark"] .muted,
+[data-bs-theme="dark"] .card-text {
+  color: #b6c2d3 !important;
+}
+
+[data-bs-theme="dark"] .navbar {
+  background: #0f1724 !important;
+  border-bottom: 1px solid #253044;
+}
+
+[data-bs-theme="dark"] .navbar .nav-link {
+  color: #c7d3e5;
+}
+
+[data-bs-theme="dark"] .navbar .nav-link.active,
+[data-bs-theme="dark"] .navbar .nav-link:hover,
+[data-bs-theme="dark"] .navbar .nav-link:focus {
+  color: #f4f7ff;
+  background: rgba(72, 135, 255, .25);
+}
+
+[data-bs-theme="dark"] .form-control::placeholder {
+  color: #9ca9bc;
+}
+
+[data-bs-theme="dark"] footer {
+  border-top-color: #2a3444 !important;
+}
+
 /* ============================= */
 /* Before-footer referral banner */
 /* ============================= */
@@ -117,10 +174,12 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 .before-footer-ad {
   display: flex;
   justify-content: center;
+  width: 100%;
 }
 
 .ref-banner-link {
-  display: block;
+  display: flex;
+  justify-content: center;
   width: min(100%, 728px);
   margin-inline: auto;
 }
