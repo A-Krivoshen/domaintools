@@ -28,9 +28,20 @@
 
   // ===== Theme toggle (persist in localStorage)
   const root = document.documentElement;
+  function updateThemeToggleIcon() {
+    const btn = document.querySelector('[data-theme-toggle]');
+    if (!btn) return;
+    const isDark = getTheme() === 'dark';
+    const icon = isDark ? 'fa-sun' : 'fa-moon';
+    btn.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
+    btn.setAttribute('aria-label', isDark ? 'Включить светлую тему' : 'Включить тёмную тему');
+    btn.setAttribute('title', isDark ? 'Включить светлую тему' : 'Включить тёмную тему');
+  }
+
   function setTheme(mode) {
     root.setAttribute('data-bs-theme', mode);
     try { localStorage.setItem('theme', mode); } catch (e) {}
+    updateThemeToggleIcon();
   }
   function getTheme() {
     return root.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
@@ -42,6 +53,8 @@
     setTheme(getTheme() === 'dark' ? 'light' : 'dark');
     closeNav(); // свернуть бургер после нажатия на кнопку темы
   });
+
+  updateThemeToggleIcon();
 
   // ===== Collapse helpers: auto-close menu after click
   function closeNav() {
