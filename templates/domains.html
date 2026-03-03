@@ -73,6 +73,10 @@
     </tbody>
   </table>
 </div>
+
+{% set data = {'query': q, 'suggestions': suggestions, 'items': items} %}
+{% set title = 'Показать Domains-результат в табличном виде (максимум полей)' %}
+{% include "_json_table.html" %}
 {% endif %}
 
 {% include "_cards_under_tools.html" %}
