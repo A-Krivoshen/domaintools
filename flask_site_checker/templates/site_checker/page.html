@@ -27,6 +27,14 @@
 
       {% if not error %}
       {% include "site_checker/_content.html" %}
+      {% endif %}
+
+      {% if result %}
+      {% set data = result %}
+      {% set title = 'Показать Site Checker в табличном виде (максимум полей)' %}
+      {% include "_json_table.html" %}
+      {% endif %}
+      {% endif %}
 
       {% if result %}
       {% set data = result %}
