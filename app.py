@@ -317,6 +317,39 @@ def prettyjson_filter(value):
         s = str(value)
     # отдать как «безопасный» текст (ничего не экранируется повторно)
     return Markup(escape(s))
+
+
+def json_rows_filter(value):
+    """Преобразует dict/list в плоский список пар (поле, значение) для табличного вывода."""
+    rows = []
+
+    def walk(node, prefix=""):
+        if isinstance(node, dict):
+            if not node:
+                rows.append((prefix or "—", "{}"))
+                return
+            for k, v in node.items():
+                key = f"{prefix}.{k}" if prefix else str(k)
+                walk(v, key)
+            return
+
+        if isinstance(node, list):
+            if not node:
+                rows.append((prefix or "—", "[]"))
+                return
+            for i, v in enumerate(node):
+                key = f"{prefix}[{i}]" if prefix else f"[{i}]"
+                walk(v, key)
+            return
+
+        if isinstance(node, tuple):
+            walk(list(node), prefix)
+            return
+
+        rows.append((prefix or "value", "" if node is None else str(node)))
+
+    walk(value)
+    return rows
 # --- country_flag для geo.html ---
 def country_flag(cc: str) -> str:
     if not cc or len(cc) != 2 or not cc.isalpha():
@@ -330,6 +363,7 @@ def jinja_more_globals():
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
 app.jinja_env.filters['prettyjson'] = prettyjson_filter
+app.jinja_env.filters['json_rows'] = json_rows_filter
 # --- форматирование времени для истории ---
 @app.template_filter("dt")
 def dt_filter(ts):
