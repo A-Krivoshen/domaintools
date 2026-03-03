@@ -9,6 +9,7 @@ import logging
 import io
 import csv
 import subprocess
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
@@ -22,8 +23,6 @@ from ipwhois import IPWhois
 import idna
 import ipaddress
 import requests
-
-from geopy.geocoders import Nominatim
 
 from flask import (
     Flask,
@@ -71,6 +70,8 @@ app.config.update(
         "TLD_LIST",
         "ru,su,рф,рус,онлайн,сайт,москва,дети,ком,нет,орг,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
     ).split(","),
+    DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "20")),
+    DOMAIN_CHECK_WORKERS=int(os.environ.get("DOMAIN_CHECK_WORKERS", "8")),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -316,6 +317,39 @@ def prettyjson_filter(value):
         s = str(value)
     # отдать как «безопасный» текст (ничего не экранируется повторно)
     return Markup(escape(s))
+
+
+def json_rows_filter(value):
+    """Преобразует dict/list в плоский список пар (поле, значение) для табличного вывода."""
+    rows = []
+
+    def walk(node, prefix=""):
+        if isinstance(node, dict):
+            if not node:
+                rows.append((prefix or "—", "{}"))
+                return
+            for k, v in node.items():
+                key = f"{prefix}.{k}" if prefix else str(k)
+                walk(v, key)
+            return
+
+        if isinstance(node, list):
+            if not node:
+                rows.append((prefix or "—", "[]"))
+                return
+            for i, v in enumerate(node):
+                key = f"{prefix}[{i}]" if prefix else f"[{i}]"
+                walk(v, key)
+            return
+
+        if isinstance(node, tuple):
+            walk(list(node), prefix)
+            return
+
+        rows.append((prefix or "value", "" if node is None else str(node)))
+
+    walk(value)
+    return rows
 # --- country_flag для geo.html ---
 def country_flag(cc: str) -> str:
     if not cc or len(cc) != 2 or not cc.isalpha():
@@ -329,6 +363,7 @@ def jinja_more_globals():
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
 app.jinja_env.filters['prettyjson'] = prettyjson_filter
+app.jinja_env.filters['json_rows'] = json_rows_filter
 # --- форматирование времени для истории ---
 @app.template_filter("dt")
 def dt_filter(ts):
@@ -474,24 +509,40 @@ def _is_available_via_whois(fqdn_ascii: str) -> bool:
         return False
 
 def _check_candidates(label: str, tlds: List[str]) -> List[Dict]:
-    out = []
+    out: List[Dict] = []
     is_idn_label = not label.isascii()
 
+    filtered_tlds: List[str] = []
     for t in tlds:
         t = t.strip().lstrip(".")
         if not t:
             continue
         if is_idn_label and t not in IDN_READY_TLDS:
             continue
+        filtered_tlds.append(t)
 
+    def _check_single_tld(t: str) -> Dict:
         fqdn_unicode = f"{label}.{t}"
         try:
             puny = idna.encode(fqdn_unicode, uts46=True).decode("ascii")
             avail_dns = _is_available_via_dns(puny)
             avail = _is_available_via_whois(puny) if avail_dns else False
-            out.append({"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None})
+            return {"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None}
         except Exception as e:
-            out.append({"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"})
+            return {"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"}
+
+    max_workers = max(1, min(int(app.config.get("DOMAIN_CHECK_WORKERS", 8)), len(filtered_tlds) or 1))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        future_to_index = {
+            pool.submit(_check_single_tld, t): i
+            for i, t in enumerate(filtered_tlds)
+        }
+        ordered_results: List[Optional[Dict]] = [None] * len(filtered_tlds)
+        for fut in as_completed(future_to_index):
+            idx = future_to_index[fut]
+            ordered_results[idx] = fut.result()
+
+    out.extend(item for item in ordered_results if item)
     return out
 
 @app.route("/domains", methods=["GET", "POST"])
@@ -507,11 +558,14 @@ def domain_search():
                 query = query.split(".")[0]
             label = _normalize_label(query)
             if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                translit = _translit_ru(label)
                 suggestions = sorted(set([
-                    _translit_ru(label),
-                    _translit_ru(label).replace("sch", "sh").replace("ya", "a"),
+                    translit,
+                    translit.replace("sch", "sh").replace("ya", "a"),
                 ]))
-            items = _check_candidates(label, app.config.get("TLD_LIST", []))
+            tlds = app.config.get("TLD_LIST", [])
+            max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 20)))
+            items = _check_candidates(label, tlds[:max_tlds])
         except Exception as e:
             error = str(e)
 
@@ -620,7 +674,6 @@ def geo_lookup():
             def _compute_geo():
                 ipw = IPWhois(ip)
                 who = ipw.lookup_rdap()
-                geocoder = Nominatim(user_agent="domaintools.site")
                 country_code = (who.get("asn_country_code") or "").upper()
                 country_name = who.get("network", {}).get("country", "") or country_code
                 return {

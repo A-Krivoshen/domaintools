@@ -53,6 +53,10 @@
     <summary class="muted">Показать сырой JSON</summary>
     <pre class="code mt-2">{{ result | prettyjson }}</pre>
   </details>
+
+  {% set data = result %}
+  {% set title = 'Показать GeoIP в табличном виде (максимум полей)' %}
+  {% include "_json_table.html" %}
   {% endif %}
 
   {% include "_cards_under_tools.html" %}
