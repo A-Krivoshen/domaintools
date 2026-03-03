@@ -7,16 +7,19 @@ import html as _html
 site_checker_bp = Blueprint("site_checker", __name__, template_folder="templates")
 
 # --- простецкий кэш для РКН ---------------------------------
-_RKN_CACHE = {"data": None, "ts": 0}
+_RKN_CACHE = {"data": None, "data_set": None, "ts": 0}
 _RKN_TTL = 3 * 3600  # 3 часа
 
 def _get_rkn_cached():
     now = time.time()
     if not _RKN_CACHE["data"] or now - _RKN_CACHE["ts"] > _RKN_TTL:
         try:
-            _RKN_CACHE["data"] = rkn_domain_list()
+            data = rkn_domain_list()
+            _RKN_CACHE["data"] = data
+            _RKN_CACHE["data_set"] = {x.lower() for x in data if isinstance(x, str)}
         except Exception:
             _RKN_CACHE["data"] = []
+            _RKN_CACHE["data_set"] = set()
         _RKN_CACHE["ts"] = now
     return _RKN_CACHE["data"]
 
@@ -183,7 +186,11 @@ def site_checker():
     dns_map = _group_dns(dns_list)
     http_res = http_check(domain) if domain else {"http_code": 0, "url": None, "error": None}
     ip_info = ip_info_for_domain(domain) if domain else {"ip": None, "org": None, "country": None, "city": None, "error": None}
-    rkn_flag = is_in_rkn(domain, _get_rkn_cached()) if domain else None
+    if domain:
+        _get_rkn_cached()
+        rkn_flag = is_in_rkn(domain, _RKN_CACHE.get("data_set"))
+    else:
+        rkn_flag = None
 
     # контекст для шаблона (и дубли на верхний уровень)
     result = {
