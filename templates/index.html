@@ -12,6 +12,77 @@
 </p>
 
 </div>
-{% include "_home_cards.html" %}
+
+<!-- info-cards-injected -->
+
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-4">
+  
+        <div class="col">
+          <div class="card card-soft h-100 text-center">
+            <div class="card-body">
+              <div class="mb-3 text-primary"><i class="fa-solid fa-magnifying-glass fa-2x"></i></div>
+              <h5 class="card-title">Проверка доступности доменного имени</h5>
+              <p class="card-text">Проверьте, свободно ли доменное имя для регистрации с помощью нашего инструмента поиска доменов.</p>
+              <a href="{{ url_for('domain_search') }}">Искать домен</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col">
+          <div class="card card-soft h-100 text-center">
+            <div class="card-body">
+              <div class="mb-3 text-primary"><i class="fa-solid fa-address-card fa-2x"></i></div>
+              <h5 class="card-title">Информация о владельце домена (WHOIS)</h5>
+              <p class="card-text">Узнайте владельца, регистратор, даты регистрации и другие данные домена через сервис WHOIS.</p>
+              <a href="{{ url_for('whois_lookup') }}">Перейти в WHOIS</a>
+            </div>
+          </div>
+        </div>
+        
+        <div class="col">
+          <div class="card card-soft h-100 text-center">
+            <div class="card-body">
+              <div class="mb-3 text-primary"><i class="fa-solid fa-calendar-check fa-2x"></i></div>
+              <h5 class="card-title">Узнать срок действия домена</h5>
+              <p class="card-text">Когда истекает регистрация домена и будет ли он доступен — проверьте срок через WHOIS и поиск доменов.</p>
+              <a href="{{ url_for('whois_lookup') }}">Проверить срок</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card card-soft h-100 text-center">
+            <div class="card-body">
+              <div class="mb-3 text-primary"><i class="fa-solid fa-rotate fa-2x"></i></div>
+              <h5 class="card-title">Reverse (rDNS + FCrDNS)</h5>
+              <p class="card-text">Покажем PTR и forward-ответы, проверим корректность FCrDNS.</p>
+              <a href="{{ url_for('reverse_lookup') }}">Перейти в Reverse</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card card-soft h-100 text-center">
+            <div class="card-body">
+              <div class="mb-3 text-primary"><i class="fa-solid fa-shield-halved fa-2x"></i></div>
+              <h5 class="card-title">Site Checker</h5>
+              <p class="card-text">Быстрые проверки доступности и статуса сайта, с кэшированием результатов.</p>
+              <a href="{{ url_for('site_checker.site_checker') }}">Открыть Site Checker</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="col">
+          <div class="card card-soft h-100 text-center">
+            <div class="card-body">
+              <div class="mb-3 text-primary"><i class="fa-solid fa-clock-rotate-left fa-2x"></i></div>
+              <h5 class="card-title">History</h5>
+              <p class="card-text">Сохранённые результаты: быстрый доступ к вашим прошлым проверкам и ссылкам.</p>
+              <a href="{{ url_for('history_list') }}">Открыть историю</a>
+            </div>
+          </div>
+        </div>
+        
+</div>
 
 {% endblock %}
