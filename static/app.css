@@ -249,6 +249,26 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   border-top-color: #2a3444 !important;
 }
 
+[data-bs-theme="dark"] .hero-home {
+  border-color: rgba(72, 135, 255, .35);
+  background:
+    radial-gradient(1000px 280px at 100% -10%, rgba(72, 135, 255, .22), transparent 60%),
+    radial-gradient(700px 220px at 0% 120%, rgba(19, 75, 160, .18), transparent 60%),
+    #172131;
+}
+
+[data-bs-theme="dark"] .hero-pill {
+  border-color: #304056;
+  color: #c7d3e5;
+  background: rgba(72, 135, 255, .08);
+}
+
+[data-bs-theme="dark"] .hero-pill:hover {
+  color: #f4f7ff;
+  border-color: #4f90ff;
+  background: rgba(79, 144, 255, .18);
+}
+
 /* ============================= */
 /* Before-footer referral banner */
 /* ============================= */

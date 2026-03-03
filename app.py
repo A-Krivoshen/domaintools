@@ -435,13 +435,37 @@ def index():
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
+    dns_type_options = [
+        "A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "CAA", "SRV", "PTR", "NAPTR",
+        "TLSA", "SSHFP", "DS", "DNSKEY", "CDS", "CDNSKEY", "SPF", "HTTPS", "SVCB", "LOC",
+        "RP", "HINFO", "CERT", "DNAME", "URI",
+    ]
+    default_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
+
     meta = {
         "title": "DNS Lookup",
         "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
     }
     query = (request.args.get("q") or "").strip()
+    selected_types = [t.strip().upper() for t in request.args.getlist("types") if t and t.strip()]
+    if not selected_types:
+        selected_types = list(default_types)
+    if "ALL" in selected_types:
+        selected_types = list(dns_type_options)
+    selected_types = [t for t in selected_types if t in dns_type_options]
+    if not selected_types:
+        selected_types = list(default_types)
+
     if not query:
-        return render_template("dns.html", meta=meta, result=None, error=None, query="")
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=None,
+            query="",
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
 
     error = None
     try:
@@ -450,7 +474,15 @@ def dns_lookup():
             query = idna.encode(query, uts46=True).decode("ascii")
         validate_domain(query)
     except Exception:
-        return render_template("dns.html", meta=meta, result=None, error=_("Invalid domain name."), query=query)
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=_("Invalid domain name."),
+            query=query,
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
 
     records: Dict[str, List[str]] = {}
     def fetch(rtype: str):
@@ -458,19 +490,59 @@ def dns_lookup():
             answers = dns.resolver.resolve(query, rtype)
             vals = []
             for r in answers:
-                vals.append(str(r).rstrip("."))
+                if rtype == "MX":
+                    vals.append(f"{getattr(r, 'preference', '')} {str(getattr(r, 'exchange', '')).rstrip('.')}".strip())
+                elif rtype == "SOA":
+                    vals.append(
+                        f"{str(getattr(r, 'mname', '')).rstrip('.')} {str(getattr(r, 'rname', '')).rstrip('.')} "
+                        f"{getattr(r, 'serial', '')} {getattr(r, 'refresh', '')} {getattr(r, 'retry', '')} "
+                        f"{getattr(r, 'expire', '')} {getattr(r, 'minimum', '')}"
+                    )
+                elif rtype == "SRV":
+                    vals.append(
+                        f"{getattr(r, 'priority', '')} {getattr(r, 'weight', '')} {getattr(r, 'port', '')} "
+                        f"{str(getattr(r, 'target', '')).rstrip('.')}"
+                    )
+                elif rtype == "CAA":
+                    vals.append(f"{getattr(r, 'flags', '')} {getattr(r, 'tag', '')} {getattr(r, 'value', '')}".strip())
+                elif rtype in {"DS", "CDS"}:
+                    vals.append(
+                        f"{getattr(r, 'key_tag', '')} {getattr(r, 'algorithm', '')} {getattr(r, 'digest_type', '')} {getattr(r, 'digest', '')}"
+                    )
+                elif rtype in {"DNSKEY", "CDNSKEY"}:
+                    vals.append(
+                        f"{getattr(r, 'flags', '')} {getattr(r, 'protocol', '')} {getattr(r, 'algorithm', '')} {getattr(r, 'key', '')}"
+                    )
+                elif rtype == "TXT":
+                    chunks = getattr(r, "strings", None)
+                    if chunks:
+                        vals.append("".join(ch.decode("utf-8", errors="ignore") if isinstance(ch, bytes) else str(ch) for ch in chunks))
+                    else:
+                        vals.append(str(r).rstrip("."))
+                else:
+                    vals.append(str(r).rstrip("."))
             if vals:
                 records[rtype] = vals
         except Exception:
             pass
 
-    for rt in ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]:
+    for rt in selected_types:
         fetch(rt)
 
     result = {"domain": query, "has_records": bool(records), "records": records}
-    permalink = url_for("dns_lookup", q=query, _external=False)
+    permalink = url_for("dns_lookup", q=query, types=selected_types, _external=False)
 
-    return render_template("dns.html", meta=meta, result=result, records=records, error=error, query=query, permalink=permalink)
+    return render_template(
+        "dns.html",
+        meta=meta,
+        result=result,
+        records=records,
+        error=error,
+        query=query,
+        permalink=permalink,
+        selected_types=selected_types,
+        dns_type_options=dns_type_options,
+    )
 
 # ---------- Domains ----------
 def _normalize_label(label: str) -> str:

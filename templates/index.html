@@ -9,7 +9,21 @@
     Сохраняйте результаты в History и открывайте быстрые действия по каждому домену.
   </p>
 
-</div>
+  <div class="hero-home__actions mb-3">
+    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">Искать домен</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('site_checker.site_checker') }}">Открыть Site Checker</a>
+  </div>
+
+  <div class="hero-home__pills">
+    <a class="hero-pill" href="{{ url_for('domain_search') }}">Domains</a>
+    <a class="hero-pill" href="{{ url_for('dns_lookup') }}">DNS</a>
+    <a class="hero-pill" href="{{ url_for('whois_lookup') }}">WHOIS</a>
+    <a class="hero-pill" href="{{ url_for('geo_lookup') }}">GeoIP</a>
+    <a class="hero-pill" href="{{ url_for('reverse_lookup') }}">Reverse</a>
+    <a class="hero-pill" href="{{ url_for('site_checker.site_checker') }}">Site Checker</a>
+    <a class="hero-pill" href="{{ url_for('history_list') }}">History</a>
+  </div>
+</section>
 {% include "_home_cards.html" %}
 
 {% endblock %}
