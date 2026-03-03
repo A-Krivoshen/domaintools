@@ -17,6 +17,78 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 /* DNS values color for both light/dark themes */
 .dns-code{color:var(--bs-primary);}
 
+/* ===== Homepage hero ===== */
+.hero-home {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(var(--bs-primary-rgb), .16);
+  background:
+    radial-gradient(1000px 280px at 100% -10%, rgba(var(--bs-primary-rgb), .16), transparent 60%),
+    radial-gradient(700px 220px at 0% 120%, rgba(13, 110, 253, .10), transparent 60%),
+    var(--bs-body-bg);
+}
+
+.hero-home__badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .3rem .7rem;
+  border-radius: 999px;
+  border: 1px solid rgba(var(--bs-primary-rgb), .28);
+  background: rgba(var(--bs-primary-rgb), .08);
+  color: var(--bs-primary);
+  font-weight: 600;
+  font-size: .82rem;
+  letter-spacing: .02em;
+  margin-bottom: .9rem;
+}
+
+.hero-home__title {
+  font-size: clamp(1.8rem, 3.2vw, 2.35rem);
+  font-weight: 700;
+}
+
+.hero-home__lead {
+  font-size: 1.05rem;
+  color: var(--bs-secondary-color);
+  max-width: 940px;
+}
+
+.hero-home__actions {
+  display: flex;
+  gap: .65rem;
+  flex-wrap: wrap;
+}
+
+.hero-home__pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+}
+
+.hero-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: .32rem .7rem;
+  border-radius: 999px;
+  text-decoration: none;
+  border: 1px solid var(--bs-border-color);
+  color: var(--bs-secondary-color);
+  background: rgba(var(--bs-primary-rgb), .03);
+  transition: all .15s ease;
+}
+
+.hero-pill:hover {
+  color: var(--bs-primary);
+  border-color: var(--bs-primary);
+  background: rgba(var(--bs-primary-rgb), .08);
+}
+
+@media (max-width: 576px) {
+  .hero-home { padding: 1.15rem !important; }
+  .hero-home__lead { font-size: .98rem; }
+  .hero-home__actions .btn { width: 100%; }
+}
+
 
 /* ===== Feature cards for tools ===== */
 .feature-card {
@@ -110,38 +182,107 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   background: rgba(255,255,255,.12);
 }
 
+.theme-toggle-btn {
+  width: 2.25rem;
+  height: 2.25rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+[data-bs-theme="dark"] .theme-toggle-btn {
+  border-color: rgba(255,255,255,.45);
+}
+
+[data-bs-theme="dark"] body {
+  color: #e7ecf4;
+}
+
+[data-bs-theme="dark"] .card-soft,
+[data-bs-theme="dark"] .feature-card,
+[data-bs-theme="dark"] .list-group-item,
+[data-bs-theme="dark"] .table,
+[data-bs-theme="dark"] .form-control,
+[data-bs-theme="dark"] .input-group-text {
+  background-color: #1b2330;
+  border-color: #2a3444;
+  color: #e7ecf4;
+}
+
+[data-bs-theme="dark"] .text-muted,
+[data-bs-theme="dark"] .muted,
+[data-bs-theme="dark"] .card-text {
+  color: #b6c2d3 !important;
+}
+
+[data-bs-theme="dark"] .navbar {
+  background: #0f1724 !important;
+  border-bottom: 1px solid #253044;
+}
+
+[data-bs-theme="dark"] .navbar .nav-link {
+  color: #c7d3e5;
+}
+
+[data-bs-theme="dark"] .navbar .nav-link.active,
+[data-bs-theme="dark"] .navbar .nav-link:hover,
+[data-bs-theme="dark"] .navbar .nav-link:focus {
+  color: #f4f7ff;
+  background: rgba(72, 135, 255, .25);
+}
+
+[data-bs-theme="dark"] .form-control::placeholder {
+  color: #9ca9bc;
+}
+
+[data-bs-theme="dark"] footer {
+  border-top-color: #2a3444 !important;
+}
+
+[data-bs-theme="dark"] .hero-home {
+  border-color: rgba(72, 135, 255, .35);
+  background:
+    radial-gradient(1000px 280px at 100% -10%, rgba(72, 135, 255, .22), transparent 60%),
+    radial-gradient(700px 220px at 0% 120%, rgba(19, 75, 160, .18), transparent 60%),
+    #172131;
+}
+
+[data-bs-theme="dark"] .hero-pill {
+  border-color: #304056;
+  color: #c7d3e5;
+  background: rgba(72, 135, 255, .08);
+}
+
+[data-bs-theme="dark"] .hero-pill:hover {
+  color: #f4f7ff;
+  border-color: #4f90ff;
+  background: rgba(79, 144, 255, .18);
+}
+
 /* ============================= */
-/* Ad widget (Yandex RTB/RSYA)  */
+/* Before-footer referral banner */
 /* ============================= */
 
-/* контейнер перед футером */
-.before-footer-ad { }
-
-/* сам рендер-контейнер виджета */
-.before-footer-ad [id^="yandex_rtb_"] {
+.before-footer-ad {
   display: flex;
   justify-content: center;
-  align-items: stretch;
   width: 100%;
-  min-height: 180px;
-  overflow: hidden;
 }
 
-/* что бы ни вставил Яндекс (div/iframe), не позволяем шире контейнера */
-.before-footer-ad [id^="yandex_rtb_"] > *,
-.before-footer-ad [id^="yandex_rtb_"] iframe {
-  max-width: 100% !important;
+.ref-banner-link {
+  display: flex;
+  justify-content: center;
+  width: min(100%, 728px);
+  margin-inline: auto;
 }
 
-/* мобильные мелочи */
-@media (max-width: 576px) {
-  .before-footer-ad { margin: 12px 0 16px; }
-  .before-footer-ad [id^="yandex_rtb_"] { min-height: 150px; }
+.ref-banner-img {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: .5rem;
+  margin-inline: auto;
 }
-
-/* запас снизу под липкую рекламу, чтобы не перекрывала виджет */
-body { padding-bottom: 72px; }
-@media (max-width: 576px) { body { padding-bottom: 96px; } }
 
 /* === WHOIS: компактные заголовки таблицы и чипы === */
 .whois-table .w-th { width: 240px; }
