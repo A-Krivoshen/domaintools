@@ -24,10 +24,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
 
-  <!-- Yandex Ads bootstrap -->
-  <script>window.yaContextCb = window.yaContextCb || [];</script>
-  <script async src="https://yandex.ru/ads/system/context.js"></script>
-
   <!-- Раннее применение сохранённой темы -->
   <script>
   (function () {
@@ -140,15 +136,5 @@
 
 {% block before_footer %}{% include "_ad_rsy.html" %}{% endblock %}
 {% include "_footer.html" %}
-
-<!-- Доп. RTB форматы -->
-<script>
-window.yaContextCb.push(() => {
-  Ya.Context.AdvManager.render({ blockId: "R-A-2086160-4", type: "fullscreen", platform: "touch" });
-});
-window.yaContextCb.push(() => {
-  Ya.Context.AdvManager.render({ blockId: "R-A-2086160-5", type: "floorAd", platform: "touch" });
-});
-</script>
 </body>
 </html>
