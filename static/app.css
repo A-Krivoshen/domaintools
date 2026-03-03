@@ -111,37 +111,27 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 }
 
 /* ============================= */
-/* Ad widget (Yandex RTB/RSYA)  */
+/* Before-footer referral banner */
 /* ============================= */
 
-/* контейнер перед футером */
-.before-footer-ad { }
-
-/* сам рендер-контейнер виджета */
-.before-footer-ad [id^="yandex_rtb_"] {
+.before-footer-ad {
   display: flex;
   justify-content: center;
-  align-items: stretch;
+}
+
+.ref-banner-link {
+  display: block;
+  width: min(100%, 728px);
+  margin-inline: auto;
+}
+
+.ref-banner-img {
+  display: block;
   width: 100%;
-  min-height: 180px;
-  overflow: hidden;
+  height: auto;
+  border-radius: .5rem;
+  margin-inline: auto;
 }
-
-/* что бы ни вставил Яндекс (div/iframe), не позволяем шире контейнера */
-.before-footer-ad [id^="yandex_rtb_"] > *,
-.before-footer-ad [id^="yandex_rtb_"] iframe {
-  max-width: 100% !important;
-}
-
-/* мобильные мелочи */
-@media (max-width: 576px) {
-  .before-footer-ad { margin: 12px 0 16px; }
-  .before-footer-ad [id^="yandex_rtb_"] { min-height: 150px; }
-}
-
-/* запас снизу под липкую рекламу, чтобы не перекрывала виджет */
-body { padding-bottom: 72px; }
-@media (max-width: 576px) { body { padding-bottom: 96px; } }
 
 /* === WHOIS: компактные заголовки таблицы и чипы === */
 .whois-table .w-th { width: 240px; }

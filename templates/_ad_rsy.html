@@ -1,77 +1,13 @@
 <!-- templates/_ad_rsy.html -->
-<div class="before-footer-ad container my-4">
-  <!-- Контейнер под рекомендательный/RTB блок -->
-  <div id="yandex_rtb_widget" class="w-100" style="min-height:180px;"></div>
-
-  <script>
-    (function () {
-      // Вытаскиваем ID блока из шаблона (env -> inject_common)
-      var blockId  = "{{ yandex_rtb_block_id }}";                       // например: C-A-2086160-2
-      var renderTo = "yandex_rtb_widget";
-
-      // Защита от двойной инициализации
-      if (window.__rsy_widget_inited__) return;
-      window.__rsy_widget_inited__ = true;
-
-      // Универсальный рендер (C-A -> renderWidget, иначе обычный RTB -> render)
-      function doRender() {
-        try {
-          if (!window.Ya || !Ya.Context || !Ya.Context.AdvManager) return;
-
-          // если контейнер удалён — выходим
-          if (!document.getElementById(renderTo)) return;
-
-          if (String(blockId).indexOf("C-A-") === 0 &&
-              typeof Ya.Context.AdvManager.renderWidget === "function") {
-            Ya.Context.AdvManager.renderWidget({ renderTo: renderTo, blockId: blockId });
-          } else if (typeof Ya.Context.AdvManager.render === "function") {
-            Ya.Context.AdvManager.render({ blockId: blockId, renderTo: renderTo, pageNumber: 1 });
-          }
-        } catch (e) { /* тихо */ }
-      }
-
-      // Пытаемся один раз «дожать», если SDK уже был, но ничего не нарисовалось
-      function tryRerenderOnce(delayMs) {
-        setTimeout(function () {
-          try {
-            var host = document.getElementById(renderTo);
-            var hasFrame = host && host.querySelector && host.querySelector("iframe");
-            if (!hasFrame) doRender();
-          } catch (e) {}
-        }, delayMs || 1800);
-      }
-
-      // Ленивая инициализация при появлении блока в зоне видимости
-      function lazyInit() {
-        var el = document.getElementById(renderTo);
-        if (!el) return;
-
-        if ("IntersectionObserver" in window) {
-          var started = false;
-          var io = new IntersectionObserver(function (entries) {
-            if (started) return;
-            if (entries.some(function (e) { return e.isIntersecting; })) {
-              started = true;
-              io.disconnect();
-              window.yaContextCb = window.yaContextCb || [];
-              window.yaContextCb.push(doRender);
-              tryRerenderOnce(2200);
-            }
-          }, { rootMargin: "220px" });
-          io.observe(el);
-        } else {
-          // очень старые браузеры — без ленивки
-          window.yaContextCb = window.yaContextCb || [];
-          window.yaContextCb.push(doRender);
-          tryRerenderOnce(2200);
-        }
-      }
-
-      lazyInit();
-    })();
-  </script>
-
-  <noscript>
-    <div class="text-center text-muted small">Рекомендации недоступны — включите JavaScript.</div>
-  </noscript>
+<div class="before-footer-ad container my-4" aria-label="Реферальный баннер">
+  <a class="ref-banner-link" href="https://beget.com/?id=754742" target="_blank" rel="noopener noreferrer sponsored">
+    <img
+      class="ref-banner-img"
+      src="https://cp.beget.com/promo_data/static/static728x90_13.png"
+      alt="Beget — хостинг и домены"
+      loading="lazy"
+      decoding="async"
+      referrerpolicy="no-referrer"
+    >
+  </a>
 </div>
