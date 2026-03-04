@@ -70,7 +70,7 @@
   {% block jsonld_extra %}{% endblock %}
 </head>
 
-<body class="bg-body-tertiary">
+<body class="bg-body-tertiary d-flex flex-column min-vh-100">
 
 <!-- ===== NAVBAR (единый для десктопа и мобилки через collapse) ===== -->
 <nav class="navbar navbar-dark bg-dark navbar-expand-lg mb-3 sticky-top">
@@ -138,7 +138,7 @@
   </div>
 </nav>
 
-<main class="container">
+<main class="container flex-grow-1">
   {% block content %}{% endblock %}
 </main>
 
