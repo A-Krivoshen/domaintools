@@ -111,22 +111,68 @@ def _locale_by_country_header() -> str | None:
     return None
 
 
+
+# Небольшой in-memory кэш для гео-IP фолбэка (country by IP)
+_IP_COUNTRY_CACHE: Dict[str, Tuple[str, float]] = {}
+
+
+def _country_code_from_remote_ip(timeout_s: float = 0.8) -> str | None:
+    """Пытаемся определить country code по IP клиента, если geo-заголовков нет."""
+    ip = (request.remote_addr or "").strip()
+    if not ip:
+        return None
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+            return None
+    except Exception:
+        return None
+
+    now = time.time()
+    cached = _IP_COUNTRY_CACHE.get(ip)
+    if cached and cached[1] > now:
+        return cached[0]
+
+    # Лёгкий публичный geo endpoint без ключа
+    url = f"http://ip-api.com/json/{ip}?fields=countryCode,status"
+    try:
+        resp = requests.get(url, timeout=timeout_s)
+        data = resp.json() if resp.ok else {}
+        cc = (data.get("countryCode") or "").strip().upper()
+        if data.get("status") == "success" and len(cc) == 2:
+            _IP_COUNTRY_CACHE[ip] = (cc, now + 3600)
+            return cc
+    except Exception:
+        pass
+
+    # Кэшируем неуспех на короткое время, чтобы не спамить внешний сервис
+    _IP_COUNTRY_CACHE[ip] = ("", now + 300)
+    return None
+
+
 def _select_locale():
     # ?lang=ru|en имеет приоритет
     lang = (request.args.get("lang") or "").strip().lower()
     if lang in {"ru", "en"}:
         return lang
-    # затем cookie
+
+    # Явно выбранный ранее язык (cookie)
     c_lang = (request.cookies.get("lang") or "").strip().lower()
     if c_lang in {"ru", "en"}:
         return c_lang
 
-    # Если есть geo-заголовок: RU -> ru, не RU -> en
+    # Geo from edge headers: RU -> ru, any non-RU -> en
     by_country = _locale_by_country_header()
     if by_country:
         return by_country
 
-    # Фолбэк: по Accept-Language
+    # Fallback: best-effort geo by remote IP (useful if proxy headers absent)
+    cc = _country_code_from_remote_ip()
+    if cc:
+        return "ru" if cc == "RU" else "en"
+
+    # Last fallback: browser language
     return request.accept_languages.best_match(["ru", "en"]) or "en"
 
 babel = Babel(app, locale_selector=_select_locale)
