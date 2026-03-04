@@ -24,6 +24,18 @@
     <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required>
     <button class="btn btn-primary">{{ tr('Поиск домена', 'Search domain') }}</button>
   </div>
+
+  <div class="mt-2">
+    <div class="small text-muted mb-2">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      {% for tld in all_tlds %}
+      <label class="btn btn-sm btn-outline-secondary">
+        <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
+        .{{ tld }}
+      </label>
+      {% endfor %}
+    </div>
+  </div>
   {% if suggestions and suggestions|length %}
     <div class="form-text mt-1">
       {{ tr('Варианты транслитерации:', 'Transliteration suggestions:') }}
@@ -74,9 +86,6 @@
   </table>
 </div>
 
-{% set data = {'query': q, 'suggestions': suggestions, 'items': items} %}
-{% set title = tr('Показать Domains-результат в табличном виде (максимум полей)', 'Show Domains result in table view (maximum fields)') %}
-{% include "_json_table.html" %}
 {% endif %}
 
 {% include "_cards_under_tools.html" %}

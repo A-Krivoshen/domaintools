@@ -66,23 +66,28 @@ app.config.update(
         "AFFILIATE_BUY_BASE",
         "https://beget.com/p754742/domains/search/{domain}",
     ),
-    # TLDs (включая IDN и транслит-зоны)
+    # Все зоны для подбора (ориентир: доступно у популярных российских регистраторов)
     TLD_LIST=os.environ.get(
         "TLD_LIST",
-        "ru,su,рф,рус,онлайн,сайт,москва,дети,ком,нет,орг,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
+        "ru,su,рф,рус,москва,дети,tatar,com,net,org,info,biz,name,pro,mobi,tel,asia,me,tv,cc,ws,bz,in,co,io,ai,app,dev,site,online,store,shop,blog,tech,xyz,top,club,space,website,fun,live,digital,group,company,center,solutions,services,agency,media,today,world,email,expert,guru,news,software,cloud,team,systems,network,plus,art,icu,life,wiki,zone,run",
     ).split(","),
-    DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "20")),
+    # Основные зоны (по умолчанию отмечены в форме)
+    DOMAIN_DEFAULT_TLDS=os.environ.get(
+        "DOMAIN_DEFAULT_TLDS",
+        "ru,рф,su,рус,com,net,org,info,pro,site,online,store,app,io,ai,co,me,xyz,shop,blog",
+    ).split(","),
+    DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "80")),
     DOMAIN_CHECK_WORKERS=int(os.environ.get("DOMAIN_CHECK_WORKERS", "8")),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
 app.register_blueprint(site_checker_bp)
 
-# Зоны, в которых разумно показывать кириллические метки (IDN)
+# Зоны, в которых разрешаем IDN-метки (берём из общего списка зон)
 IDN_READY_TLDS = {
-    "рф", "рус", "онлайн", "сайт", "москва", "дети",
-    "ком", "нет", "орг",
-    "com", "net", "org", "info", "pro", "site", "online", "store",
+    t.strip().lstrip(".").lower()
+    for t in app.config.get("TLD_LIST", [])
+    if (t or "").strip()
 }
 
 # Redis
@@ -667,6 +672,16 @@ def domain_search():
     error = None
     suggestions = []
 
+    all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
+    # Убираем дубли, сохраняя порядок
+    all_tlds = list(dict.fromkeys(all_tlds))
+
+    default_tlds_cfg = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
+    default_tlds = [t for t in default_tlds_cfg if t in all_tlds] or all_tlds[:20]
+
+    selected_from_req = [t.strip().lstrip(".") for t in request.values.getlist("zones") if (t or "").strip()]
+    selected_tlds = [t for t in all_tlds if t in set(selected_from_req)] if selected_from_req else default_tlds
+
     if query:
         try:
             if "." in query:
@@ -678,9 +693,13 @@ def domain_search():
                     translit,
                     translit.replace("sch", "sh").replace("ya", "a"),
                 ]))
-            tlds = app.config.get("TLD_LIST", [])
-            max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 20)))
-            items = _check_candidates(label, tlds[:max_tlds])
+
+            tlds_for_check = selected_tlds
+            if not selected_from_req:
+                max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
+                tlds_for_check = selected_tlds[:max_tlds]
+
+            items = _check_candidates(label, tlds_for_check)
         except Exception as e:
             error = str(e)
 
@@ -691,6 +710,8 @@ def domain_search():
         error=error,
         suggestions=suggestions,
         buy_base=app.config.get("AFFILIATE_BUY_BASE"),
+        all_tlds=all_tlds,
+        selected_tlds=selected_tlds,
     )
 
 # ---------- WHOIS ----------
