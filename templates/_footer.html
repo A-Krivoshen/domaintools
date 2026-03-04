@@ -1,13 +1,13 @@
 <footer class="mt-5 border-top py-3 text-muted small">
   <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
-    <span>© {{ current_year }} DomainTools</span>
+    <span>© {{ current_year }} <a class="text-muted" href="https://krivoshein.site" target="_blank" rel="noopener noreferrer">ИП Кривошеин А.С.</a></span>
 <!-- Yandex.Metrika informer -->
 <a href="https://metrika.yandex.ru/stat/?id=85826558&amp;from=informer" target="_blank" rel="nofollow">
     <img src="https://informer.yandex.ru/informer/85826558/2_1_2096F6FF_0076D6FF_1_uniques"
          style="width:80px; height:31px; border:0;"
-         alt="Яндекс.Метрика"
-         title="Яндекс.Метрика: данные за сегодня (уникальные посетители)"
-        class="ym-advanced-informer" data-cid="85826558" data-lang="ru"/>
+         alt="{{ tr('Yandex.Metrika', 'Yandex.Metrika') }}"
+         title="{{ tr('Яндекс.Метрика: данные за сегодня (уникальные посетители)', 'Yandex.Metrika: today data (unique visitors)') }}"
+        class="ym-advanced-informer" data-cid="85826558" data-lang="{{ "en" if get_locale() == "en" else "ru" }}"/>
 </a>
 
     <nav class="nav">
@@ -30,16 +30,5 @@
 </script>
 <noscript><div><img src="https://mc.yandex.ru/watch/85826558" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
 <!-- /Yandex.Metrika counter -->
-
-<!-- Yandex.RTB R-A-2086160-6 -->
-<script>
-window.yaContextCb.push(() => {
-    Ya.Context.AdvManager.render({
-        "blockId": "R-A-2086160-6",
-        "type": "floorAd",
-        "platform": "desktop"
-    })
-})
-</script>
 
 </footer>

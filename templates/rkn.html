@@ -1,14 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}RKN — проверка блокировок{% endblock %}
+{% block title %}{{ tr('RKN — проверка блокировок', 'RKN — blocklist check') }}{% endblock %}
 {% block content %}
 <div class="card shadow-sm">
   <div class="card-body">
     <form method="post" class="row g-2 align-items-center">
       <div class="col-md-8">
-        <input class="form-control" name="query" placeholder="example.com или 1.2.3.4 или https://example.com/page" value="{{ (query or '')|e }}">
+        <input class="form-control" name="query" placeholder="{{ tr('example.com или 1.2.3.4 или https://example.com/page', 'example.com or 1.2.3.4 or https://example.com/page') }}" value="{{ (query or '')|e }}">
       </div>
       <div class="col-md-2">
-        <button class="btn btn-primary w-100">Проверить</button>
+        <button class="btn btn-primary w-100">{{ tr('Проверить', 'Check') }}</button>
       </div>
       <div class="col-md-2 text-md-end">
         {% if permalink %}
@@ -25,9 +25,9 @@
       <hr>
       <div class="d-flex align-items-center gap-3">
         <span class="badge {{ 'text-bg-danger' if result.status == 'blocked' else 'text-bg-success' }}">
-          {{ 'В реестре РКН' if result.status == 'blocked' else 'Не найдено в зеркалах реестра' }}
+          {{ tr('В реестре РКН', 'In RKN registry') if result.status == 'blocked' else tr('Не найдено в зеркалах реестра', 'Not found in mirror registries') }}
         </span>
-        <span class="text-muted small">совпадений: {{ result.count }}</span>
+        <span class="text-muted small">{{ tr('совпадений:', 'matches:') }} {{ result.count }}</span>
       </div>
 
       {% if result.matches %}
@@ -35,9 +35,9 @@
         <table class="table table-sm align-middle">
           <thead class="table-light">
             <tr>
-              <th>Тип</th>
-              <th>Значение</th>
-              <th>Источник</th>
+              <th>{{ tr('Тип', 'Type') }}</th>
+              <th>{{ tr('Значение', 'Value') }}</th>
+              <th>{{ tr('Источник', 'Source') }}</th>
             </tr>
           </thead>
           <tbody>
@@ -45,7 +45,7 @@
             <tr>
               <td><span class="badge text-bg-dark">{{ e.type }}</span></td>
               <td class="font-monospace">{{ e.value }}</td>
-              <td class="small"><a href="{{ e.source }}" target="_blank" rel="nofollow noopener">источник</a></td>
+              <td class="small"><a href="{{ e.source }}" target="_blank" rel="nofollow noopener">{{ tr('источник', 'source') }}</a></td>
             </tr>
             {% endfor %}
           </tbody>
@@ -62,8 +62,8 @@
     <div class="card card-soft h-100 text-center">
       <div class="card-body">
         <div class="mb-3 text-primary"><i class="fa-solid fa-shield-halved fa-2x"></i></div>
-        <h5 class="card-title">Проверка наличия в реестре РКН</h5>
-        <p class="card-text">Узнайте, значится ли домен, URL или IP-адрес в публичных зеркалах реестра запрещённой информации.</p>
+        <h5 class="card-title">{{ tr('Проверка наличия в реестре РКН', 'Check in RKN registry') }}</h5>
+        <p class="card-text">{{ tr('Узнайте, значится ли домен, URL или IP-адрес в публичных зеркалах реестра запрещённой информации.', 'Check whether a domain, URL, or IP address appears in public mirrors of the prohibited information registry.') }}</p>
       </div>
     </div>
   </div>
@@ -71,8 +71,8 @@
     <div class="card card-soft h-100 text-center">
       <div class="card-body">
         <div class="mb-3 text-primary"><i class="fa-solid fa-list-check fa-2x"></i></div>
-        <h5 class="card-title">Подробности находок</h5>
-        <p class="card-text">Для совпадений показываем тип (домен, URL, IP, подсеть) и ссылку на исходный список.</p>
+        <h5 class="card-title">{{ tr('Подробности находок', 'Match details') }}</h5>
+        <p class="card-text">{{ tr('Для совпадений показываем тип (домен, URL, IP, подсеть) и ссылку на исходный список.', 'For matches, we show the type (domain, URL, IP, subnet) and a link to the source list.') }}</p>
       </div>
     </div>
   </div>
@@ -80,8 +80,8 @@
     <div class="card card-soft h-100 text-center">
       <div class="card-body">
         <div class="mb-3 text-primary"><i class="fa-solid fa-rotate fa-2x"></i></div>
-        <h5 class="card-title">Кэширование и актуальность</h5>
-        <p class="card-text">Списки кэшируются на {{ config.get('RKN_CACHE_TTL', 3600) }} сек. Источники можно подменить через переменную окружения <code>RKN_SOURCES</code>.</p>
+        <h5 class="card-title">{{ tr('Кэширование и актуальность', 'Caching and freshness') }}</h5>
+        <p class="card-text">{{ tr('Списки кэшируются на', 'Lists are cached for') }} {{ config.get('RKN_CACHE_TTL', 3600) }} {{ tr('сек. Источники можно подменить через переменную окружения', 'sec. Sources can be overridden via environment variable') }} <code>RKN_SOURCES</code>.</p>
       </div>
     </div>
   </div>
