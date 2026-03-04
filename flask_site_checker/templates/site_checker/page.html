@@ -1,38 +1,49 @@
 {% extends "base.html" %}
-{% block title %}Site Checker — DomainTools{% endblock %}
+{% block title %}{{ tr('Проверка сайта', 'Site Checker') }} — DomainTools{% endblock %}
 
 {% block content %}
-<div class="container">
-  <div class="card" style="margin:20px auto; max-width:980px;">
-    <div class="card-body">
-      <h1 class="h4" style="text-align:center;margin-bottom:10px;">
-        🔎 Проверка доступности сайта — инструмент от Dr. Slon
-      </h1>
-      <p style="text-align:center;color:#666;margin-bottom:18px;">
-        Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.
-      </p>
+<div class="container my-4">
+  <div class="card card-soft p-4 p-md-5 wpsc-hero">
+    <h1 class="h3 mb-2">🔎 {{ tr('Проверка сайта', 'Site Checker') }}</h1>
+    <p class="text-muted mb-3">{{ tr('Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.', 'Check domain by DNS, HTTP, IP information and RKN registry status.') }}</p>
 
-      <form method="post" style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px;">
-        <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com"
-               required style="min-width:260px;max-width:420px;width:100%;padding:10px 12px;border:1px solid #e3eaf2;border-radius:7px;">
-        <button type="submit" class="btn btn-primary">Поиск сайта</button>
-        <a class="btn btn-light" href="{{ url_for('site_checker.site_checker') }}">Очистить</a>
-      </form>
+    <form method="post" class="wpsc-form" autocomplete="off">
+      <div class="input-group input-group-lg">
+        <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com" class="form-control" required>
+        <button type="submit" class="btn btn-primary">{{ tr('Поиск сайта', 'Check site') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Очистить', 'Clear') }}</a>
+      </div>
+    </form>
 
-      {% include "site_checker/_content.html" %}
-
-      <script>
-        function copyWpscResult(){
-          var t = document.getElementById('wpsc-result')?.innerText || '';
-          if (!t) return;
-          if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(t).then(function(){ alert('Результат скопирован!'); });
-          } else {
-            alert('Скопируйте вручную:\n\n' + t);
-          }
-        }
-      </script>
+    {% if error %}
+    <div class="alert alert-warning mt-3 mb-0" role="alert">
+      {{ error }}
     </div>
+    {% endif %}
   </div>
+
+  {% if not error %}
+    {% include "site_checker/_content.html" %}
+
+    {% if result %}
+      {% set data = result %}
+      {% set title = tr('Показать Site Checker в табличном виде (максимум полей)', 'Show Site Checker in table view (maximum fields)') %}
+      {% include "_json_table.html" %}
+    {% endif %}
+  {% endif %}
+
+  {% include "_cards_under_tools.html" %}
 </div>
+
+<script>
+function copyWpscResult(){
+  var t = document.getElementById('wpsc-result')?.innerText || '';
+  if (!t) return;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(t).then(function(){ alert({{ tr('Результат скопирован!', 'Result copied!') | tojson }}); });
+  } else {
+    alert({{ tr('Скопируйте вручную:', 'Copy manually:') | tojson }} + '\\n\\n' + t);
+  }
+}
+</script>
 {% endblock %}
