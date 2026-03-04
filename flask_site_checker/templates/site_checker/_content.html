@@ -3,7 +3,7 @@
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
       <span class="badge text-bg-primary fs-6 px-3 py-2">{{ domain }}</span>
-      <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyWpscResult()">📋 Скопировать</button>
+      <button type="button" class="btn btn-sm btn-outline-primary" onclick="copyWpscResult()">📋 {{ tr('Скопировать', 'Copy') }}</button>
     </div>
 
     <div class="row g-3">
@@ -17,22 +17,22 @@
               {% endfor %}
             </div>
           {% else %}
-            <div class="text-danger">❌ DNS-записи не найдены.</div>
+            <div class="text-danger">❌ {{ tr('DNS-записи не найдены.', 'DNS records not found.') }}</div>
           {% endif %}
         </div>
       </div>
 
       <div class="col-12 col-lg-6">
         <div class="wpsc-section h-100">
-          <h3 class="h6 mb-2">HTTP-доступ</h3>
+          <h3 class="h6 mb-2">{{ tr('HTTP-доступ', 'HTTP access') }}</h3>
           {% if http.error %}
-            <div class="text-danger">✖ Ошибка: {{ http.error }}</div>
+            <div class="text-danger">✖ {{ tr('Ошибка', 'Error') }}: {{ http.error }}</div>
           {% else %}
             {% set code = http.http_code or 0 %}
             {% if 200 <= code < 400 %}
-              <div class="text-success">✔ Код: <b>{{ code }}</b></div>
+              <div class="text-success">✔ {{ tr('Код', 'Code') }}: <b>{{ code }}</b></div>
             {% else %}
-              <div class="text-danger">✖ Код: <b>{{ code }}</b></div>
+              <div class="text-danger">✖ {{ tr('Код', 'Code') }}: <b>{{ code }}</b></div>
             {% endif %}
             {% if http.url %}
               <div class="small mt-1">URL: <a href="{{ http.url }}" target="_blank" rel="noopener noreferrer">{{ http.url }}</a></div>
@@ -43,30 +43,30 @@
 
       <div class="col-12 col-lg-6">
         <div class="wpsc-section h-100">
-          <h3 class="h6 mb-2">Информация об IP</h3>
+          <h3 class="h6 mb-2">{{ tr('Информация об IP', 'IP information') }}</h3>
           {% if ip_info.error %}
             <div class="text-danger">❌ {{ ip_info.error }}</div>
           {% else %}
             <div class="small">ASN: {{ ip_info.asn or '—' }}</div>
-            <div class="small">Страна: {{ ip_info.country or '—' }}</div>
-            <div class="small">Провайдер: {{ ip_info.org or '—' }}</div>
-            <div class="small">Город: {{ ip_info.city or '—' }}</div>
+            <div class="small">{{ tr('Страна', 'Country') }}: {{ ip_info.country or '—' }}</div>
+            <div class="small">{{ tr('Провайдер', 'Provider') }}: {{ ip_info.org or '—' }}</div>
+            <div class="small">{{ tr('Город', 'City') }}: {{ ip_info.city or '—' }}</div>
           {% endif %}
         </div>
       </div>
 
       <div class="col-12 col-lg-6">
         <div class="wpsc-section h-100">
-          <h3 class="h6 mb-2">Проверка в реестре РКН</h3>
+          <h3 class="h6 mb-2">{{ tr('Проверка в реестре РКН', 'RKN registry check') }}</h3>
           {% if rkn_flag is none %}
-            <div class="text-muted">Не удалось получить список РКН.</div>
+            <div class="text-muted">{{ tr('Не удалось получить список РКН.', 'Could not retrieve RKN list.') }}</div>
           {% elif rkn_flag %}
-            <div class="text-danger">⚠️ <b>Домен найден в реестре блокировок.</b></div>
+            <div class="text-danger">⚠️ <b>{{ tr('Домен найден в реестре блокировок.', 'Domain found in blocklist registry.') }}</b></div>
           {% else %}
-            <div class="text-success">✅ <b>Домен не найден в реестре.</b></div>
+            <div class="text-success">✅ <b>{{ tr('Домен не найден в реестре.', 'Domain not found in registry.') }}</b></div>
             <div class="alert alert-warning py-2 px-3 mt-2 mb-0 small">
-              ⚠️ Данные reestr.rublacklist.net могут обновляться с задержкой.
-              <a href="https://reestr.digital.gov.ru/" target="_blank" rel="noopener noreferrer">Проверить на официальном сайте РКН</a>
+              ⚠️ {{ tr('Данные reestr.rublacklist.net могут обновляться с задержкой.', 'Data from reestr.rublacklist.net may be delayed.') }}
+              <a href="https://reestr.digital.gov.ru/" target="_blank" rel="noopener noreferrer">{{ tr('Проверить на официальном сайте РКН', 'Check on the official RKN website') }}</a>
             </div>
           {% endif %}
         </div>

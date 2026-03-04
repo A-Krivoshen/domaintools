@@ -13,10 +13,10 @@
 {% block content %}
 <h1 class="mb-2">{{ tr('Домены', 'Domains') }}</h1>
 <p class="text-muted">
-  Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:
+  {{ tr('Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:', 'Smart domain-name search for your project. We support Cyrillic (IDN) and Russian-language zones:') }}
   <strong>.рф</strong>, <strong>.рус</strong>, <strong>.онлайн</strong>, <strong>.сайт</strong>, <strong>.москва</strong>, <strong>.дети</strong>,
-  а также международные зоны (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> и др.).
-  Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.
+  {{ tr('а также международные зоны', 'as well as international zones') }} (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> {{ tr('и др.', 'and others') }}).
+  {{ tr('Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.', 'For each item, quick actions are available: WHOIS, DNS, GeoIP, and saving result to history.') }}
 </p>
 
 <form method="get" class="mb-3" autocomplete="off">
@@ -75,7 +75,7 @@
 </div>
 
 {% set data = {'query': q, 'suggestions': suggestions, 'items': items} %}
-{% set title = 'Показать Domains-результат в табличном виде (максимум полей)' %}
+{% set title = tr('Показать Domains-результат в табличном виде (максимум полей)', 'Show Domains result in table view (maximum fields)') %}
 {% include "_json_table.html" %}
 {% endif %}
 
