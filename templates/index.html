@@ -3,25 +3,25 @@
 {% block content %}
 <section class="hero-home card-soft p-4 p-md-5 mb-2">
   <div class="hero-home__badge">DomainTools Suite</div>
-  <h1 class="hero-home__title mb-3">Добро пожаловать</h1>
+  <h1 class="hero-home__title mb-3">{{ tr('Добро пожаловать', 'Welcome') }}</h1>
   <p class="hero-home__lead mb-3">
-    Проверка доменов, DNS, WHOIS, GeoIP, Reverse и <strong>Site Checker</strong> — в одном месте.
-    Сохраняйте результаты в History и открывайте быстрые действия по каждому домену.
+    {{ tr('Проверка доменов, DNS, WHOIS, GeoIP, Reverse и', 'Domain checks, DNS, WHOIS, GeoIP, Reverse and') }} <strong>Site Checker</strong>
+    {{ tr('— в одном месте. Сохраняйте результаты в History и открывайте быстрые действия по каждому домену.', 'in one place. Save results to History and open quick actions for each domain.') }}
   </p>
 
   <div class="hero-home__actions mb-3">
-    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">Искать домен</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('site_checker.site_checker') }}">Открыть Site Checker</a>
+    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">{{ tr('Искать домен', 'Search domain') }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Открыть Site Checker', 'Open Site Checker') }}</a>
   </div>
 
   <div class="hero-home__pills">
-    <a class="hero-pill" href="{{ url_for('domain_search') }}">Domains</a>
+    <a class="hero-pill" href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
     <a class="hero-pill" href="{{ url_for('dns_lookup') }}">DNS</a>
     <a class="hero-pill" href="{{ url_for('whois_lookup') }}">WHOIS</a>
     <a class="hero-pill" href="{{ url_for('geo_lookup') }}">GeoIP</a>
     <a class="hero-pill" href="{{ url_for('reverse_lookup') }}">Reverse</a>
     <a class="hero-pill" href="{{ url_for('site_checker.site_checker') }}">Site Checker</a>
-    <a class="hero-pill" href="{{ url_for('history_list') }}">History</a>
+    <a class="hero-pill" href="{{ url_for('history_list') }}">{{ tr('История', 'History') }}</a>
   </div>
 </section>
 {% include "_home_cards.html" %}

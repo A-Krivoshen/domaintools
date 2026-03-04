@@ -1,17 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Site Checker — DomainTools{% endblock %}
+{% block title %}{{ tr('Проверка сайта', 'Site Checker') }} — DomainTools{% endblock %}
 
 {% block content %}
 <div class="container my-4">
   <div class="card card-soft p-4 p-md-5 wpsc-hero">
-    <h1 class="h3 mb-2">🔎 Site Checker</h1>
-    <p class="text-muted mb-3">Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.</p>
+    <h1 class="h3 mb-2">🔎 {{ tr('Проверка сайта', 'Site Checker') }}</h1>
+    <p class="text-muted mb-3">{{ tr('Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.', 'Check domain by DNS, HTTP, IP information and RKN registry status.') }}</p>
 
     <form method="post" class="wpsc-form" autocomplete="off">
       <div class="input-group input-group-lg">
         <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com" class="form-control" required>
-        <button type="submit" class="btn btn-primary">Поиск сайта</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">Очистить</a>
+        <button type="submit" class="btn btn-primary">{{ tr('Поиск сайта', 'Check site') }}</button>
+        <a class="btn btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Очистить', 'Clear') }}</a>
       </div>
     </form>
 
@@ -27,7 +27,7 @@
 
     {% if result %}
       {% set data = result %}
-      {% set title = 'Показать Site Checker в табличном виде (максимум полей)' %}
+      {% set title = tr('Показать Site Checker в табличном виде (максимум полей)', 'Show Site Checker in table view (maximum fields)') %}
       {% include "_json_table.html" %}
     {% endif %}
   {% endif %}
@@ -40,9 +40,9 @@ function copyWpscResult(){
   var t = document.getElementById('wpsc-result')?.innerText || '';
   if (!t) return;
   if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(t).then(function(){ alert('Результат скопирован!'); });
+    navigator.clipboard.writeText(t).then(function(){ alert({{ tr('Результат скопирован!', 'Result copied!') | tojson }}); });
   } else {
-    alert('Скопируйте вручную:\n\n' + t);
+    alert({{ tr('Скопируйте вручную:', 'Copy manually:') | tojson }} + '\\n\\n' + t);
   }
 }
 </script>

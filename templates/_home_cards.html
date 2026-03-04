@@ -3,9 +3,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Проверка доступности доменного имени</h2>
-        <p class="text-muted mb-2">Проверьте, свободно ли доменное имя для регистрации с помощью нашего инструмента поиска доменов.</p>
-        <a class="stretched-link" href="{{ url_for('domain_search') }}">Искать домен</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Проверка доступности доменного имени', 'Domain availability check') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Проверьте, свободно ли доменное имя для регистрации с помощью нашего инструмента поиска доменов.', 'Check if a domain name is available for registration with our domain search tool.') }}</p>
+        <a class="stretched-link" href="{{ url_for('domain_search') }}">{{ tr('Искать домен', 'Search domain') }}</a>
       </div>
     </div>
   </div>
@@ -14,9 +14,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-address-card" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Информация о владельце домена (WHOIS)</h2>
-        <p class="text-muted mb-2">Узнайте владельца, регистратор, даты регистрации и другие данные домена через сервис WHOIS.</p>
-        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">Перейти в WHOIS</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Информация о владельце домена (WHOIS)', 'Domain owner info (WHOIS)') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Узнайте владельца, регистратор, даты регистрации и другие данные домена через сервис WHOIS.', 'Find domain owner, registrar, registration dates, and other details via WHOIS.') }}</p>
+        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">{{ tr('Перейти в WHOIS', 'Go to WHOIS') }}</a>
       </div>
     </div>
   </div>
@@ -25,9 +25,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Узнать срок действия домена</h2>
-        <p class="text-muted mb-2">Когда истекает регистрация домена и будет ли он доступен — проверьте срок через WHOIS и поиск доменов.</p>
-        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">Проверить срок</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Узнать срок действия домена', 'Check domain expiry') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Когда истекает регистрация домена и будет ли он доступен — проверьте срок через WHOIS и поиск доменов.', 'See when domain registration expires and if it may become available using WHOIS and domain search.') }}</p>
+        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">{{ tr('Проверить срок', 'Check expiry') }}</a>
       </div>
     </div>
   </div>
@@ -37,8 +37,8 @@
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-rotate" aria-hidden="true"></i></div>
         <h2 class="h6 card-title mb-2">Reverse (rDNS + FCrDNS)</h2>
-        <p class="text-muted mb-2">Покажем PTR и forward-ответы, проверим корректность FCrDNS.</p>
-        <a class="stretched-link" href="{{ url_for('reverse_lookup') }}">Перейти в Reverse</a>
+        <p class="text-muted mb-2">{{ tr('Покажем PTR и forward-ответы, проверим корректность FCrDNS.', 'Show PTR and forward DNS answers, and validate FCrDNS correctness.') }}</p>
+        <a class="stretched-link" href="{{ url_for('reverse_lookup') }}">{{ tr('Перейти в Reverse', 'Go to Reverse') }}</a>
       </div>
     </div>
   </div>
@@ -47,9 +47,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-shield-halved" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Site Checker</h2>
-        <p class="text-muted mb-2">Быстрые проверки доступности и статуса сайта, с кэшированием результатов.</p>
-        <a class="stretched-link" href="{{ url_for('site_checker.site_checker') }}">Открыть Site Checker</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Проверка сайта', 'Site Checker') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Быстрые проверки доступности и статуса сайта, с кэшированием результатов.', 'Fast website availability and status checks with cached results.') }}</p>
+        <a class="stretched-link" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Открыть Site Checker', 'Open Site Checker') }}</a>
       </div>
     </div>
   </div>
@@ -58,9 +58,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-clock-rotate-left" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">History</h2>
-        <p class="text-muted mb-2">Сохранённые результаты: быстрый доступ к вашим прошлым проверкам и ссылкам.</p>
-        <a class="stretched-link" href="{{ url_for('history_list') }}">Открыть историю</a>
+        <h2 class="h6 card-title mb-2">{{ tr('История', 'History') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Сохранённые результаты: быстрый доступ к вашим прошлым проверкам и ссылкам.', 'Saved results for quick access to your previous checks and links.') }}</p>
+        <a class="stretched-link" href="{{ url_for('history_list') }}">{{ tr('Открыть историю', 'Open history') }}</a>
       </div>
     </div>
   </div>

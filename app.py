@@ -9,6 +9,7 @@ import logging
 import io
 import csv
 import subprocess
+from urllib.parse import urlencode
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime
@@ -96,9 +97,13 @@ HIST_LIMIT = 5000
 # -------------------------------------------------
 def _select_locale():
     # ?lang=ru|en имеет приоритет
-    lang = request.args.get("lang")
-    if lang:
+    lang = (request.args.get("lang") or "").strip().lower()
+    if lang in {"ru", "en"}:
         return lang
+    # затем cookie
+    c_lang = (request.cookies.get("lang") or "").strip().lower()
+    if c_lang in {"ru", "en"}:
+        return c_lang
     # далее — из заголовков
     return request.accept_languages.best_match(["ru", "en"]) or "ru"
 
@@ -107,7 +112,28 @@ babel = Babel(app, locale_selector=_select_locale)
 # Пробросить get_locale() в шаблоны Jinja (для base.html и др.)
 @app.context_processor
 def inject_babel_helpers():
-    return {"get_locale": (lambda: str(babel_get_locale() or "ru"))}
+    def _lang_url(lang: str) -> str:
+        params = request.args.to_dict(flat=False)
+        params["lang"] = [lang]
+        qs = urlencode(params, doseq=True)
+        return f"{request.path}?{qs}" if qs else request.path
+
+    def _tr(ru_text: str, en_text: str) -> str:
+        return en_text if str(babel_get_locale() or "ru") == "en" else ru_text
+
+    return {
+        "get_locale": (lambda: str(babel_get_locale() or "ru")),
+        "lang_url": _lang_url,
+        "tr": _tr,
+    }
+
+
+@app.after_request
+def persist_lang_cookie(resp: Response):
+    lang = (request.args.get("lang") or "").strip().lower()
+    if lang in {"ru", "en"}:
+        resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    return resp
 
 # -------------------------------------------------
 # Cache
