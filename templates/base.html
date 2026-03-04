@@ -105,6 +105,10 @@
              href="{{ url_for('reverse_lookup') }}">{{ tr('Reverse', 'Reverse') }}</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='reverse_lookup' %}active{% endif %}"
+             href="{{ url_for('reverse_lookup') }}">Reverse</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='geo_lookup' %}active{% endif %}"
              href="{{ url_for('geo_lookup') }}">{{ tr('GeoIP', 'GeoIP') }}</a>
         </li>
