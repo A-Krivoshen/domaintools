@@ -1,0 +1,26 @@
+{% set rows = (data | json_rows) if data is defined else [] %}
+<details class="mt-3 json-table-wrap">
+  <summary class="muted">{{ title or 'Показать данные в табличном виде' }}</summary>
+  <div class="table-responsive mt-2">
+    <table class="table table-sm table-striped align-middle json-table mb-0">
+      <thead>
+        <tr>
+          <th style="width:34%">Поле</th>
+          <th>Значение</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% if rows and rows|length %}
+          {% for key, value in rows %}
+            <tr>
+              <td><code>{{ key }}</code></td>
+              <td class="json-table__value"><code>{{ value }}</code></td>
+            </tr>
+          {% endfor %}
+        {% else %}
+          <tr><td colspan="2" class="text-muted">Нет данных</td></tr>
+        {% endif %}
+      </tbody>
+    </table>
+  </div>
+</details>
