@@ -1,10 +1,10 @@
 {% extends 'base.html' %}
 
-{% block title %}History — DomainTools{% endblock %}
+{% block title %}{{ tr('История', 'History') }} — DomainTools{% endblock %}
 
 {% block content %}
 <div class="container my-4">
-  <h1 class="h3 mb-3">Последние запросы</h1>
+  <h1 class="h3 mb-3">{{ tr('Последние запросы', 'Recent queries') }}</h1>
 
   {% if items %}
     <div class="list-group">
@@ -20,20 +20,19 @@
             {% endif %}
           </div>
 
-          {# кликабелен весь элемент: ведёт на сохранённый результат #}
-          <a href="{{ it.view_url }}" class="stretched-link" aria-label="Открыть сохранённый результат"></a>
+          <a href="{{ it.view_url }}" class="stretched-link" aria-label="{{ tr('Открыть сохранённый результат', 'Open saved result') }}"></a>
 
           <div class="mt-2">
             {% if it.repeat_url %}
-              <a class="btn btn-sm btn-outline-primary me-2" href="{{ it.repeat_url }}">Повторить</a>
+              <a class="btn btn-sm btn-outline-primary me-2" href="{{ it.repeat_url }}">{{ tr('Повторить', 'Repeat') }}</a>
             {% endif %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">Сохранённый результат</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">{{ tr('Сохранённый результат', 'Saved result') }}</a>
           </div>
         </div>
       {% endfor %}
     </div>
   {% else %}
-    <p class="text-muted">История пуста.</p>
+    <p class="text-muted">{{ tr('История пуста.', 'History is empty.') }}</p>
   {% endif %}
 </div>
 {% endblock %}
