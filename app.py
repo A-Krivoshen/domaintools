@@ -95,6 +95,17 @@ HIST_LIMIT = 5000
 # -------------------------------------------------
 # Babel (Flask-Babel v3+)
 # -------------------------------------------------
+def _locale_by_country_header() -> str | None:
+    """Определение локали по geo-заголовкам прокси/CDN (если доступны)."""
+    # На проде обычно приходит один из этих заголовков.
+    for h in ("CF-IPCountry", "X-AppEngine-Country", "X-Country-Code", "CloudFront-Viewer-Country"):
+        cc = (request.headers.get(h) or "").strip().upper()
+        if not cc or cc in {"XX", "T1", "UNKNOWN"}:
+            continue
+        return "ru" if cc == "RU" else "en"
+    return None
+
+
 def _select_locale():
     # ?lang=ru|en имеет приоритет
     lang = (request.args.get("lang") or "").strip().lower()
@@ -104,8 +115,14 @@ def _select_locale():
     c_lang = (request.cookies.get("lang") or "").strip().lower()
     if c_lang in {"ru", "en"}:
         return c_lang
-    # далее — из заголовков
-    return request.accept_languages.best_match(["ru", "en"]) or "ru"
+
+    # Если есть geo-заголовок: RU -> ru, не RU -> en
+    by_country = _locale_by_country_header()
+    if by_country:
+        return by_country
+
+    # Фолбэк: по Accept-Language
+    return request.accept_languages.best_match(["ru", "en"]) or "en"
 
 babel = Babel(app, locale_selector=_select_locale)
 
