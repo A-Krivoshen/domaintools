@@ -3,9 +3,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-database" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Проверить DNS записи</h2>
-        <p class="text-muted mb-2">A/AAAA/CNAME/MX/NS/TXT/SOA — быстрый просмотр конфигурации домена.</p>
-        <a class="stretched-link" href="{{ url_for('dns_lookup') }}">К DNS</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Проверить DNS записи', 'Check DNS records') }}</h2>
+        <p class="text-muted mb-2">{{ tr('A/AAAA/CNAME/MX/NS/TXT/SOA — быстрый просмотр конфигурации домена.', 'A/AAAA/CNAME/MX/NS/TXT/SOA — quick domain configuration overview.') }}</p>
+        <a class="stretched-link" href="{{ url_for('dns_lookup') }}">{{ tr('К DNS', 'To DNS') }}</a>
       </div>
     </div>
   </div>
@@ -13,9 +13,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Подбор свободного домена</h2>
-        <p class="text-muted mb-2">Проверим доступность и подскажем альтернативы в популярных зонах.</p>
-        <a class="stretched-link" href="{{ url_for('domain_search') }}">Искать домен</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Подбор свободного домена', 'Find available domain') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Проверим доступность и подскажем альтернативы в популярных зонах.', 'Check availability and suggest alternatives in popular zones.') }}</p>
+        <a class="stretched-link" href="{{ url_for('domain_search') }}">{{ tr('Искать домен', 'Search domain') }}</a>
       </div>
     </div>
   </div>
@@ -23,9 +23,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-globe" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">GeoIP по IP/домену</h2>
-        <p class="text-muted mb-2">ASN, страна, сеть по IP адресу или доменному имени.</p>
-        <a class="stretched-link" href="{{ url_for('geo_lookup') }}">К GeoIP</a>
+        <h2 class="h6 card-title mb-2">{{ tr('GeoIP по IP/домену', 'GeoIP by IP/domain') }}</h2>
+        <p class="text-muted mb-2">{{ tr('ASN, страна, сеть по IP адресу или доменному имени.', 'ASN, country, and network by IP address or domain name.') }}</p>
+        <a class="stretched-link" href="{{ url_for('geo_lookup') }}">{{ tr('К GeoIP', 'To GeoIP') }}</a>
       </div>
     </div>
   </div>
