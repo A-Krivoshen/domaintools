@@ -9,6 +9,8 @@ import logging
 import io
 import csv
 import subprocess
+from urllib.parse import urlencode
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime
 from typing import Optional, Dict, List, Tuple
@@ -22,8 +24,6 @@ from ipwhois import IPWhois
 import idna
 import ipaddress
 import requests
-
-from geopy.geocoders import Nominatim
 
 from flask import (
     Flask,
@@ -71,6 +71,8 @@ app.config.update(
         "TLD_LIST",
         "ru,su,рф,рус,онлайн,сайт,москва,дети,ком,нет,орг,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
     ).split(","),
+    DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "20")),
+    DOMAIN_CHECK_WORKERS=int(os.environ.get("DOMAIN_CHECK_WORKERS", "8")),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -93,20 +95,62 @@ HIST_LIMIT = 5000
 # -------------------------------------------------
 # Babel (Flask-Babel v3+)
 # -------------------------------------------------
+def _locale_by_country_header() -> str | None:
+    """Определение локали по geo-заголовкам прокси/CDN (если доступны)."""
+    # На проде обычно приходит один из этих заголовков.
+    for h in ("CF-IPCountry", "X-AppEngine-Country", "X-Country-Code", "CloudFront-Viewer-Country"):
+        cc = (request.headers.get(h) or "").strip().upper()
+        if not cc or cc in {"XX", "T1", "UNKNOWN"}:
+            continue
+        return "ru" if cc == "RU" else "en"
+    return None
+
+
 def _select_locale():
     # ?lang=ru|en имеет приоритет
-    lang = request.args.get("lang")
-    if lang:
+    lang = (request.args.get("lang") or "").strip().lower()
+    if lang in {"ru", "en"}:
         return lang
-    # далее — из заголовков
-    return request.accept_languages.best_match(["ru", "en"]) or "ru"
+    # затем cookie
+    c_lang = (request.cookies.get("lang") or "").strip().lower()
+    if c_lang in {"ru", "en"}:
+        return c_lang
+
+    # Если есть geo-заголовок: RU -> ru, не RU -> en
+    by_country = _locale_by_country_header()
+    if by_country:
+        return by_country
+
+    # Фолбэк: по Accept-Language
+    return request.accept_languages.best_match(["ru", "en"]) or "en"
 
 babel = Babel(app, locale_selector=_select_locale)
 
 # Пробросить get_locale() в шаблоны Jinja (для base.html и др.)
 @app.context_processor
 def inject_babel_helpers():
-    return {"get_locale": (lambda: str(babel_get_locale() or "ru"))}
+    def _lang_url(lang: str) -> str:
+        params = request.args.to_dict(flat=False)
+        params["lang"] = [lang]
+        qs = urlencode(params, doseq=True)
+        return f"{request.path}?{qs}" if qs else request.path
+
+    def _tr(ru_text: str, en_text: str) -> str:
+        return en_text if str(babel_get_locale() or "ru") == "en" else ru_text
+
+    return {
+        "get_locale": (lambda: str(babel_get_locale() or "ru")),
+        "lang_url": _lang_url,
+        "tr": _tr,
+    }
+
+
+@app.after_request
+def persist_lang_cookie(resp: Response):
+    lang = (request.args.get("lang") or "").strip().lower()
+    if lang in {"ru", "en"}:
+        resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    return resp
 
 # -------------------------------------------------
 # Cache
@@ -316,6 +360,39 @@ def prettyjson_filter(value):
         s = str(value)
     # отдать как «безопасный» текст (ничего не экранируется повторно)
     return Markup(escape(s))
+
+
+def json_rows_filter(value):
+    """Преобразует dict/list в плоский список пар (поле, значение) для табличного вывода."""
+    rows = []
+
+    def walk(node, prefix=""):
+        if isinstance(node, dict):
+            if not node:
+                rows.append((prefix or "—", "{}"))
+                return
+            for k, v in node.items():
+                key = f"{prefix}.{k}" if prefix else str(k)
+                walk(v, key)
+            return
+
+        if isinstance(node, list):
+            if not node:
+                rows.append((prefix or "—", "[]"))
+                return
+            for i, v in enumerate(node):
+                key = f"{prefix}[{i}]" if prefix else f"[{i}]"
+                walk(v, key)
+            return
+
+        if isinstance(node, tuple):
+            walk(list(node), prefix)
+            return
+
+        rows.append((prefix or "value", "" if node is None else str(node)))
+
+    walk(value)
+    return rows
 # --- country_flag для geo.html ---
 def country_flag(cc: str) -> str:
     if not cc or len(cc) != 2 or not cc.isalpha():
@@ -329,6 +406,7 @@ def jinja_more_globals():
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
 app.jinja_env.filters['prettyjson'] = prettyjson_filter
+app.jinja_env.filters['json_rows'] = json_rows_filter
 # --- форматирование времени для истории ---
 @app.template_filter("dt")
 def dt_filter(ts):
@@ -400,13 +478,37 @@ def index():
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
+    dns_type_options = [
+        "A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "CAA", "SRV", "PTR", "NAPTR",
+        "TLSA", "SSHFP", "DS", "DNSKEY", "CDS", "CDNSKEY", "SPF", "HTTPS", "SVCB", "LOC",
+        "RP", "HINFO", "CERT", "DNAME", "URI",
+    ]
+    default_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
+
     meta = {
         "title": "DNS Lookup",
         "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
     }
     query = (request.args.get("q") or "").strip()
+    selected_types = [t.strip().upper() for t in request.args.getlist("types") if t and t.strip()]
+    if not selected_types:
+        selected_types = list(default_types)
+    if "ALL" in selected_types:
+        selected_types = list(dns_type_options)
+    selected_types = [t for t in selected_types if t in dns_type_options]
+    if not selected_types:
+        selected_types = list(default_types)
+
     if not query:
-        return render_template("dns.html", meta=meta, result=None, error=None, query="")
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=None,
+            query="",
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
 
     error = None
     try:
@@ -415,7 +517,15 @@ def dns_lookup():
             query = idna.encode(query, uts46=True).decode("ascii")
         validate_domain(query)
     except Exception:
-        return render_template("dns.html", meta=meta, result=None, error=_("Invalid domain name."), query=query)
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=_("Invalid domain name."),
+            query=query,
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
 
     records: Dict[str, List[str]] = {}
     def fetch(rtype: str):
@@ -423,19 +533,59 @@ def dns_lookup():
             answers = dns.resolver.resolve(query, rtype)
             vals = []
             for r in answers:
-                vals.append(str(r).rstrip("."))
+                if rtype == "MX":
+                    vals.append(f"{getattr(r, 'preference', '')} {str(getattr(r, 'exchange', '')).rstrip('.')}".strip())
+                elif rtype == "SOA":
+                    vals.append(
+                        f"{str(getattr(r, 'mname', '')).rstrip('.')} {str(getattr(r, 'rname', '')).rstrip('.')} "
+                        f"{getattr(r, 'serial', '')} {getattr(r, 'refresh', '')} {getattr(r, 'retry', '')} "
+                        f"{getattr(r, 'expire', '')} {getattr(r, 'minimum', '')}"
+                    )
+                elif rtype == "SRV":
+                    vals.append(
+                        f"{getattr(r, 'priority', '')} {getattr(r, 'weight', '')} {getattr(r, 'port', '')} "
+                        f"{str(getattr(r, 'target', '')).rstrip('.')}"
+                    )
+                elif rtype == "CAA":
+                    vals.append(f"{getattr(r, 'flags', '')} {getattr(r, 'tag', '')} {getattr(r, 'value', '')}".strip())
+                elif rtype in {"DS", "CDS"}:
+                    vals.append(
+                        f"{getattr(r, 'key_tag', '')} {getattr(r, 'algorithm', '')} {getattr(r, 'digest_type', '')} {getattr(r, 'digest', '')}"
+                    )
+                elif rtype in {"DNSKEY", "CDNSKEY"}:
+                    vals.append(
+                        f"{getattr(r, 'flags', '')} {getattr(r, 'protocol', '')} {getattr(r, 'algorithm', '')} {getattr(r, 'key', '')}"
+                    )
+                elif rtype == "TXT":
+                    chunks = getattr(r, "strings", None)
+                    if chunks:
+                        vals.append("".join(ch.decode("utf-8", errors="ignore") if isinstance(ch, bytes) else str(ch) for ch in chunks))
+                    else:
+                        vals.append(str(r).rstrip("."))
+                else:
+                    vals.append(str(r).rstrip("."))
             if vals:
                 records[rtype] = vals
         except Exception:
             pass
 
-    for rt in ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]:
+    for rt in selected_types:
         fetch(rt)
 
     result = {"domain": query, "has_records": bool(records), "records": records}
-    permalink = url_for("dns_lookup", q=query, _external=False)
+    permalink = url_for("dns_lookup", q=query, types=selected_types, _external=False)
 
-    return render_template("dns.html", meta=meta, result=result, records=records, error=error, query=query, permalink=permalink)
+    return render_template(
+        "dns.html",
+        meta=meta,
+        result=result,
+        records=records,
+        error=error,
+        query=query,
+        permalink=permalink,
+        selected_types=selected_types,
+        dns_type_options=dns_type_options,
+    )
 
 # ---------- Domains ----------
 def _normalize_label(label: str) -> str:
@@ -474,24 +624,40 @@ def _is_available_via_whois(fqdn_ascii: str) -> bool:
         return False
 
 def _check_candidates(label: str, tlds: List[str]) -> List[Dict]:
-    out = []
+    out: List[Dict] = []
     is_idn_label = not label.isascii()
 
+    filtered_tlds: List[str] = []
     for t in tlds:
         t = t.strip().lstrip(".")
         if not t:
             continue
         if is_idn_label and t not in IDN_READY_TLDS:
             continue
+        filtered_tlds.append(t)
 
+    def _check_single_tld(t: str) -> Dict:
         fqdn_unicode = f"{label}.{t}"
         try:
             puny = idna.encode(fqdn_unicode, uts46=True).decode("ascii")
             avail_dns = _is_available_via_dns(puny)
             avail = _is_available_via_whois(puny) if avail_dns else False
-            out.append({"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None})
+            return {"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None}
         except Exception as e:
-            out.append({"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"})
+            return {"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"}
+
+    max_workers = max(1, min(int(app.config.get("DOMAIN_CHECK_WORKERS", 8)), len(filtered_tlds) or 1))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        future_to_index = {
+            pool.submit(_check_single_tld, t): i
+            for i, t in enumerate(filtered_tlds)
+        }
+        ordered_results: List[Optional[Dict]] = [None] * len(filtered_tlds)
+        for fut in as_completed(future_to_index):
+            idx = future_to_index[fut]
+            ordered_results[idx] = fut.result()
+
+    out.extend(item for item in ordered_results if item)
     return out
 
 @app.route("/domains", methods=["GET", "POST"])
@@ -507,11 +673,14 @@ def domain_search():
                 query = query.split(".")[0]
             label = _normalize_label(query)
             if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                translit = _translit_ru(label)
                 suggestions = sorted(set([
-                    _translit_ru(label),
-                    _translit_ru(label).replace("sch", "sh").replace("ya", "a"),
+                    translit,
+                    translit.replace("sch", "sh").replace("ya", "a"),
                 ]))
-            items = _check_candidates(label, app.config.get("TLD_LIST", []))
+            tlds = app.config.get("TLD_LIST", [])
+            max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 20)))
+            items = _check_candidates(label, tlds[:max_tlds])
         except Exception as e:
             error = str(e)
 
@@ -620,7 +789,6 @@ def geo_lookup():
             def _compute_geo():
                 ipw = IPWhois(ip)
                 who = ipw.lookup_rdap()
-                geocoder = Nominatim(user_agent="domaintools.site")
                 country_code = (who.get("asn_country_code") or "").upper()
                 country_name = who.get("network", {}).get("country", "") or country_code
                 return {
