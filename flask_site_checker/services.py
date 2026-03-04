@@ -1,6 +1,6 @@
 import os
 import socket
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Collection
 
 import idna
 import requests
@@ -115,8 +115,8 @@ def rkn_domain_list(fetcher=requests.get) -> list:
     return []
 
 
-def is_in_rkn(domain: str, cached_list: Optional[list]) -> Optional[bool]:
-    if not cached_list:
+def is_in_rkn(domain: str, cached_domains: Optional[Collection[str]]) -> Optional[bool]:
+    if not cached_domains:
         return None
     d = to_punycode(domain).lower()
-    return d in {x.lower() for x in cached_list if isinstance(x, str)}
+    return d in cached_domains
