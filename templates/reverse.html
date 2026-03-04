@@ -41,7 +41,7 @@
             <div><strong>AAAA:</strong> {{ fwd.get('AAAA')|join(', ') }}</div>
           {% endif %}
           {% if not fwd.get('A') and not fwd.get('AAAA') %}
-            <span class="text-muted">A/AAAA не найдены.</span>
+            <span class="text-muted">{{ tr('A/AAAA не найдены.', 'A/AAAA not found.') }}</span>
           {% endif %}
         </div>
       </div>
@@ -57,7 +57,7 @@
                 <th>IP</th>
                 <th>PTR</th>
                 <th>FCrDNS</th>
-                <th>Детали</th>
+                <th>{{ tr('Детали', 'Details') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -104,7 +104,7 @@
     </div>
 
     {% set data = result %}
-    {% set title = 'Показать Reverse-результат в табличном виде (максимум полей)' %}
+    {% set title = tr('Показать Reverse-результат в табличном виде (максимум полей)', 'Show Reverse result in table view (maximum fields)') %}
     {% include "_json_table.html" %}
 
   {% else %}

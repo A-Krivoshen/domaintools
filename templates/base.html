@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>{% block title %}DomainTools{% endblock %}</title>
-  <meta name="description" content="DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)">
+  <meta name="description" content="{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}">
 
   <!-- Favicon pack -->
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -14,7 +14,7 @@
 
   <!-- Open Graph -->
   <meta property="og:title" content="DomainTools">
-  <meta property="og:description" content="DNS / WHOIS / GeoIP утилиты с историей запросов">
+  <meta property="og:description" content="{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов', 'DNS / WHOIS / GeoIP tools with query history') }}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
   <meta property="og:image" content="{{ url_for('static', filename='og.png', _external=True) }}">

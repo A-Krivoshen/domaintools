@@ -37,7 +37,7 @@
       <tbody>
         <tr><th class="text-muted" style="width:220px">IP</th><td><span class="code-badge">{{ result.ip }}</span></td></tr>
         <tr><th class="text-muted">ASN</th><td>{{ result.asn or '—' }}</td></tr>
-        <tr><th class="text-muted">Страна</th>
+        <tr><th class="text-muted">{{ tr('Страна', 'Country') }}</th>
           <td>
             {% set cc = (result.country_code or '').upper() %}
             <span class="me-2">{{ country_flag(cc) }}</span>
@@ -50,12 +50,12 @@
   </div>
 
   <details class="mt-3">
-    <summary class="muted">Показать сырой JSON</summary>
+    <summary class="muted">{{ tr('Показать сырой JSON', 'Show raw JSON') }}</summary>
     <pre class="code mt-2">{{ result | prettyjson }}</pre>
   </details>
 
   {% set data = result %}
-  {% set title = 'Показать GeoIP в табличном виде (максимум полей)' %}
+  {% set title = tr('Показать GeoIP в табличном виде (максимум полей)', 'Show GeoIP in table view (maximum fields)') %}
   {% include "_json_table.html" %}
   {% endif %}
 
