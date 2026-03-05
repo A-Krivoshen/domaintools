@@ -84,9 +84,9 @@ app.config.update(
     PORT_SCAN_CONNECT_TIMEOUT=float(os.environ.get("PORT_SCAN_CONNECT_TIMEOUT", "0.4")),
     SECURITY_RATE_LIMIT_PER_MIN=int(os.environ.get("SECURITY_RATE_LIMIT_PER_MIN", "15")),
     SECURITY_RECAPTCHA_ENABLED=(os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}),
-    SECURITY_RECAPTCHA_PROVIDER=os.environ.get("SECURITY_RECAPTCHA_PROVIDER", "standard").strip().lower(),
-    SECURITY_RECAPTCHA_SITE_KEY=os.environ.get("SECURITY_RECAPTCHA_SITE_KEY", "").strip(),
-    SECURITY_RECAPTCHA_SECRET_KEY=os.environ.get("SECURITY_RECAPTCHA_SECRET_KEY", "").strip(),
+    SECURITY_RECAPTCHA_PROVIDER=(os.environ.get("SECURITY_RECAPTCHA_PROVIDER", "standard").strip().lower() or "standard"),
+    SECURITY_RECAPTCHA_SITE_KEY=(os.environ.get("SECURITY_RECAPTCHA_SITE_KEY") or os.environ.get("RECAPTCHA_SITE_KEY") or "").strip(),
+    SECURITY_RECAPTCHA_SECRET_KEY=(os.environ.get("SECURITY_RECAPTCHA_SECRET_KEY") or os.environ.get("RECAPTCHA_SECRET_KEY") or "").strip(),
     SECURITY_RECAPTCHA_ENTERPRISE_PROJECT=os.environ.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT", "").strip(),
     SECURITY_RECAPTCHA_API_KEY=os.environ.get("SECURITY_RECAPTCHA_API_KEY", "").strip(),
     SECURITY_RECAPTCHA_MIN_SCORE=float(os.environ.get("SECURITY_RECAPTCHA_MIN_SCORE", "0.5")),
@@ -485,7 +485,16 @@ def dt_filter(ts):
 # -------------------------------------------------
 @app.get("/health")
 def health():
-    return jsonify(status="ok"), 200
+    recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
+    return jsonify(
+        status="ok",
+        security={
+            "recaptcha_enabled": bool(app.config.get("SECURITY_RECAPTCHA_ENABLED")),
+            "recaptcha_provider": (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard"),
+            "recaptcha_ready": recaptcha_ready,
+            "recaptcha_setup_error": recaptcha_setup_error,
+        },
+    ), 200
 
 @app.get("/favicon.ico")
 def favicon():
@@ -1009,6 +1018,20 @@ def _security_is_rate_limited(ip: str, limit_per_min: int, window_s: int = 60) -
     return limited
 
 
+
+
+def _recaptcha_setup_status() -> Tuple[bool, str | None]:
+    if not app.config.get("SECURITY_RECAPTCHA_ENABLED"):
+        return True, None
+    provider = (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    if provider not in {"standard", "enterprise"}:
+        provider = "standard"
+    if provider == "enterprise":
+        ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT") and app.config.get("SECURITY_RECAPTCHA_API_KEY"))
+        return (ok, None if ok else _("reCAPTCHA Enterprise config is incomplete."))
+    ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_SECRET_KEY"))
+    return (ok, None if ok else _("reCAPTCHA v3 config is incomplete."))
+
 def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
     if not app.config.get("SECURITY_RECAPTCHA_ENABLED"):
         return True, None
@@ -1017,6 +1040,8 @@ def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
         return False, _("Captcha token is missing.")
 
     provider = (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    if provider not in {"standard", "enterprise"}:
+        provider = "standard"
     min_score = float(app.config.get("SECURITY_RECAPTCHA_MIN_SCORE", 0.5))
 
     try:
@@ -1287,15 +1312,20 @@ def security_tools():
     security_error = None
     permalink = None
 
+    recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
+
     if host or wp_url_raw:
-        ip = _client_ip()
-        if _security_is_rate_limited(ip, int(app.config.get('SECURITY_RATE_LIMIT_PER_MIN', 15))):
-            security_error = _('Too many security scan requests. Please retry in a minute.')
+        if (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
+            security_error = recaptcha_setup_error or _('reCAPTCHA is not configured.')
         else:
-            recaptcha_token = (request.values.get('recaptcha_token') or '').strip()
-            ok, recaptcha_err = _verify_recaptcha_token(recaptcha_token, action=str(app.config.get('SECURITY_RECAPTCHA_ACTION', 'security_scan')))
-            if not ok:
-                security_error = recaptcha_err or _('Captcha validation failed.')
+            ip = _client_ip()
+            if _security_is_rate_limited(ip, int(app.config.get('SECURITY_RATE_LIMIT_PER_MIN', 15))):
+                security_error = _('Too many security scan requests. Please retry in a minute.')
+            else:
+                recaptcha_token = (request.values.get('recaptcha_token') or '').strip()
+                ok, recaptcha_err = _verify_recaptcha_token(recaptcha_token, action=str(app.config.get('SECURITY_RECAPTCHA_ACTION', 'security_scan')))
+                if not ok:
+                    security_error = recaptcha_err or _('Captcha validation failed.')
 
     if (not security_error) and (host or scan_target == 'ports'):
         target_ip, err = _resolve_public_target_ip(host)
@@ -1373,6 +1403,8 @@ def security_tools():
         recaptcha_site_key=(app.config.get('SECURITY_RECAPTCHA_SITE_KEY') or ''),
         recaptcha_provider=(app.config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard'),
         recaptcha_action=(app.config.get('SECURITY_RECAPTCHA_ACTION') or 'security_scan'),
+        recaptcha_ready=recaptcha_ready,
+        recaptcha_setup_error=recaptcha_setup_error,
         permalink=permalink,
         common_ports=COMMON_SAFE_PORTS[:20],
     )
@@ -1473,6 +1505,8 @@ def history_view(kind: str, hid: str):
             recaptcha_site_key=(app.config.get('SECURITY_RECAPTCHA_SITE_KEY') or ''),
             recaptcha_provider=(app.config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard'),
             recaptcha_action=(app.config.get('SECURITY_RECAPTCHA_ACTION') or 'security_scan'),
+            recaptcha_ready=_recaptcha_setup_status()[0],
+            recaptcha_setup_error=_recaptcha_setup_status()[1],
             permalink=permalink,
             common_ports=COMMON_SAFE_PORTS[:20],
         )

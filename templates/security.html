@@ -13,8 +13,11 @@
   {% endif %}
 
   {% if recaptcha_enabled %}
-    <div class="alert alert-info small">
+    <div class="alert {{ 'alert-info' if recaptcha_ready else 'alert-warning' }} small">
       {{ tr('Защита reCAPTCHA включена для сканеров безопасности.', 'reCAPTCHA protection is enabled for security scanners.') }}
+      {% if not recaptcha_ready and recaptcha_setup_error %}
+        <div class="mt-1"><strong>{{ tr('Проверьте конфигурацию:', 'Check configuration:') }}</strong> {{ recaptcha_setup_error }}</div>
+      {% endif %}
     </div>
   {% endif %}
 
