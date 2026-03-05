@@ -799,7 +799,7 @@ def _is_public_ip(ip: str) -> bool:
 def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
     host = (host or '').strip()
     if not host:
-        return None, 'Empty host'
+        return None, _('Empty host')
 
     # direct IP input
     try:

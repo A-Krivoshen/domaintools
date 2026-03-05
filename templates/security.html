@@ -12,11 +12,12 @@
     <div class="alert alert-warning">{{ security_error }}</div>
   {% endif %}
 
-  {% if recaptcha_enabled %}
-    <div class="alert {{ 'alert-info' if recaptcha_ready else 'alert-warning' }} small">
-      {{ tr('Защита reCAPTCHA включена для сканеров безопасности.', 'reCAPTCHA protection is enabled for security scanners.') }}
-      {% if not recaptcha_ready and recaptcha_setup_error %}
-        <div class="mt-1"><strong>{{ tr('Проверьте конфигурацию:', 'Check configuration:') }}</strong> {{ recaptcha_setup_error }}</div>
+  {% if recaptcha_enabled and (not recaptcha_ready) %}
+    <div class="alert alert-warning small">
+      {% if recaptcha_setup_error %}
+        <strong>{{ tr('Проверьте конфигурацию:', 'Check configuration:') }}</strong> {{ recaptcha_setup_error }}
+      {% else %}
+        {{ tr('reCAPTCHA включена, но конфигурация неполная.', 'reCAPTCHA is enabled but configuration is incomplete.') }}
       {% endif %}
     </div>
   {% endif %}
@@ -35,7 +36,7 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'ports' else 'd-none' }}" id="security-ports">
     <h2 class="h5 mb-3">{{ tr('Port Scanner (Safe)', 'Port Scanner (Safe)') }}</h2>
-    <form method="get" autocomplete="off" class="security-form">
+    <form method="post" autocomplete="off" class="security-form">
       <input type="hidden" name="scan" value="ports">
       <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
@@ -110,7 +111,7 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'wp' else 'd-none' }}" id="security-wp">
     <h2 class="h5 mb-3">{{ tr('WordPress Safe Scan', 'WordPress Safe Scan') }}</h2>
-    <form method="get" autocomplete="off" class="security-form">
+    <form method="post" autocomplete="off" class="security-form">
       <input type="hidden" name="scan" value="wp">
       <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
