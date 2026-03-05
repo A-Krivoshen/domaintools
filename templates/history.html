@@ -6,6 +6,10 @@
 <div class="container my-4">
   <h1 class="h3 mb-3">{{ tr('Последние запросы', 'Recent queries') }}</h1>
 
+  {% if history_error %}
+    <div class="alert alert-warning">{{ history_error }}</div>
+  {% endif %}
+
   {% if items %}
     <div class="list-group">
       {% for it in items %}

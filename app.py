@@ -758,6 +758,7 @@ def domain_search():
         buy_base=app.config.get("AFFILIATE_BUY_BASE"),
         all_tlds=all_tlds,
         selected_tlds=selected_tlds,
+        default_tlds=default_tlds,
     )
 
 # ---------- WHOIS ----------
@@ -961,9 +962,17 @@ def reverse_lookup():
 # ---------- История ----------
 @app.get("/history")
 def history_list():
-    # последние 100
-    keys = r.zrevrange(HIST_ZSET, 0, 99)
     items = []
+    history_error = None
+
+    try:
+        # последние 100
+        keys = r.zrevrange(HIST_ZSET, 0, 99)
+    except Exception:
+        app.logger.warning("History Redis unavailable", exc_info=True)
+        keys = []
+        history_error = _("History storage is temporarily unavailable. Please try again later.")
+
     for s in keys:
         pair = _split_kind_id(s)
         if not pair:
@@ -999,7 +1008,7 @@ def history_list():
             "repeat_url": repeat_url,
         })
 
-    return render_template("history.html", items=items)
+    return render_template("history.html", items=items, history_error=history_error)
 
 @app.route("/history/<kind>/<hid>")
 def history_view(kind: str, hid: str):

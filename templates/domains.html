@@ -19,15 +19,23 @@
   {{ tr('Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.', 'For each item, quick actions are available: WHOIS, DNS, GeoIP, and saving result to history.') }}
 </p>
 
-<form method="get" class="mb-3" autocomplete="off">
+<form method="get" class="mb-3" autocomplete="off" data-zones-controls>
   <div class="input-group input-group-lg">
     <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required>
     <button class="btn btn-primary">{{ tr('Поиск домена', 'Search domain') }}</button>
   </div>
 
   <div class="mt-2">
-    <div class="small text-muted mb-2">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
-    <div class="d-flex flex-wrap gap-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div class="small text-muted">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Основные', 'Core') }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
+      </div>
+    </div>
+    <input type="text" class="form-control form-control-sm mb-2" data-zone-filter placeholder="{{ tr('Фильтр зон, например .ru или shop', 'Filter zones, e.g. .ru or shop') }}">
+    <div class="d-flex flex-wrap gap-2" data-zones-list data-default-zones="{{ default_tlds|join(',') }}">
       {% for tld in all_tlds %}
       <label class="btn btn-sm btn-outline-secondary">
         <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
