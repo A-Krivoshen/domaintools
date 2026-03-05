@@ -99,6 +99,8 @@
     }
   });
 
+  updateThemeToggleIcon();
+
   // ===== Collapse helpers: auto-close menu after click
   function closeNav() {
     const nav = document.getElementById('mainNav');
