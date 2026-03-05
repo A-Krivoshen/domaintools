@@ -14,6 +14,25 @@
     <a class="btn btn-outline-primary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Открыть Site Checker', 'Open Site Checker') }}</a>
   </div>
 
+
+  <div class="alert alert-info mb-3">
+    <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
+    <div class="small mb-2">
+      {{ tr('Раздел Security (Port Scanner / WordPress Scan) защищён rate-limit и reCAPTCHA v3.', 'Security section (Port Scanner / WordPress Scan) is protected by rate limiting and reCAPTCHA v3.') }}
+      {% if config.get('SECURITY_RECAPTCHA_ENABLED') %}
+        <span class="badge text-bg-success ms-1">{{ tr('reCAPTCHA включена', 'reCAPTCHA enabled') }}</span>
+      {% else %}
+        <span class="badge text-bg-secondary ms-1">{{ tr('reCAPTCHA выключена', 'reCAPTCHA disabled') }}</span>
+      {% endif %}
+    </div>
+    <ul class="small mb-2">
+      <li>{{ tr('Для обычной reCAPTCHA v3 нужны 2 ключа: SECURITY_RECAPTCHA_SITE_KEY и SECURITY_RECAPTCHA_SECRET_KEY.', 'For standard reCAPTCHA v3 you need 2 keys: SECURITY_RECAPTCHA_SITE_KEY and SECURITY_RECAPTCHA_SECRET_KEY.') }}</li>
+      <li>{{ tr('Для Enterprise: SECURITY_RECAPTCHA_SITE_KEY + SECURITY_RECAPTCHA_ENTERPRISE_PROJECT + SECURITY_RECAPTCHA_API_KEY.', 'For Enterprise: SECURITY_RECAPTCHA_SITE_KEY + SECURITY_RECAPTCHA_ENTERPRISE_PROJECT + SECURITY_RECAPTCHA_API_KEY.') }}</li>
+      <li>{{ tr('Срабатывает при отправке формы в /security: браузер получает token и отправляет его как recaptcha_token, сервер проверяет score/action до запуска сканирования.', 'It triggers on /security form submit: browser gets token and sends it as recaptcha_token, server validates score/action before running scans.') }}</li>
+    </ul>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
+  </div>
+
   <div class="hero-home__pills">
     <a class="hero-pill" href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
     <a class="hero-pill" href="{{ url_for('dns_lookup') }}">DNS</a>
