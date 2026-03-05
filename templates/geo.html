@@ -16,14 +16,14 @@
 
   <form method="get" class="mb-3">
     <div class="input-group input-group-lg">
-      <input class="form-control" name="query" placeholder="example.com или 8.8.8.8" value="{{ query or request.args.get('query','') }}">
-      <button class="btn btn-primary">Проверить</button>
+      <input class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}">
+      <button class="btn btn-primary">{{ tr('Проверить', 'Check') }}</button>
     </div>
     {% if permalink %}
       <div class="d-flex gap-3 small mt-2">
-        <a href="{{ permalink }}">Постоянная ссылка</a>
-        {% if result %}<a href="/export/geo/{{ permalink.split('/')[-1] }}.json">Экспорт JSON</a>{% endif %}
-        {% if result %}<a href="/export/geo/{{ permalink.split('/')[-1] }}.csv">Экспорт CSV</a>{% endif %}
+        <a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
+        {% if result %}<a href="/export/geo/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
+        {% if result %}<a href="/export/geo/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
       </div>
     {% endif %}
   </form>
@@ -31,13 +31,13 @@
   {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
   {% if result %}
-  <h2 class="h5">Результаты для <code>{{ query }}</code></h2>
+  <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ query }}</code></h2>
   <div class="table-responsive">
     <table class="table table-sm align-middle">
       <tbody>
         <tr><th class="text-muted" style="width:220px">IP</th><td><span class="code-badge">{{ result.ip }}</span></td></tr>
         <tr><th class="text-muted">ASN</th><td>{{ result.asn or '—' }}</td></tr>
-        <tr><th class="text-muted">Страна</th>
+        <tr><th class="text-muted">{{ tr('Страна', 'Country') }}</th>
           <td>
             {% set cc = (result.country_code or '').upper() %}
             <span class="me-2">{{ country_flag(cc) }}</span>
@@ -50,9 +50,13 @@
   </div>
 
   <details class="mt-3">
-    <summary class="muted">Показать сырой JSON</summary>
+    <summary class="muted">{{ tr('Показать сырой JSON', 'Show raw JSON') }}</summary>
     <pre class="code mt-2">{{ result | prettyjson }}</pre>
   </details>
+
+  {% set data = result %}
+  {% set title = tr('Показать GeoIP в табличном виде (максимум полей)', 'Show GeoIP in table view (maximum fields)') %}
+  {% include "_json_table.html" %}
   {% endif %}
 
   {% include "_cards_under_tools.html" %}
