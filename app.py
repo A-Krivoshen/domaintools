@@ -78,6 +78,10 @@ app.config.update(
     ).split(","),
     DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "80")),
     DOMAIN_CHECK_WORKERS=int(os.environ.get("DOMAIN_CHECK_WORKERS", "8")),
+    # Security scanner
+    PORT_SCAN_MAX_PORTS=int(os.environ.get("PORT_SCAN_MAX_PORTS", "50")),
+    PORT_SCAN_MAX_WORKERS=int(os.environ.get("PORT_SCAN_MAX_WORKERS", "20")),
+    PORT_SCAN_CONNECT_TIMEOUT=float(os.environ.get("PORT_SCAN_CONNECT_TIMEOUT", "0.4")),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -503,6 +507,7 @@ def sitemap():
         url_for("domain_search", _external=True),
         url_for("reverse_lookup", _external=True),
         url_for("history_list", _external=True),
+        url_for("security_tools", _external=True),
         # ссылка на маршрут блюпринта
         url_for("site_checker.site_checker", _external=True),
     ]
@@ -761,6 +766,100 @@ def domain_search():
         default_tlds=default_tlds,
     )
 
+
+COMMON_SAFE_PORTS = [20,21,22,25,53,80,110,111,123,135,139,143,161,389,443,445,465,587,993,995,1433,1521,1723,1883,2049,2083,2087,2096,2375,2376,3000,3128,3306,3389,3690,4369,5000,5432,5672,5900,5985,5986,6379,6443,7001,7002,7443,8000,8080,8081,8443,9000,9090,9200,9300,10000,11211,15672,27017]
+
+
+def _is_public_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return not (addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_reserved)
+    except Exception:
+        return False
+
+
+def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
+    host = (host or '').strip()
+    if not host:
+        return None, 'Empty host'
+
+    # direct IP input
+    try:
+        ipaddress.ip_address(host)
+        if not _is_public_ip(host):
+            return None, _('Only public IP targets are allowed.')
+        return host, None
+    except Exception:
+        pass
+
+    # domain input
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        ips = []
+        for info in infos:
+            ip = info[4][0]
+            if ip not in ips:
+                ips.append(ip)
+        public_ips = [ip for ip in ips if _is_public_ip(ip)]
+        if not public_ips:
+            return None, _('Resolved host does not have a public IP.')
+        return public_ips[0], None
+    except Exception:
+        return None, _('Could not resolve host.')
+
+
+def _parse_ports(raw_ports: str, max_ports: int) -> Tuple[List[int], str | None]:
+    raw = (raw_ports or '').strip()
+    if not raw:
+        return COMMON_SAFE_PORTS[:max_ports], None
+
+    ports: List[int] = []
+    for part in raw.split(','):
+        p = part.strip()
+        if not p:
+            continue
+        if '-' in p:
+            a, b = p.split('-', 1)
+            if not (a.strip().isdigit() and b.strip().isdigit()):
+                return [], _('Ports format is invalid.')
+            start, end = int(a), int(b)
+            if start > end:
+                start, end = end, start
+            if start < 1 or end > 65535:
+                return [], _('Ports must be in range 1..65535.')
+            ports.extend(range(start, end + 1))
+        else:
+            if not p.isdigit():
+                return [], _('Ports format is invalid.')
+            port = int(p)
+            if port < 1 or port > 65535:
+                return [], _('Ports must be in range 1..65535.')
+            ports.append(port)
+
+    ports = sorted(set(ports))
+    if not ports:
+        return [], _('Please select at least one port.')
+    if len(ports) > max_ports:
+        return [], _('Too many ports selected. Limit is %(n)s.', n=max_ports)
+    return ports, None
+
+
+def _scan_single_port(ip: str, port: int, timeout_s: float) -> Dict[str, object]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout_s)
+    try:
+        rc = sock.connect_ex((ip, port))
+        state = 'open' if rc == 0 else 'closed'
+        return {'port': port, 'state': state}
+    except Exception:
+        return {'port': port, 'state': 'filtered'}
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+
+
 # ---------- WHOIS ----------
 @app.route("/whois", methods=["GET", "POST"])
 def whois_lookup():
@@ -958,6 +1057,52 @@ def reverse_lookup():
             error = _("An unexpected error occurred during reverse lookup.")
 
     return render_template("reverse.html", result=result, error=error, query=query, permalink=permalink)
+
+
+@app.route('/security', methods=['GET', 'POST'])
+def security_tools():
+    host = (request.args.get('host') or request.form.get('host') or '').strip()
+    ports_raw = (request.args.get('ports') or request.form.get('ports') or '').strip()
+
+    result = None
+    error = None
+
+    if host:
+        target_ip, err = _resolve_public_target_ip(host)
+        if err:
+            error = err
+        else:
+            max_ports = max(1, int(app.config.get('PORT_SCAN_MAX_PORTS', 50)))
+            ports, p_err = _parse_ports(ports_raw, max_ports=max_ports)
+            if p_err:
+                error = p_err
+            else:
+                timeout_s = float(app.config.get('PORT_SCAN_CONNECT_TIMEOUT', 0.4))
+                max_workers = max(1, min(int(app.config.get('PORT_SCAN_MAX_WORKERS', 20)), len(ports)))
+
+                rows: List[Dict[str, object]] = []
+                with ThreadPoolExecutor(max_workers=max_workers) as pool:
+                    futs = [pool.submit(_scan_single_port, target_ip, p, timeout_s) for p in ports]
+                    for fut in as_completed(futs):
+                        rows.append(fut.result())
+                rows.sort(key=lambda x: int(x['port']))
+
+                result = {
+                    'host': host,
+                    'ip': target_ip,
+                    'ports': ports,
+                    'rows': rows,
+                    'open_count': sum(1 for r in rows if r['state'] == 'open'),
+                    'closed_count': sum(1 for r in rows if r['state'] == 'closed'),
+                    'filtered_count': sum(1 for r in rows if r['state'] == 'filtered'),
+                    'limits': {
+                        'max_ports': max_ports,
+                        'timeout_s': timeout_s,
+                        'max_workers': max_workers,
+                    }
+                }
+
+    return render_template('security.html', host=host, ports_raw=ports_raw, result=result, error=error, common_ports=COMMON_SAFE_PORTS[:20])
 
 # ---------- История ----------
 @app.get("/history")

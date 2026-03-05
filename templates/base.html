@@ -118,6 +118,10 @@
              href="{{ url_for('site_checker.site_checker') }}">{{ tr('Проверка сайта', 'Site Checker') }}</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='security_tools' %}active{% endif %}"
+             href="{{ url_for('security_tools') }}">{{ tr('Безопасность', 'Security') }}</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='history_list' %}active{% endif %}"
              href="{{ url_for('history_list') }}">{{ tr('История', 'History') }}</a>
         </li>
