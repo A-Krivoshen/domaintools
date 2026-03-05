@@ -18,10 +18,10 @@
   <div class="alert alert-info mb-3">
     <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
     <div class="small mb-2">
-      {{ tr('Раздел Security (Port Scanner / WordPress Scan) защищён rate-limit и reCAPTCHA v3.', 'Security section (Port Scanner / WordPress Scan) is protected by rate limiting and reCAPTCHA v3.') }}
+      {{ tr('Раздел Security (Port Scanner / WordPress Scan) работает в безопасном режиме с ограничением запросов.', 'Security section (Port Scanner / WordPress Scan) runs in a safe mode with request limits.') }}
     </div>
     <div class="small mb-2">
-      {{ tr('Проверка срабатывает при нажатии кнопки сканирования в разделе Security.', 'Validation runs when you press scan buttons in the Security section.') }}
+      {{ tr('Запустите проверку в разделе Security.', 'Run a scan in the Security section.') }}
     </div>
     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
   </div>
