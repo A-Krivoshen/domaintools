@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}{{ tr('Безопасность', 'Security') }} — DomainTools{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h1 class="mb-2">{{ tr('Безопасность', 'Security') }}</h1>
+  <p class="text-muted mb-3">
+    {{ tr('Безопасный порт-сканер (MVP): ограниченное число портов, короткий таймаут, запрет на приватные/локальные адреса.', 'Safe port scanner (MVP): limited number of ports, short timeout, and private/local address restrictions.') }}
+  </p>
+
+  <form method="get" class="card card-soft p-3 mb-3" autocomplete="off">
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-lg-4">
+        <label class="form-label">{{ tr('Хост или IP', 'Host or IP') }}</label>
+        <input type="text" class="form-control" name="host" value="{{ host or '' }}" placeholder="example.com" required>
+      </div>
+      <div class="col-12 col-lg-6">
+        <label class="form-label">{{ tr('Порты (через запятую или диапазон)', 'Ports (comma-separated or range)') }}</label>
+        <input type="text" class="form-control" name="ports" value="{{ ports_raw or '' }}" placeholder="22,80,443,8080-8081">
+        <div class="form-text">{{ tr('Пусто = безопасный набор популярных портов.', 'Empty = safe preset of common ports.') }}</div>
+      </div>
+      <div class="col-12 col-lg-2 d-grid">
+        <button class="btn btn-primary">{{ tr('Сканировать', 'Scan') }}</button>
+      </div>
+    </div>
+
+    <div class="mt-2 small text-muted">
+      <strong>{{ tr('Быстрый выбор:', 'Quick set:') }}</strong>
+      {% for p in common_ports %}
+        <a class="badge text-bg-light border me-1" href="{{ url_for('security_tools') }}?host={{ host }}&ports={{ p }}">{{ p }}</a>
+      {% endfor %}
+    </div>
+  </form>
+
+  {% if error %}
+    <div class="alert alert-warning">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+    <div class="card card-soft p-3 mb-3">
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+        <div><strong>{{ tr('Цель', 'Target') }}:</strong> <code>{{ result.host }}</code> → <code>{{ result.ip }}</code></div>
+        <div class="small text-muted">{{ tr('Лимиты', 'Limits') }}: {{ tr('порты', 'ports') }} ≤ {{ result.limits.max_ports }}, timeout {{ result.limits.timeout_s }}s</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <span class="badge bg-success">{{ tr('Открыто', 'Open') }}: {{ result.open_count }}</span>
+        <span class="badge bg-secondary">{{ tr('Закрыто', 'Closed') }}: {{ result.closed_count }}</span>
+        <span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}: {{ result.filtered_count }}</span>
+      </div>
+
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>{{ tr('Порт', 'Port') }}</th>
+              <th>{{ tr('Статус', 'Status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in result.rows %}
+            <tr>
+              <td><code>{{ row.port }}</code></td>
+              <td>
+                {% if row.state == 'open' %}
+                  <span class="badge bg-success">{{ tr('Открыт', 'Open') }}</span>
+                {% elif row.state == 'closed' %}
+                  <span class="badge bg-secondary">{{ tr('Закрыт', 'Closed') }}</span>
+                {% else %}
+                  <span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  {% endif %}
+
+  {% include "_cards_under_tools.html" %}
+</div>
+{% endblock %}
