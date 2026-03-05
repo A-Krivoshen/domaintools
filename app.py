@@ -9,7 +9,7 @@ import logging
 import io
 import csv
 import subprocess
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime
@@ -859,6 +859,124 @@ def _scan_single_port(ip: str, port: int, timeout_s: float) -> Dict[str, object]
         except Exception:
             pass
 
+PORT_SECURITY_HINTS = {
+    21: {"level":"high", "ru":"FTP открыт", "en":"FTP is exposed", "ru_fix":"Отключите FTP или используйте SFTP/FTPS.", "en_fix":"Disable FTP or use SFTP/FTPS."},
+    22: {"level":"medium", "ru":"SSH открыт", "en":"SSH is exposed", "ru_fix":"Ограничьте доступ по IP и используйте только ключи.", "en_fix":"Restrict by IP and use key-only authentication."},
+    23: {"level":"high", "ru":"Telnet открыт", "en":"Telnet is exposed", "ru_fix":"Закройте Telnet и используйте SSH.", "en_fix":"Disable Telnet and use SSH."},
+    25: {"level":"medium", "ru":"SMTP открыт", "en":"SMTP is exposed", "ru_fix":"Проверьте, что это не open-relay, и включите SPF/DKIM/DMARC.", "en_fix":"Ensure it is not open relay and enable SPF/DKIM/DMARC."},
+    3389: {"level":"high", "ru":"RDP открыт", "en":"RDP is exposed", "ru_fix":"Разрешайте доступ только через VPN/ACL.", "en_fix":"Allow access only via VPN/ACL."},
+    3306: {"level":"high", "ru":"MySQL открыт", "en":"MySQL is exposed", "ru_fix":"БД не должна быть доступна из интернета.", "en_fix":"Database should not be publicly reachable."},
+    5432: {"level":"high", "ru":"PostgreSQL открыт", "en":"PostgreSQL is exposed", "ru_fix":"Ограничьте доступ только внутренней сетью.", "en_fix":"Restrict access to internal network only."},
+    6379: {"level":"critical", "ru":"Redis открыт", "en":"Redis is exposed", "ru_fix":"Закройте порт снаружи и включите аутентификацию.", "en_fix":"Close external access and enable authentication."},
+    27017: {"level":"high", "ru":"MongoDB открыт", "en":"MongoDB is exposed", "ru_fix":"Закройте публичный доступ и включите auth.", "en_fix":"Close public access and enforce auth."},
+}
+
+
+def _build_port_hints(rows: List[Dict[str, object]]) -> List[Dict[str, str]]:
+    open_ports = sorted(int(r["port"]) for r in rows if r.get("state") == "open")
+    hints: List[Dict[str, str]] = []
+    for p in open_ports:
+        if p in PORT_SECURITY_HINTS:
+            h = PORT_SECURITY_HINTS[p]
+            hints.append({
+                "port": str(p),
+                "level": h["level"],
+                "ru": h["ru"],
+                "en": h["en"],
+                "ru_fix": h["ru_fix"],
+                "en_fix": h["en_fix"],
+            })
+    return hints
+
+
+def _normalize_wp_target(raw: str) -> Tuple[str | None, str | None, str | None]:
+    """Return (normalized_url, host, error)."""
+    txt = (raw or "").strip()
+    if not txt:
+        return None, None, _('Empty host')
+    if not re.match(r"^https?://", txt, re.I):
+        txt = f"https://{txt}"
+    try:
+        u = urlparse(txt)
+    except Exception:
+        return None, None, _('Invalid URL')
+    host = (u.hostname or "").strip()
+    if not host:
+        return None, None, _('Invalid URL')
+    return txt, host, None
+
+
+def _safe_get_text(url: str, timeout_s: float = 4.0) -> Tuple[int, str, Dict[str, str], str | None]:
+    try:
+        r = requests.get(url, timeout=timeout_s, allow_redirects=True, headers={"User-Agent": "DomainTools-SecurityScanner/1.0"})
+        return r.status_code, (r.text or ""), dict(r.headers), None
+    except Exception as e:
+        return 0, "", {}, str(e)
+
+
+def _wordpress_safe_scan(target_url: str) -> Dict[str, object]:
+    status, html, headers, err = _safe_get_text(target_url)
+    html_l = (html or "").lower()
+
+    checks: Dict[str, object] = {
+        "homepage_status": status,
+        "reachable": status > 0 and err is None,
+        "error": err,
+    }
+
+    # WP markers
+    markers = ["wp-content", "wp-includes", "wp-json", "wordpress"]
+    is_wp = any(m in html_l for m in markers)
+
+    wp_login_status, wp_login_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/wp-login.php')
+    xmlrpc_status, xmlrpc_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/xmlrpc.php')
+    readme_status, readme_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/readme.html')
+    wpjson_status, _, _, _ = _safe_get_text(target_url.rstrip('/') + '/wp-json/')
+    uploads_status, uploads_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/wp-content/uploads/')
+
+    if wp_login_status in {200, 301, 302, 403}:
+        is_wp = True
+
+    # version extraction (best-effort)
+    ver = None
+    m = re.search(r"wordpress\s*([0-9]+(?:\.[0-9]+){1,3})", html_l)
+    if m:
+        ver = m.group(1)
+
+    sec_headers = {
+        "strict-transport-security": headers.get("Strict-Transport-Security"),
+        "content-security-policy": headers.get("Content-Security-Policy"),
+        "x-frame-options": headers.get("X-Frame-Options"),
+        "x-content-type-options": headers.get("X-Content-Type-Options"),
+        "referrer-policy": headers.get("Referrer-Policy"),
+    }
+
+    checks.update({
+        "is_wordpress": is_wp,
+        "version": ver,
+        "wp_login_status": wp_login_status,
+        "xmlrpc_enabled": xmlrpc_status == 200 and ("xml-rpc" in (xmlrpc_text or "").lower()),
+        "readme_exposed": readme_status == 200 and "wordpress" in (readme_text or "").lower(),
+        "wp_json_enabled": wpjson_status in {200, 401, 403},
+        "uploads_listing": uploads_status == 200 and "index of" in (uploads_text or "").lower(),
+        "security_headers": sec_headers,
+    })
+
+    hints: List[Dict[str, str]] = []
+    if checks["xmlrpc_enabled"]:
+        hints.append({"level":"medium", "ru":"Доступен xmlrpc.php", "en":"xmlrpc.php is enabled", "ru_fix":"Ограничьте xmlrpc.php, если не используете Jetpack/приложения.", "en_fix":"Restrict xmlrpc.php unless required by Jetpack/apps."})
+    if checks["readme_exposed"]:
+        hints.append({"level":"low", "ru":"Доступен readme.html", "en":"readme.html is exposed", "ru_fix":"Удалите/скройте readme.html, чтобы не светить версию.", "en_fix":"Hide/remove readme.html to reduce version disclosure."})
+    if checks["uploads_listing"]:
+        hints.append({"level":"high", "ru":"Открыт листинг /wp-content/uploads/", "en":"Directory listing enabled for /wp-content/uploads/", "ru_fix":"Отключите directory listing на веб-сервере.", "en_fix":"Disable directory listing in web server config."})
+
+    missing_headers = [k for k,v in sec_headers.items() if not v]
+    if missing_headers:
+        hints.append({"level":"medium", "ru":"Не хватает security-заголовков", "en":"Missing security headers", "ru_fix":"Добавьте HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy.", "en_fix":"Add HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy."})
+
+    checks["hints"] = hints
+    return checks
+
 
 # ---------- WHOIS ----------
 @app.route("/whois", methods=["GET", "POST"])
@@ -1061,21 +1179,23 @@ def reverse_lookup():
 
 @app.route('/security', methods=['GET', 'POST'])
 def security_tools():
+    # Port scanner inputs
     host = (request.args.get('host') or request.form.get('host') or '').strip()
     ports_raw = (request.args.get('ports') or request.form.get('ports') or '').strip()
+    scan_target = (request.args.get('scan') or request.form.get('scan') or '').strip().lower()
 
-    result = None
-    error = None
+    port_result = None
+    port_error = None
 
-    if host:
+    if host or scan_target == 'ports':
         target_ip, err = _resolve_public_target_ip(host)
         if err:
-            error = err
+            port_error = err
         else:
             max_ports = max(1, int(app.config.get('PORT_SCAN_MAX_PORTS', 50)))
             ports, p_err = _parse_ports(ports_raw, max_ports=max_ports)
             if p_err:
-                error = p_err
+                port_error = p_err
             else:
                 timeout_s = float(app.config.get('PORT_SCAN_CONNECT_TIMEOUT', 0.4))
                 max_workers = max(1, min(int(app.config.get('PORT_SCAN_MAX_WORKERS', 20)), len(ports)))
@@ -1087,7 +1207,8 @@ def security_tools():
                         rows.append(fut.result())
                 rows.sort(key=lambda x: int(x['port']))
 
-                result = {
+                hints = _build_port_hints(rows)
+                port_result = {
                     'host': host,
                     'ip': target_ip,
                     'ports': ports,
@@ -1099,10 +1220,41 @@ def security_tools():
                         'max_ports': max_ports,
                         'timeout_s': timeout_s,
                         'max_workers': max_workers,
-                    }
+                    },
+                    'hints': hints,
                 }
 
-    return render_template('security.html', host=host, ports_raw=ports_raw, result=result, error=error, common_ports=COMMON_SAFE_PORTS[:20])
+    # WordPress safe scan inputs
+    wp_url_raw = (request.args.get('wp_url') or request.form.get('wp_url') or '').strip()
+    wp_result = None
+    wp_error = None
+
+    if wp_url_raw or scan_target == 'wp':
+        norm_url, wp_host, n_err = _normalize_wp_target(wp_url_raw)
+        if n_err:
+            wp_error = n_err
+        else:
+            target_ip, err = _resolve_public_target_ip(wp_host)
+            if err:
+                wp_error = err
+            else:
+                wp_result = _wordpress_safe_scan(norm_url)
+                wp_result['target_url'] = norm_url
+                wp_result['target_host'] = wp_host
+                wp_result['target_ip'] = target_ip
+
+    return render_template(
+        'security.html',
+        host=host,
+        ports_raw=ports_raw,
+        port_result=port_result,
+        port_error=port_error,
+        wp_url_raw=wp_url_raw,
+        wp_result=wp_result,
+        wp_error=wp_error,
+        common_ports=COMMON_SAFE_PORTS[:20],
+    )
+
 
 # ---------- История ----------
 @app.get("/history")
