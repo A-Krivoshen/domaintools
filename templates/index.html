@@ -1,52 +1,43 @@
 {% extends 'base.html' %}
 {% block title %}DrSlon — DomainTools{% endblock %}
 {% block content %}
-<div class="card card-soft p-5">
-  <h1 class="h3 mb-3">Добро пожаловать</h1>
-  <p class="mb-0">Перейдите в разделы  <a href="/domains">Domains</a>, <a href="/dns">DNS</a>, <a href="/whois">WHOIS</a> или <a href="/geo">GeoIP</a>. Сохранённые результаты доступны в <a href="/history">History</a>.</p>
-<p class="small text-muted mt-2">
-  Начните с <a href="/domains">Domains</a> — умный подбор доменных имён под ваш проект:
-  проверим доступность, подскажем альтернативы в популярных зонах (.ru, .рф, .com, .net, .org и др.),
-  предложим транслитерации, короткие и брендовые варианты. Для любой позиции — быстрые действия:
-  WHOIS, DNS, GeoIP и сохранение результата в историю.
-</p>
+<section class="hero-home card-soft p-4 p-md-5 mb-2">
+  <div class="hero-home__badge">DomainTools Suite</div>
+  <h1 class="hero-home__title mb-3">{{ tr('Добро пожаловать', 'Welcome') }}</h1>
+  <p class="hero-home__lead mb-3">
+    {{ tr('Проверка доменов, DNS, WHOIS, GeoIP, Reverse и', 'Domain checks, DNS, WHOIS, GeoIP, Reverse and') }} <strong>Site Checker</strong>
+    {{ tr('— в одном месте. Сохраняйте результаты в History и открывайте быстрые действия по каждому домену.', 'in one place. Save results to History and open quick actions for each domain.') }}
+  </p>
 
-</div>
+  <div class="hero-home__actions mb-3">
+    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">{{ tr('Искать домен', 'Search domain') }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Открыть Site Checker', 'Open Site Checker') }}</a>
+  </div>
 
-<!-- info-cards-injected -->
 
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-4">
-  
-        <div class="col">
-          <div class="card card-soft h-100 text-center">
-            <div class="card-body">
-              <div class="mb-3 text-primary"><i class="fa-solid fa-magnifying-glass fa-2x"></i></div>
-              <h5 class="card-title">Проверка доступности доменного имени</h5>
-              <p class="card-text">Проверьте, свободно ли доменное имя для регистрации с помощью нашего инструмента поиска доменов.</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="col">
-          <div class="card card-soft h-100 text-center">
-            <div class="card-body">
-              <div class="mb-3 text-primary"><i class="fa-solid fa-address-card fa-2x"></i></div>
-              <h5 class="card-title">Информация о владельце домена (WHOIS)</h5>
-              <p class="card-text">Узнайте владельца, регистратор, даты регистрации и другие данные домена через сервис WHOIS.</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="col">
-          <div class="card card-soft h-100 text-center">
-            <div class="card-body">
-              <div class="mb-3 text-primary"><i class="fa-solid fa-calendar-check fa-2x"></i></div>
-              <h5 class="card-title">Узнать срок действия домена</h5>
-              <p class="card-text">Когда истекает регистрация домена и будет ли он доступен — проверьте срок через WHOIS и поиск доменов.</p>
-            </div>
-          </div>
-        </div>
-        
-</div>
+  <div class="alert alert-info mb-3">
+    <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
+    <div class="small mb-2">
+      {{ tr('Раздел Security (Port Scanner / WordPress Scan) защищён rate-limit и reCAPTCHA v3.', 'Security section (Port Scanner / WordPress Scan) is protected by rate limiting and reCAPTCHA v3.') }}
+    </div>
+    <div class="small mb-2">
+      {{ tr('Проверка срабатывает при нажатии кнопки сканирования в разделе Security.', 'Validation runs when you press scan buttons in the Security section.') }}
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
+  </div>
+
+
+
+  <div class="hero-home__pills">
+    <a class="hero-pill" href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
+    <a class="hero-pill" href="{{ url_for('dns_lookup') }}">DNS</a>
+    <a class="hero-pill" href="{{ url_for('whois_lookup') }}">WHOIS</a>
+    <a class="hero-pill" href="{{ url_for('geo_lookup') }}">GeoIP</a>
+    <a class="hero-pill" href="{{ url_for('reverse_lookup') }}">Reverse</a>
+    <a class="hero-pill" href="{{ url_for('site_checker.site_checker') }}">Site Checker</a>
+    <a class="hero-pill" href="{{ url_for('history_list') }}">{{ tr('История', 'History') }}</a>
+  </div>
+</section>
+{% include "_home_cards.html" %}
 
 {% endblock %}
