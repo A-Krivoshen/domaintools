@@ -1186,6 +1186,7 @@ def security_tools():
 
     port_result = None
     port_error = None
+    permalink = None
 
     if host or scan_target == 'ports':
         target_ip, err = _resolve_public_target_ip(host)
@@ -1223,6 +1224,9 @@ def security_tools():
                     },
                     'hints': hints,
                 }
+                hid = save_history("security", f"ports:{host}:{ports_raw or 'default'}", port_result)
+                if load_history("security", hid):
+                    permalink = url_for("history_view", kind="security", hid=hid, _external=True)
 
     # WordPress safe scan inputs
     wp_url_raw = (request.args.get('wp_url') or request.form.get('wp_url') or '').strip()
@@ -1242,6 +1246,9 @@ def security_tools():
                 wp_result['target_url'] = norm_url
                 wp_result['target_host'] = wp_host
                 wp_result['target_ip'] = target_ip
+                hid = save_history("security", f"wp:{wp_url_raw}", wp_result)
+                if load_history("security", hid):
+                    permalink = url_for("history_view", kind="security", hid=hid, _external=True)
 
     return render_template(
         'security.html',
@@ -1252,6 +1259,7 @@ def security_tools():
         wp_url_raw=wp_url_raw,
         wp_result=wp_result,
         wp_error=wp_error,
+        permalink=permalink,
         common_ports=COMMON_SAFE_PORTS[:20],
     )
 
@@ -1293,6 +1301,16 @@ def history_list():
             repeat_url = url_for("geo_lookup", query=q)
         elif kind == "reverse":
             repeat_url = url_for("reverse_lookup", q=q)
+        elif kind == "security":
+            if q.startswith("ports:"):
+                host_part = q.split(":", 2)[1] if ":" in q else ""
+                ports_part = q.split(":", 2)[2] if q.count(":") >= 2 else ""
+                repeat_url = url_for("security_tools", host=host_part, ports=ports_part, scan="ports")
+            elif q.startswith("wp:"):
+                wp_target = q.split(":", 1)[1] if ":" in q else ""
+                repeat_url = url_for("security_tools", wp_url=wp_target, scan="wp")
+            else:
+                repeat_url = url_for("security_tools")
         else:
             repeat_url = None
 
@@ -1309,7 +1327,7 @@ def history_list():
 
 @app.route("/history/<kind>/<hid>")
 def history_view(kind: str, hid: str):
-    if kind not in {"dns", "whois", "geo", "reverse"}:
+    if kind not in {"dns", "whois", "geo", "reverse", "security"}:
         abort(404)
     doc = load_history(kind, hid)
     if not doc:
@@ -1325,12 +1343,25 @@ def history_view(kind: str, hid: str):
         return render_template("geo.html", result=res, error=None, query=q, permalink=permalink)
     if kind == "reverse":
         return render_template("reverse.html", result=res, error=None, query=q, permalink=permalink)
+    if kind == "security":
+        return render_template(
+            "security.html",
+            host=(res or {}).get("host", ""),
+            ports_raw=",".join(str(p) for p in ((res or {}).get("ports") or [])),
+            port_result=res if isinstance(res, dict) and "rows" in res else None,
+            port_error=None,
+            wp_url_raw=(res or {}).get("target_url", "") if isinstance(res, dict) else "",
+            wp_result=res if isinstance(res, dict) and "is_wordpress" in res else None,
+            wp_error=None,
+            permalink=permalink,
+            common_ports=COMMON_SAFE_PORTS[:20],
+        )
     abort(404)
 
 # ---------- Экспорт ----------
 @app.get("/export/<kind>/<hid>.<fmt>")
 def export_result(kind: str, hid: str, fmt: str):
-    if kind not in {"dns", "whois", "geo", "reverse"}:
+    if kind not in {"dns", "whois", "geo", "reverse", "security"}:
         abort(404)
     doc = load_history(kind, hid)
     if not doc:
