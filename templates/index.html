@@ -19,11 +19,6 @@
     <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
     <div class="small mb-2">
       {{ tr('Раздел Security (Port Scanner / WordPress Scan) защищён rate-limit и reCAPTCHA v3.', 'Security section (Port Scanner / WordPress Scan) is protected by rate limiting and reCAPTCHA v3.') }}
-      {% if config.get('SECURITY_RECAPTCHA_ENABLED') %}
-        <span class="badge text-bg-success ms-1">{{ tr('reCAPTCHA включена', 'reCAPTCHA enabled') }}</span>
-      {% else %}
-        <span class="badge text-bg-secondary ms-1">{{ tr('reCAPTCHA выключена', 'reCAPTCHA disabled') }}</span>
-      {% endif %}
     </div>
     <div class="small mb-2">
       {{ tr('Проверка срабатывает при нажатии кнопки сканирования в разделе Security.', 'Validation runs when you press scan buttons in the Security section.') }}
