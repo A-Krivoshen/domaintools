@@ -154,6 +154,7 @@
 <!-- Скрипты (bootstrap первым, затем наш app.js) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
 <script src="{{ url_for('static', filename='app.js') }}?v=7" defer></script>
+{% block extra_scripts %}{% endblock %}
 
 {% block before_footer %}{% include "_ad_rsy.html" %}{% endblock %}
 {% include "_footer.html" %}

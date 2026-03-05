@@ -8,6 +8,16 @@
     {{ tr('Только безопасные проверки: публичные цели, лимиты запросов и без brute-force.', 'Only safe checks: public targets, strict limits, and no brute-force.') }}
   </p>
 
+  {% if security_error %}
+    <div class="alert alert-warning">{{ security_error }}</div>
+  {% endif %}
+
+  {% if recaptcha_enabled %}
+    <div class="alert alert-info small">
+      {{ tr('Защита reCAPTCHA включена для сканеров безопасности.', 'reCAPTCHA protection is enabled for security scanners.') }}
+    </div>
+  {% endif %}
+
   <div class="card card-soft p-2 p-lg-3 mb-3">
     <div class="d-flex flex-wrap gap-2 align-items-center">
       <span class="small text-muted me-1">{{ tr('Разделы:', 'Sections:') }}</span>
@@ -22,8 +32,9 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'ports' else 'd-none' }}" id="security-ports">
     <h2 class="h5 mb-3">{{ tr('Port Scanner (Safe)', 'Port Scanner (Safe)') }}</h2>
-    <form method="get" autocomplete="off">
+    <form method="get" autocomplete="off" class="security-form">
       <input type="hidden" name="scan" value="ports">
+      <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
         <div class="col-12 col-lg-4">
           <label class="form-label">{{ tr('Хост или IP', 'Host or IP') }}</label>
@@ -96,8 +107,9 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'wp' else 'd-none' }}" id="security-wp">
     <h2 class="h5 mb-3">{{ tr('WordPress Safe Scan', 'WordPress Safe Scan') }}</h2>
-    <form method="get" autocomplete="off">
+    <form method="get" autocomplete="off" class="security-form">
       <input type="hidden" name="scan" value="wp">
+      <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
         <div class="col-12 col-lg-10">
           <label class="form-label">{{ tr('URL сайта', 'Site URL') }}</label>
@@ -148,4 +160,48 @@
 
   {% include "_cards_under_tools.html" %}
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+  {{ super() }}
+  {% if recaptcha_enabled and recaptcha_site_key %}
+    {% if recaptcha_provider == 'enterprise' %}
+      <script src="https://www.google.com/recaptcha/enterprise.js?render={{ recaptcha_site_key }}"></script>
+    {% else %}
+      <script src="https://www.google.com/recaptcha/api.js?render={{ recaptcha_site_key }}"></script>
+    {% endif %}
+    <script>
+      (function () {
+        const forms = document.querySelectorAll('.security-form');
+        if (!forms.length) return;
+        const actionName = {{ recaptcha_action|tojson }};
+        const siteKey = {{ recaptcha_site_key|tojson }};
+        const isEnterprise = {{ (recaptcha_provider == 'enterprise')|tojson }};
+
+        forms.forEach((form) => {
+          form.addEventListener('submit', function (ev) {
+            if (form.dataset.recaptchaReady === '1') return;
+            ev.preventDefault();
+            const recaptchaApi = isEnterprise ? (window.grecaptcha && window.grecaptcha.enterprise) : window.grecaptcha;
+            if (!recaptchaApi || !window.grecaptcha) {
+              form.dataset.recaptchaReady = '1';
+              form.submit();
+              return;
+            }
+            recaptchaApi.ready(function () {
+              recaptchaApi.execute(siteKey, {action: actionName}).then(function (token) {
+                const tokenInput = form.querySelector('[data-recaptcha-token]');
+                if (tokenInput) tokenInput.value = token || '';
+                form.dataset.recaptchaReady = '1';
+                form.submit();
+              }).catch(function () {
+                form.dataset.recaptchaReady = '1';
+                form.submit();
+              });
+            });
+          });
+        });
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

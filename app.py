@@ -82,6 +82,15 @@ app.config.update(
     PORT_SCAN_MAX_PORTS=int(os.environ.get("PORT_SCAN_MAX_PORTS", "50")),
     PORT_SCAN_MAX_WORKERS=int(os.environ.get("PORT_SCAN_MAX_WORKERS", "20")),
     PORT_SCAN_CONNECT_TIMEOUT=float(os.environ.get("PORT_SCAN_CONNECT_TIMEOUT", "0.4")),
+    SECURITY_RATE_LIMIT_PER_MIN=int(os.environ.get("SECURITY_RATE_LIMIT_PER_MIN", "15")),
+    SECURITY_RECAPTCHA_ENABLED=(os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}),
+    SECURITY_RECAPTCHA_PROVIDER=os.environ.get("SECURITY_RECAPTCHA_PROVIDER", "standard").strip().lower(),
+    SECURITY_RECAPTCHA_SITE_KEY=os.environ.get("SECURITY_RECAPTCHA_SITE_KEY", "").strip(),
+    SECURITY_RECAPTCHA_SECRET_KEY=os.environ.get("SECURITY_RECAPTCHA_SECRET_KEY", "").strip(),
+    SECURITY_RECAPTCHA_ENTERPRISE_PROJECT=os.environ.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT", "").strip(),
+    SECURITY_RECAPTCHA_API_KEY=os.environ.get("SECURITY_RECAPTCHA_API_KEY", "").strip(),
+    SECURITY_RECAPTCHA_MIN_SCORE=float(os.environ.get("SECURITY_RECAPTCHA_MIN_SCORE", "0.5")),
+    SECURITY_RECAPTCHA_ACTION=os.environ.get("SECURITY_RECAPTCHA_ACTION", "security_scan").strip() or "security_scan",
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -978,6 +987,93 @@ def _wordpress_safe_scan(target_url: str) -> Dict[str, object]:
     return checks
 
 
+_SECURITY_RATE_BUCKET: Dict[str, List[float]] = {}
+
+
+def _client_ip() -> str:
+    xff = (request.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        return xff.split(",", 1)[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _security_is_rate_limited(ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+    if not ip:
+        return False
+    now = time.time()
+    bucket = _SECURITY_RATE_BUCKET.get(ip, [])
+    fresh = [t for t in bucket if now - t < window_s]
+    limited = len(fresh) >= max(1, limit_per_min)
+    fresh.append(now)
+    _SECURITY_RATE_BUCKET[ip] = fresh[-200:]
+    return limited
+
+
+def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
+    if not app.config.get("SECURITY_RECAPTCHA_ENABLED"):
+        return True, None
+
+    if not token:
+        return False, _("Captcha token is missing.")
+
+    provider = (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    min_score = float(app.config.get("SECURITY_RECAPTCHA_MIN_SCORE", 0.5))
+
+    try:
+        if provider == "enterprise":
+            api_key = app.config.get("SECURITY_RECAPTCHA_API_KEY")
+            project = app.config.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT")
+            site_key = app.config.get("SECURITY_RECAPTCHA_SITE_KEY")
+            if not (api_key and project and site_key):
+                return False, _("reCAPTCHA Enterprise is not configured.")
+
+            endpoint = f"https://recaptchaenterprise.googleapis.com/v1/projects/{project}/assessments?key={api_key}"
+            payload = {
+                "event": {
+                    "token": token,
+                    "siteKey": site_key,
+                    "expectedAction": action,
+                    "userIpAddress": _client_ip(),
+                }
+            }
+            resp = requests.post(endpoint, json=payload, timeout=4)
+            data = resp.json() if resp.ok else {}
+            token_props = data.get("tokenProperties") or {}
+            risk = data.get("riskAnalysis") or {}
+            if not token_props.get("valid"):
+                return False, _("Captcha validation failed.")
+            if token_props.get("action") and token_props.get("action") != action:
+                return False, _("Captcha action mismatch.")
+            score = float(risk.get("score") or 0.0)
+            if score < min_score:
+                return False, _("Captcha score is too low.")
+            return True, None
+
+        secret = app.config.get("SECURITY_RECAPTCHA_SECRET_KEY")
+        if not secret:
+            return False, _("reCAPTCHA is not configured.")
+        resp = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
+            data={
+                "secret": secret,
+                "response": token,
+                "remoteip": _client_ip(),
+            },
+            timeout=4,
+        )
+        data = resp.json() if resp.ok else {}
+        if not data.get("success"):
+            return False, _("Captcha validation failed.")
+        if data.get("action") and data.get("action") != action:
+            return False, _("Captcha action mismatch.")
+        score = float(data.get("score") or 0.0)
+        if score < min_score:
+            return False, _("Captcha score is too low.")
+        return True, None
+    except Exception:
+        return False, _("Captcha verification is temporarily unavailable.")
+
+
 # ---------- WHOIS ----------
 @app.route("/whois", methods=["GET", "POST"])
 def whois_lookup():
@@ -1183,13 +1279,25 @@ def security_tools():
     host = (request.args.get('host') or request.form.get('host') or '').strip()
     ports_raw = (request.args.get('ports') or request.form.get('ports') or '').strip()
     scan_target = (request.args.get('scan') or request.form.get('scan') or '').strip().lower()
+    wp_url_raw = (request.args.get('wp_url') or request.form.get('wp_url') or '').strip()
 
     active_scan = 'wp' if scan_target == 'wp' else 'ports'
     port_result = None
     port_error = None
+    security_error = None
     permalink = None
 
-    if host or scan_target == 'ports':
+    if host or wp_url_raw:
+        ip = _client_ip()
+        if _security_is_rate_limited(ip, int(app.config.get('SECURITY_RATE_LIMIT_PER_MIN', 15))):
+            security_error = _('Too many security scan requests. Please retry in a minute.')
+        else:
+            recaptcha_token = (request.values.get('recaptcha_token') or '').strip()
+            ok, recaptcha_err = _verify_recaptcha_token(recaptcha_token, action=str(app.config.get('SECURITY_RECAPTCHA_ACTION', 'security_scan')))
+            if not ok:
+                security_error = recaptcha_err or _('Captcha validation failed.')
+
+    if (not security_error) and (host or scan_target == 'ports'):
         target_ip, err = _resolve_public_target_ip(host)
         if err:
             port_error = err
@@ -1230,11 +1338,10 @@ def security_tools():
                     permalink = url_for("history_view", kind="security", hid=hid, _external=True)
 
     # WordPress safe scan inputs
-    wp_url_raw = (request.args.get('wp_url') or request.form.get('wp_url') or '').strip()
     wp_result = None
     wp_error = None
 
-    if wp_url_raw or scan_target == 'wp':
+    if (not security_error) and (wp_url_raw or scan_target == 'wp'):
         norm_url, wp_host, n_err = _normalize_wp_target(wp_url_raw)
         if n_err:
             wp_error = n_err
@@ -1260,7 +1367,12 @@ def security_tools():
         wp_url_raw=wp_url_raw,
         wp_result=wp_result,
         wp_error=wp_error,
+        security_error=security_error,
         active_scan=active_scan,
+        recaptcha_enabled=bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')),
+        recaptcha_site_key=(app.config.get('SECURITY_RECAPTCHA_SITE_KEY') or ''),
+        recaptcha_provider=(app.config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard'),
+        recaptcha_action=(app.config.get('SECURITY_RECAPTCHA_ACTION') or 'security_scan'),
         permalink=permalink,
         common_ports=COMMON_SAFE_PORTS[:20],
     )
@@ -1355,7 +1467,12 @@ def history_view(kind: str, hid: str):
             wp_url_raw=(res or {}).get("target_url", "") if isinstance(res, dict) else "",
             wp_result=res if isinstance(res, dict) and "is_wordpress" in res else None,
             wp_error=None,
+            security_error=None,
             active_scan='wp' if isinstance(res, dict) and "is_wordpress" in res else 'ports',
+            recaptcha_enabled=bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')),
+            recaptcha_site_key=(app.config.get('SECURITY_RECAPTCHA_SITE_KEY') or ''),
+            recaptcha_provider=(app.config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard'),
+            recaptcha_action=(app.config.get('SECURITY_RECAPTCHA_ACTION') or 'security_scan'),
             permalink=permalink,
             common_ports=COMMON_SAFE_PORTS[:20],
         )
