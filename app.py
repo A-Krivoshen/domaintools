@@ -1184,6 +1184,7 @@ def security_tools():
     ports_raw = (request.args.get('ports') or request.form.get('ports') or '').strip()
     scan_target = (request.args.get('scan') or request.form.get('scan') or '').strip().lower()
 
+    active_scan = 'wp' if scan_target == 'wp' else 'ports'
     port_result = None
     port_error = None
     permalink = None
@@ -1259,6 +1260,7 @@ def security_tools():
         wp_url_raw=wp_url_raw,
         wp_result=wp_result,
         wp_error=wp_error,
+        active_scan=active_scan,
         permalink=permalink,
         common_ports=COMMON_SAFE_PORTS[:20],
     )
@@ -1353,6 +1355,7 @@ def history_view(kind: str, hid: str):
             wp_url_raw=(res or {}).get("target_url", "") if isinstance(res, dict) else "",
             wp_result=res if isinstance(res, dict) and "is_wordpress" in res else None,
             wp_error=None,
+            active_scan='wp' if isinstance(res, dict) and "is_wordpress" in res else 'ports',
             permalink=permalink,
             common_ports=COMMON_SAFE_PORTS[:20],
         )

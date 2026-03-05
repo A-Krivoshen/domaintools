@@ -8,7 +8,19 @@
     {{ tr('Только безопасные проверки: публичные цели, лимиты запросов и без brute-force.', 'Only safe checks: public targets, strict limits, and no brute-force.') }}
   </p>
 
-  <div class="card card-soft p-3 mb-3">
+  <div class="card card-soft p-2 p-lg-3 mb-3">
+    <div class="d-flex flex-wrap gap-2 align-items-center">
+      <span class="small text-muted me-1">{{ tr('Разделы:', 'Sections:') }}</span>
+      <a class="btn btn-sm {{ 'btn-primary' if active_scan == 'ports' else 'btn-outline-primary' }}" href="{{ url_for('security_tools', scan='ports', host=host, ports=ports_raw) }}">
+        {{ tr('Port Scanner', 'Port Scanner') }}
+      </a>
+      <a class="btn btn-sm {{ 'btn-primary' if active_scan == 'wp' else 'btn-outline-primary' }}" href="{{ url_for('security_tools', scan='wp', wp_url=wp_url_raw) }}">
+        {{ tr('WordPress Scan', 'WordPress Scan') }}
+      </a>
+    </div>
+  </div>
+
+  <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'ports' else 'd-none' }}" id="security-ports">
     <h2 class="h5 mb-3">{{ tr('Port Scanner (Safe)', 'Port Scanner (Safe)') }}</h2>
     <form method="get" autocomplete="off">
       <input type="hidden" name="scan" value="ports">
@@ -82,7 +94,7 @@
     {% endif %}
   </div>
 
-  <div class="card card-soft p-3 mb-3">
+  <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'wp' else 'd-none' }}" id="security-wp">
     <h2 class="h5 mb-3">{{ tr('WordPress Safe Scan', 'WordPress Safe Scan') }}</h2>
     <form method="get" autocomplete="off">
       <input type="hidden" name="scan" value="wp">
