@@ -1007,16 +1007,31 @@ def _client_ip() -> str:
 
 
 def _security_is_rate_limited(ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+    """Rate-limit by IP with Redis primary storage and in-memory fallback."""
     if not ip:
         return False
-    now = time.time()
-    bucket = _SECURITY_RATE_BUCKET.get(ip, [])
-    fresh = [t for t in bucket if now - t < window_s]
-    limited = len(fresh) >= max(1, limit_per_min)
-    fresh.append(now)
-    _SECURITY_RATE_BUCKET[ip] = fresh[-200:]
-    return limited
 
+    limit = max(1, int(limit_per_min))
+    win = max(1, int(window_s))
+
+    # Primary: Redis shared counter (works across gunicorn workers)
+    try:
+        key = f"rl:security:{ip}"
+        with r.pipeline() as pipe:
+            pipe.incr(key)
+            pipe.expire(key, win, nx=True)
+            vals = pipe.execute()
+        current = int(vals[0] or 0)
+        return current > limit
+    except Exception:
+        # Fallback: local in-memory bucket (keeps service operational if Redis unavailable)
+        now = time.time()
+        bucket = _SECURITY_RATE_BUCKET.get(ip, [])
+        fresh = [t for t in bucket if now - t < win]
+        limited = len(fresh) >= limit
+        fresh.append(now)
+        _SECURITY_RATE_BUCKET[ip] = fresh[-200:]
+        return limited
 
 
 
