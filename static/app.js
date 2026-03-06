@@ -7,7 +7,6 @@
     loading: body?.dataset.i18nLoading || '⌛ Working...',
     themeLight: body?.dataset.i18nThemeLight || 'Switch to light theme',
     themeDark: body?.dataset.i18nThemeDark || 'Switch to dark theme',
-    themeAuto: body?.dataset.i18nThemeAuto || 'Auto: day/night by time',
   };
 
   // ===== Copy by selector: <button data-copy="#selector">...</button>
@@ -80,9 +79,9 @@
     if (!btn) return;
     const mode = getThemeMode();
     const isDark = getEffectiveTheme(mode) === 'dark';
-    const icon = mode === 'auto' ? 'fa-circle-half-stroke' : (isDark ? 'fa-sun' : 'fa-moon');
+    const icon = isDark ? 'fa-sun' : 'fa-moon';
     btn.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
-    const title = mode === 'auto' ? i18n.themeAuto : (isDark ? i18n.themeLight : i18n.themeDark);
+    const title = isDark ? i18n.themeLight : i18n.themeDark;
     btn.setAttribute('aria-label', title);
     btn.setAttribute('title', title);
   }
@@ -107,7 +106,8 @@
     if (!t) return;
     e.preventDefault();
     const mode = getThemeMode();
-    const nextMode = mode === 'auto' ? 'dark' : (mode === 'dark' ? 'light' : 'auto');
+    const effective = getEffectiveTheme(mode);
+    const nextMode = effective === 'dark' ? 'light' : 'dark';
     setThemeMode(nextMode, true);
     closeNav();
   });
