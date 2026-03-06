@@ -24,14 +24,39 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
   <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=6">
 
-  <!-- Раннее применение сохранённой темы -->
+  <!-- Раннее применение темы: manual override или auto (день/ночь) -->
   <script>
   (function () {
-    try {
-      const saved = localStorage.getItem('theme');
-      if (saved === 'dark' || saved === 'light') {
-        document.documentElement.setAttribute('data-bs-theme', saved);
+    function autoThemeByTime() {
+      const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+      let hour;
+      try {
+        if (lang.startsWith('ru')) {
+          const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Europe/Moscow',
+            hour: '2-digit',
+            hour12: false,
+          }).formatToParts(new Date());
+          const hh = parts.find((p) => p.type === 'hour')?.value;
+          hour = Number(hh);
+        } else {
+          hour = new Date().getHours();
+        }
+      } catch (e) {
+        hour = new Date().getHours();
       }
+      return (hour >= 20 || hour < 7) ? 'dark' : 'light';
+    }
+
+    try {
+      const savedMode = localStorage.getItem('theme_mode');
+      const legacy = localStorage.getItem('theme');
+      const mode = (savedMode === 'dark' || savedMode === 'light' || savedMode === 'auto')
+        ? savedMode
+        : ((legacy === 'dark' || legacy === 'light') ? legacy : 'auto');
+      const effective = mode === 'auto' ? autoThemeByTime() : mode;
+      document.documentElement.setAttribute('data-theme-mode', mode);
+      document.documentElement.setAttribute('data-bs-theme', effective);
     } catch (e) {}
   })();
   </script>
@@ -75,7 +100,8 @@
       data-i18n-copy-default="{{ tr('Копировать', 'Copy') }}"
       data-i18n-loading="{{ tr('⌛ Выполняю...', '⌛ Working...') }}"
       data-i18n-theme-light="{{ tr('Включить светлую тему', 'Switch to light theme') }}"
-      data-i18n-theme-dark="{{ tr('Включить тёмную тему', 'Switch to dark theme') }}">
+      data-i18n-theme-dark="{{ tr('Включить тёмную тему', 'Switch to dark theme') }}"
+      data-i18n-theme-auto="{{ tr('Авто: ночь/день по времени', 'Auto: day/night by time') }}">
 
 <!-- ===== NAVBAR (единый для десктопа и мобилки через collapse) ===== -->
 <nav class="navbar navbar-dark bg-dark navbar-expand-lg mb-3 sticky-top">
@@ -153,7 +179,7 @@
 
 <!-- Скрипты (bootstrap первым, затем наш app.js) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
-<script src="{{ url_for('static', filename='app.js') }}?v=7" defer></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=8" defer></script>
 
 {% if config.get('FORM_RECAPTCHA_ENABLED') and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
   {% if (config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise' %}

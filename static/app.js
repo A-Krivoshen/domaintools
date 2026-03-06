@@ -7,6 +7,7 @@
     loading: body?.dataset.i18nLoading || '⌛ Working...',
     themeLight: body?.dataset.i18nThemeLight || 'Switch to light theme',
     themeDark: body?.dataset.i18nThemeDark || 'Switch to dark theme',
+    themeAuto: body?.dataset.i18nThemeAuto || 'Auto: day/night by time',
   };
 
   // ===== Copy by selector: <button data-copy="#selector">...</button>
@@ -37,31 +38,84 @@
 
   // ===== Theme toggle (persist in localStorage)
   const root = document.documentElement;
+  function autoThemeByTime() {
+    const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+    let hour;
+    try {
+      if (lang.startsWith('ru')) {
+        const parts = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Europe/Moscow',
+          hour: '2-digit',
+          hour12: false,
+        }).formatToParts(new Date());
+        const hh = parts.find((p) => p.type === 'hour')?.value;
+        hour = Number(hh);
+      } else {
+        hour = new Date().getHours();
+      }
+    } catch (e) {
+      hour = new Date().getHours();
+    }
+    return (hour >= 20 || hour < 7) ? 'dark' : 'light';
+  }
+
+  function getThemeMode() {
+    const mode = root.getAttribute('data-theme-mode');
+    if (mode === 'dark' || mode === 'light' || mode === 'auto') return mode;
+    try {
+      const savedMode = localStorage.getItem('theme_mode');
+      if (savedMode === 'dark' || savedMode === 'light' || savedMode === 'auto') return savedMode;
+      const legacy = localStorage.getItem('theme');
+      if (legacy === 'dark' || legacy === 'light') return legacy;
+    } catch (e) {}
+    return 'auto';
+  }
+
+  function getEffectiveTheme(mode = getThemeMode()) {
+    return mode === 'auto' ? autoThemeByTime() : mode;
+  }
+
   function updateThemeToggleIcon() {
     const btn = document.querySelector('[data-theme-toggle]');
     if (!btn) return;
-    const isDark = getTheme() === 'dark';
-    const icon = isDark ? 'fa-sun' : 'fa-moon';
+    const mode = getThemeMode();
+    const isDark = getEffectiveTheme(mode) === 'dark';
+    const icon = mode === 'auto' ? 'fa-circle-half-stroke' : (isDark ? 'fa-sun' : 'fa-moon');
     btn.innerHTML = `<i class="fa-solid ${icon}" aria-hidden="true"></i>`;
-    btn.setAttribute('aria-label', isDark ? i18n.themeLight : i18n.themeDark);
-    btn.setAttribute('title', isDark ? i18n.themeLight : i18n.themeDark);
+    const title = mode === 'auto' ? i18n.themeAuto : (isDark ? i18n.themeLight : i18n.themeDark);
+    btn.setAttribute('aria-label', title);
+    btn.setAttribute('title', title);
   }
 
-  function setTheme(mode) {
-    root.setAttribute('data-bs-theme', mode);
-    try { localStorage.setItem('theme', mode); } catch (e) {}
+  function setThemeMode(mode, persist = true) {
+    const next = (mode === 'dark' || mode === 'light' || mode === 'auto') ? mode : 'auto';
+    const effective = getEffectiveTheme(next);
+    root.setAttribute('data-theme-mode', next);
+    root.setAttribute('data-bs-theme', effective);
+    if (persist) {
+      try {
+        localStorage.setItem('theme_mode', next);
+        if (next === 'dark' || next === 'light') localStorage.setItem('theme', next);
+        else localStorage.removeItem('theme');
+      } catch (e) {}
+    }
     updateThemeToggleIcon();
   }
-  function getTheme() {
-    return root.getAttribute('data-bs-theme') === 'dark' ? 'dark' : 'light';
-  }
+
   document.addEventListener('click', (e) => {
     const t = e.target.closest('[data-theme-toggle]');
     if (!t) return;
     e.preventDefault();
-    setTheme(getTheme() === 'dark' ? 'light' : 'dark');
+    const mode = getThemeMode();
+    const nextMode = mode === 'auto' ? 'dark' : (mode === 'dark' ? 'light' : 'auto');
+    setThemeMode(nextMode, true);
     closeNav();
   });
+
+  setThemeMode(getThemeMode(), false);
+  setInterval(() => {
+    if (getThemeMode() === 'auto') setThemeMode('auto', false);
+  }, 60 * 1000);
 
   updateThemeToggleIcon();
 
