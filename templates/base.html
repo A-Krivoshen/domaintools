@@ -154,6 +154,64 @@
 <!-- Скрипты (bootstrap первым, затем наш app.js) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
 <script src="{{ url_for('static', filename='app.js') }}?v=7" defer></script>
+
+{% if config.get('FORM_RECAPTCHA_ENABLED') and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
+  {% if (config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise' %}
+    <script src="https://www.google.com/recaptcha/enterprise.js?render={{ config.get('SECURITY_RECAPTCHA_SITE_KEY') }}"></script>
+  {% else %}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ config.get('SECURITY_RECAPTCHA_SITE_KEY') }}"></script>
+  {% endif %}
+  <script>
+    (function () {
+      const forms = document.querySelectorAll('main form');
+      if (!forms.length) return;
+      const hasSecurityForms = !!document.querySelector('.security-form');
+      if (hasSecurityForms) return; // security page handles captcha in its own template script
+
+      const siteKey = {{ (config.get('SECURITY_RECAPTCHA_SITE_KEY') or '')|tojson }};
+      const actionName = {{ (config.get('FORM_RECAPTCHA_ACTION') or 'form_submit')|tojson }};
+      const isEnterprise = {{ ((config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise')|tojson }};
+
+      forms.forEach((form) => {
+        const method = (form.getAttribute('method') || 'get').toLowerCase();
+        if (method !== 'get' && method !== 'post') return;
+        if (!form.querySelector('input[type="text"], input[type="search"], input[type="url"], textarea')) return;
+
+        form.addEventListener('submit', function (ev) {
+          if (form.dataset.recaptchaReady === '1') return;
+          ev.preventDefault();
+
+          let tokenInput = form.querySelector('input[name="recaptcha_token"]');
+          if (!tokenInput) {
+            tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = 'recaptcha_token';
+            form.appendChild(tokenInput);
+          }
+
+          const recaptchaApi = isEnterprise ? (window.grecaptcha && window.grecaptcha.enterprise) : window.grecaptcha;
+          if (!recaptchaApi || !window.grecaptcha || !siteKey) {
+            form.dataset.recaptchaReady = '1';
+            form.submit();
+            return;
+          }
+
+          recaptchaApi.ready(function () {
+            recaptchaApi.execute(siteKey, {action: actionName}).then(function (token) {
+              tokenInput.value = token || '';
+              form.dataset.recaptchaReady = '1';
+              form.submit();
+            }).catch(function () {
+              form.dataset.recaptchaReady = '1';
+              form.submit();
+            });
+          });
+        });
+      });
+    })();
+  </script>
+{% endif %}
+
 {% block extra_scripts %}{% endblock %}
 
 {% block before_footer %}{% include "_ad_rsy.html" %}{% endblock %}

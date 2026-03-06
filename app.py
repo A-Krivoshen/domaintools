@@ -91,6 +91,8 @@ app.config.update(
     SECURITY_RECAPTCHA_API_KEY=os.environ.get("SECURITY_RECAPTCHA_API_KEY", "").strip(),
     SECURITY_RECAPTCHA_MIN_SCORE=float(os.environ.get("SECURITY_RECAPTCHA_MIN_SCORE", "0.5")),
     SECURITY_RECAPTCHA_ACTION=os.environ.get("SECURITY_RECAPTCHA_ACTION", "security_scan").strip() or "security_scan",
+    FORM_RECAPTCHA_ENABLED=(os.environ.get("FORM_RECAPTCHA_ENABLED", os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0")).strip().lower() in {"1", "true", "yes", "on"}),
+    FORM_RECAPTCHA_ACTION=os.environ.get("FORM_RECAPTCHA_ACTION", "form_submit").strip() or "form_submit",
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -563,8 +565,8 @@ def dns_lookup():
         "title": "DNS Lookup",
         "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
     }
-    query = (request.args.get("q") or "").strip()
-    selected_types = [t.strip().upper() for t in request.args.getlist("types") if t and t.strip()]
+    query = (request.args.get("q") or request.form.get("q") or "").strip()
+    selected_types = [t.strip().upper() for t in request.values.getlist("types") if t and t.strip()]
     if not selected_types:
         selected_types = list(default_types)
     if "ALL" in selected_types:
@@ -580,6 +582,18 @@ def dns_lookup():
             result=None,
             error=None,
             query="",
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
+
+    captcha_error = _verify_form_recaptcha_if_needed()
+    if captcha_error:
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=captcha_error,
+            query=query,
             selected_types=selected_types,
             dns_type_options=dns_type_options,
         )
@@ -752,25 +766,29 @@ def domain_search():
     selected_tlds = [t for t in all_tlds if t in set(selected_from_req)] if selected_from_req else default_tlds
 
     if query:
-        try:
-            if "." in query:
-                query = query.split(".")[0]
-            label = _normalize_label(query)
-            if any("а" <= ch <= "я" or ch == "ё" for ch in label):
-                translit = _translit_ru(label)
-                suggestions = sorted(set([
-                    translit,
-                    translit.replace("sch", "sh").replace("ya", "a"),
-                ]))
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            error = captcha_error
+        else:
+            try:
+                if "." in query:
+                    query = query.split(".")[0]
+                label = _normalize_label(query)
+                if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                    translit = _translit_ru(label)
+                    suggestions = sorted(set([
+                        translit,
+                        translit.replace("sch", "sh").replace("ya", "a"),
+                    ]))
 
-            tlds_for_check = selected_tlds
-            if not selected_from_req:
-                max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
-                tlds_for_check = selected_tlds[:max_tlds]
+                tlds_for_check = selected_tlds
+                if not selected_from_req:
+                    max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
+                    tlds_for_check = selected_tlds[:max_tlds]
 
-            items = _check_candidates(label, tlds_for_check)
-        except Exception as e:
-            error = str(e)
+                items = _check_candidates(label, tlds_for_check)
+            except Exception as e:
+                error = str(e)
 
     return render_template(
         "domains.html",
@@ -1047,6 +1065,30 @@ def _recaptcha_setup_status() -> Tuple[bool, str | None]:
     ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_SECRET_KEY"))
     return (ok, None if ok else _("reCAPTCHA v3 config is incomplete."))
 
+def _verify_form_recaptcha_if_needed() -> str | None:
+    """Validate captcha for generic data-entry forms when enabled."""
+    if not app.config.get("FORM_RECAPTCHA_ENABLED"):
+        return None
+
+    token = (request.values.get("recaptcha_token") or "").strip()
+    if request.method != "POST" and not token:
+        # keep GET permalink/repeat links working when no captcha token is present
+        return None
+
+    ok, err = _verify_recaptcha_token(token, action=str(app.config.get("FORM_RECAPTCHA_ACTION", "form_submit")))
+    if ok:
+        return None
+    return err or _("Captcha validation failed.")
+
+
+def _has_any_request_value(*keys: str) -> bool:
+    for k in keys:
+        v = (request.values.get(k) or "").strip()
+        if v:
+            return True
+    return False
+
+
 def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
     if not app.config.get("SECURITY_RECAPTCHA_ENABLED"):
         return True, None
@@ -1125,6 +1167,10 @@ def whois_lookup():
     if not query:
         return render_template("whois.html", result=None, error=None, query=query, permalink=None)
 
+    captcha_error = _verify_form_recaptcha_if_needed()
+    if captcha_error:
+        return render_template("whois.html", result=None, error=captcha_error, query=query, permalink=None)
+
     try:
         q, err = _normalize_domain_query(query)
         if err:
@@ -1180,6 +1226,9 @@ def geo_lookup():
 
     if request.method == "POST" or (request.method == "GET" and request.args.get("query")):
         query = (request.form.get("query") or request.args.get("query") or "").strip()
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            return render_template('geo.html', result=None, error=captcha_error, query=(query or ''), permalink=None)
         query, err = _normalize_domain_query(query)
         if err:
             error = err
@@ -1269,6 +1318,9 @@ def reverse_lookup():
         return row
 
     if query:
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            return render_template("reverse.html", result=None, error=captcha_error, query=query, permalink=None)
         try:
             # IP?
             try:

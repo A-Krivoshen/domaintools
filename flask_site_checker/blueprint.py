@@ -3,6 +3,7 @@ from .services import resolve_dns, http_check, ip_info_for_domain, rkn_domain_li
 import time
 import html as _html
 import re
+import requests
 
 # Шаблоны лежат в пакете flask_site_checker/templates
 site_checker_bp = Blueprint("site_checker", __name__, template_folder="templates")
@@ -24,6 +25,80 @@ def _is_valid_domain(raw: str) -> bool:
     except Exception:
         return False
     return bool(_DOMAIN_RE.match(d))
+
+
+
+def _client_ip() -> str:
+    xff = (request.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        return xff.split(",", 1)[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _verify_site_checker_captcha() -> str | None:
+    cfg = current_app.config
+    if not cfg.get("FORM_RECAPTCHA_ENABLED"):
+        return None
+
+    token = (request.values.get("recaptcha_token") or "").strip()
+    if request.method != "POST" and not token:
+        return None
+
+    provider = (cfg.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    if provider not in {"standard", "enterprise"}:
+        provider = "standard"
+    action = (cfg.get("FORM_RECAPTCHA_ACTION") or "form_submit")
+    min_score = float(cfg.get("SECURITY_RECAPTCHA_MIN_SCORE", 0.5))
+
+    if not token:
+        return "Captcha token is missing."
+
+    try:
+        if provider == "enterprise":
+            api_key = cfg.get("SECURITY_RECAPTCHA_API_KEY")
+            project = cfg.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT")
+            site_key = cfg.get("SECURITY_RECAPTCHA_SITE_KEY")
+            if not (api_key and project and site_key):
+                return "reCAPTCHA Enterprise config is incomplete."
+            endpoint = f"https://recaptchaenterprise.googleapis.com/v1/projects/{project}/assessments?key={api_key}"
+            payload = {
+                "event": {
+                    "token": token,
+                    "siteKey": site_key,
+                    "expectedAction": action,
+                    "userIpAddress": _client_ip(),
+                }
+            }
+            resp = requests.post(endpoint, json=payload, timeout=4)
+            data = resp.json() if resp.ok else {}
+            token_props = data.get("tokenProperties") or {}
+            risk = data.get("riskAnalysis") or {}
+            if not token_props.get("valid"):
+                return "Captcha validation failed."
+            if token_props.get("action") and token_props.get("action") != action:
+                return "Captcha action mismatch."
+            if float(risk.get("score") or 0.0) < min_score:
+                return "Captcha score is too low."
+            return None
+
+        secret = cfg.get("SECURITY_RECAPTCHA_SECRET_KEY")
+        if not secret:
+            return "reCAPTCHA v3 config is incomplete."
+        resp = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
+            data={"secret": secret, "response": token, "remoteip": _client_ip()},
+            timeout=4,
+        )
+        data = resp.json() if resp.ok else {}
+        if not data.get("success"):
+            return "Captcha validation failed."
+        if data.get("action") and data.get("action") != action:
+            return "Captcha action mismatch."
+        if float(data.get("score") or 0.0) < min_score:
+            return "Captcha score is too low."
+        return None
+    except Exception:
+        return "Captcha verification is temporarily unavailable."
 
 def _get_rkn_cached():
     now = time.time()
@@ -196,9 +271,9 @@ function copyWpscResult() {
 def site_checker():
     domain = (request.form.get("domain") or request.args.get("domain") or "").strip()
 
-    error = None
+    error = _verify_site_checker_captcha() if domain else None
     is_invalid = bool(domain) and not _is_valid_domain(domain)
-    if is_invalid:
+    if is_invalid and not error:
         error = "Проверьте корректность домена. Пример: example.com"
 
     # вычисления
