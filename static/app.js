@@ -35,6 +35,31 @@
     });
   });
 
+  // ===== Domains search progress =====
+  document.querySelectorAll('form[data-domain-progress]').forEach(form => {
+    form.addEventListener('submit', () => {
+      if (form.dataset.progressStarted === '1') return;
+      const wrap = form.querySelector('[data-domain-progress-wrap]');
+      const bar = form.querySelector('[data-domain-progress-bar]');
+      const percent = form.querySelector('[data-domain-progress-percent]');
+      if (!wrap || !bar || !percent) return;
+
+      form.dataset.progressStarted = '1';
+      wrap.classList.remove('d-none');
+
+      let value = 12;
+      const step = () => {
+        value = Math.min(90, value + (value < 50 ? 8 : (value < 75 ? 4 : 2)));
+        bar.style.width = `${value}%`;
+        bar.parentElement?.setAttribute('aria-valuenow', String(value));
+        percent.textContent = `${value}%`;
+        if (value >= 90) clearInterval(timer);
+      };
+      const timer = setInterval(step, 220);
+      step();
+    });
+  });
+
   // ===== Theme toggle (persist in localStorage)
   const root = document.documentElement;
   function autoThemeByTime() {
