@@ -57,7 +57,7 @@
     <div class="mt-2 small text-muted">
       <strong>{{ tr('Быстрый выбор:', 'Quick set:') }}</strong>
       {% for p in common_ports %}
-        <a class="badge text-bg-light border me-1" href="{{ url_for('security_tools', scan='ports', host=host, ports=p) }}">{{ p }}</a>
+        <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-security-quick-port="{{ p }}">{{ p }}</button>
       {% endfor %}
     </div>
 

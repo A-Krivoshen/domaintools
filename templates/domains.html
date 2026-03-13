@@ -19,7 +19,7 @@
   {{ tr('Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.', 'For each item, quick actions are available: WHOIS, DNS, GeoIP, and saving result to history.') }}
 </p>
 
-<form method="get" class="mb-3" autocomplete="off" data-zones-controls data-domain-progress>
+<form method="post" action="{{ url_for('domain_search') }}" class="mb-3" autocomplete="off" data-zones-controls data-domain-progress>
   <div class="input-group input-group-lg">
     <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required>
     <button class="btn btn-primary">{{ tr('Поиск домена', 'Search domain') }}</button>

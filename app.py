@@ -758,7 +758,13 @@ def _check_candidates(label: str, tlds: List[str]) -> List[Dict]:
 
 @app.route("/domains", methods=["GET", "POST"])
 def domain_search():
-    query = (request.args.get("query") or request.args.get("q") or request.form.get("q") or "").strip()
+    is_post = request.method == "POST"
+    query = (
+        request.form.get("query")
+        if is_post
+        else (request.args.get("query") or request.args.get("q") or "")
+    )
+    query = (query or "").strip()
     items = []
     error = None
     suggestions = []
@@ -770,11 +776,12 @@ def domain_search():
     default_tlds_cfg = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
     default_tlds = [t for t in default_tlds_cfg if t in all_tlds] or all_tlds[:20]
 
-    selected_from_req = [t.strip().lstrip(".") for t in request.values.getlist("zones") if (t or "").strip()]
+    selected_source = request.form if is_post else request.args
+    selected_from_req = [t.strip().lstrip(".") for t in selected_source.getlist("zones") if (t or "").strip()]
     selected_tlds = [t for t in all_tlds if t in set(selected_from_req)] if selected_from_req else default_tlds
 
     if query:
-        captcha_error = _verify_form_recaptcha_if_needed()
+        captcha_error = _verify_form_recaptcha_if_needed() if is_post else None
         if captcha_error:
             error = captcha_error
         else:
@@ -795,8 +802,9 @@ def domain_search():
                     tlds_for_check = selected_tlds[:max_tlds]
 
                 items = _check_candidates(label, tlds_for_check)
-            except Exception as e:
-                error = str(e)
+            except Exception:
+                app.logger.exception("Domain search failed", extra={"query": query})
+                error = _("Не удалось выполнить подбор доменов. Попробуйте ещё раз.")
 
     locale = str(babel_get_locale() or "ru")
     buy_base = app.config.get("AFFILIATE_BUY_BASE_EN") if locale.startswith("en") else app.config.get("AFFILIATE_BUY_BASE_RU")
