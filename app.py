@@ -64,7 +64,15 @@ app.config.update(
     # Domain search
     AFFILIATE_BUY_BASE=os.environ.get(
         "AFFILIATE_BUY_BASE",
-        "https://beget.com/p754742/domains/search/{domain}",
+        "https://beget.com/ru/domains/search/{domain}#search-form-section",
+    ),
+    AFFILIATE_BUY_BASE_RU=os.environ.get(
+        "AFFILIATE_BUY_BASE_RU",
+        os.environ.get("AFFILIATE_BUY_BASE", "https://beget.com/ru/domains/search/{domain}#search-form-section"),
+    ),
+    AFFILIATE_BUY_BASE_EN=os.environ.get(
+        "AFFILIATE_BUY_BASE_EN",
+        "https://beget.com/en/domains/search/{domain}#search-form-section",
     ),
     # Все зоны для подбора (ориентир: доступно у популярных российских регистраторов)
     TLD_LIST=os.environ.get(
@@ -790,13 +798,16 @@ def domain_search():
             except Exception as e:
                 error = str(e)
 
+    locale = str(babel_get_locale() or "ru")
+    buy_base = app.config.get("AFFILIATE_BUY_BASE_EN") if locale == "en" else app.config.get("AFFILIATE_BUY_BASE_RU")
+
     return render_template(
         "domains.html",
         q=query,
         items=items,
         error=error,
         suggestions=suggestions,
-        buy_base=app.config.get("AFFILIATE_BUY_BASE"),
+        buy_base=(buy_base or app.config.get("AFFILIATE_BUY_BASE")),
         all_tlds=all_tlds,
         selected_tlds=selected_tlds,
         default_tlds=default_tlds,
