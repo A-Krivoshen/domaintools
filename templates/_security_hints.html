@@ -1,0 +1,16 @@
+{% if hints %}
+  <div class="alert alert-info py-2 {% if top_margin %}{{ top_margin }}{% endif %}">
+    <div class="fw-semibold mb-1">{{ tr('Рекомендации', 'Recommendations') }}</div>
+    <ul class="mb-0 list-unstyled d-grid gap-2">
+      {% for h in hints %}
+        {% set sev = (h.severity or h.level or 'medium')|lower %}
+        {% set sev_class = 'bg-secondary' %}
+        {% if sev == 'high' %}{% set sev_class = 'bg-danger' %}{% elif sev == 'medium' %}{% set sev_class = 'bg-warning text-dark' %}{% elif sev == 'low' %}{% set sev_class = 'bg-info text-dark' %}{% endif %}
+        <li>
+          <span class="badge {{ sev_class }} me-2">{{ sev|upper }}</span>
+          {% if h.port %}<code>{{ h.port }}</code>: {% endif %}{{ tr(h.ru, h.en) }} — {{ tr(h.ru_fix, h.en_fix) }}
+        </li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}

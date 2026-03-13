@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
-{% block title %}Site Checker — проверка доступности{% endblock %}
-{% block meta_description %}Проверка домена по DNS, HTTP, IP-инфо и наличию в реестре РКН. Онлайн-инструмент от Dr. Slon.{% endblock %}
+{% block title %}{{ tr('Site Checker — проверка доступности', 'Site Checker — availability check') }}{% endblock %}
+{% block meta_description %}{{ tr('Проверка домена по DNS, HTTP, IP-инфо и наличию в реестре РКН. Онлайн-инструмент от Dr. Slon.', 'Domain checks by DNS, HTTP, IP info, and RKN registry status. Online tool by Dr. Slon.') }}{% endblock %}
 
 {% block content %}
 <div class="container my-4">
