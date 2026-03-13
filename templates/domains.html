@@ -30,14 +30,30 @@
       <div class="small text-muted">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
       <div class="d-flex flex-wrap gap-2">
         <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Основные', 'Core') }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('RU', 'RU') }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Global', 'Global') }}</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="new">{{ tr('New gTLD', 'New gTLD') }}</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
         <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
       </div>
     </div>
+    <div class="small mb-2" data-zone-count-wrap>
+      <span class="text-muted" data-zone-count
+            data-selected-label-ru="{{ tr('Выбрано', 'Selected') }}"
+            data-selected-label-en="{{ tr('Selected', 'Selected') }}"
+            data-limit-label-ru="{{ tr('Рекомендованный лимит', 'Recommended limit') }}"
+            data-limit-label-en="{{ tr('Recommended limit', 'Recommended limit') }}"
+            data-over-limit-ru="{{ tr('Слишком много зон — поиск может быть медленнее.', 'Too many zones selected — search may be slower.') }}"
+            data-over-limit-en="{{ tr('Too many zones selected — search may be slower.', 'Too many zones selected — search may be slower.') }}"
+      ></span>
+    </div>
     <input type="text" class="form-control form-control-sm mb-2" data-zone-filter placeholder="{{ tr('Фильтр зон, например .ru или shop', 'Filter zones, e.g. .ru or shop') }}">
-    <div class="d-flex flex-wrap gap-2" data-zones-list data-default-zones="{{ default_tlds|join(',') }}">
+    <div class="d-flex flex-wrap gap-2" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
+         data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
+         data-group-global="{{ (tld_groups.global or [])|join(',') }}"
+         data-group-new="{{ (tld_groups.new or [])|join(',') }}">
       {% for tld in all_tlds %}
-      <label class="btn btn-sm btn-outline-secondary">
+      <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}">
         <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
         .{{ tld }}
       </label>
@@ -92,7 +108,13 @@
         </td>
         <td class="text-end">
           {% if it.available %}
-            <a class="btn btn-sm btn-success" href="{{ buy_base.format(domain=it.fqdn) }}" target="_blank" rel="nofollow noopener">{{ tr('Купить', 'Buy') }}</a>
+            <a class="btn btn-sm btn-success"
+               href="{{ buy_base.format(domain=it.fqdn) }}"
+               target="_blank"
+               rel="nofollow noopener"
+               data-buy-track
+               data-buy-domain="{{ it.fqdn }}"
+               data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ tr('Купить', 'Buy') }}</a>
           {% else %}
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">WHOIS</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ it.fqdn }}">DNS</a>

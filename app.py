@@ -113,6 +113,56 @@ IDN_READY_TLDS = {
     if (t or "").strip()
 }
 
+RU_PRIORITY_TLDS = {
+    "ru", "su", "рф", "рус", "москва", "дети", "tatar",
+}
+
+GLOBAL_PRIORITY_TLDS = {
+    "com", "net", "org", "info", "biz", "name", "pro", "mobi", "tel", "asia", "me", "tv", "cc", "ws",
+}
+
+NEW_GTLD_PRIORITY_TLDS = {
+    "io", "ai", "app", "dev", "site", "online", "store", "shop", "blog", "tech", "xyz", "top", "club", "space",
+    "website", "fun", "live", "digital", "group", "company", "center", "solutions", "services", "agency", "media",
+    "today", "world", "email", "expert", "guru", "news", "software", "cloud", "team", "systems", "network", "plus",
+    "art", "icu", "life", "wiki", "zone", "run",
+}
+
+
+def _build_tld_groups(all_tlds: List[str], default_tlds: List[str]) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    ordered = [t for t in all_tlds if t]
+    ru_group = [t for t in ordered if t in RU_PRIORITY_TLDS]
+    global_group = [t for t in ordered if t in GLOBAL_PRIORITY_TLDS]
+    new_group = [t for t in ordered if t in NEW_GTLD_PRIORITY_TLDS]
+
+    # fallback: if list/env changed, keep groups useful
+    if not ru_group:
+        ru_group = [t for t in ordered if any(c in t for c in "абвгдежзийклмнопрстуфхцчшщъыьэюяё") or t in {"ru", "su"}]
+    if not global_group:
+        global_group = [t for t in ordered if len(t) <= 3][:20]
+    if not new_group:
+        new_group = [t for t in ordered if t not in set(ru_group + global_group)]
+
+    groups = {
+        "core": [t for t in ordered if t in set(default_tlds)],
+        "ru": ru_group,
+        "global": global_group,
+        "new": new_group,
+        "all": ordered,
+    }
+
+    group_map: Dict[str, str] = {}
+    for t in ordered:
+        if t in set(groups["ru"]):
+            group_map[t] = "ru"
+        elif t in set(groups["global"]):
+            group_map[t] = "global"
+        elif t in set(groups["new"]):
+            group_map[t] = "new"
+        else:
+            group_map[t] = "all"
+    return groups, group_map
+
 # Redis
 app.config.setdefault("REDIS_URL", os.getenv("REDIS_URL", "redis://127.0.0.1:6379/3"))
 r = redis.from_url(app.config["REDIS_URL"], decode_responses=True)
@@ -514,6 +564,29 @@ def favicon():
         mimetype="image/x-icon",
     )
 
+
+@app.post("/track/buy-click")
+def track_buy_click():
+    payload = request.get_json(silent=True) or {}
+    tld = re.sub(r"[^a-zа-яё0-9-]", "", str(payload.get("tld") or "").strip().lower())[:32]
+    locale = str(payload.get("locale") or "").strip().lower()[:8]
+    if locale not in {"ru", "en"}:
+        locale = "other"
+    if not tld:
+        return jsonify(ok=False, error="bad_tld"), 400
+
+    day_key = datetime.utcnow().strftime("%Y%m%d")
+    redis_key = f"dt:analytics:buy_clicks:{day_key}:{locale}"
+    try:
+        with r.pipeline() as pipe:
+            pipe.hincrby(redis_key, tld, 1)
+            pipe.expire(redis_key, 86400 * 45)
+            pipe.execute()
+    except Exception:
+        app.logger.warning("Buy click analytics write failed", exc_info=True)
+
+    return jsonify(ok=True), 200
+
 @app.get("/robots.txt")
 def robots():
     lines = [
@@ -775,6 +848,8 @@ def domain_search():
 
     default_tlds_cfg = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
     default_tlds = [t for t in default_tlds_cfg if t in all_tlds] or all_tlds[:20]
+    tld_groups, tld_group_map = _build_tld_groups(all_tlds, default_tlds)
+    max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
 
     selected_source = request.form if is_post else request.args
     selected_from_req = [t.strip().lstrip(".") for t in selected_source.getlist("zones") if (t or "").strip()]
@@ -798,7 +873,6 @@ def domain_search():
 
                 tlds_for_check = selected_tlds
                 if not selected_from_req:
-                    max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
                     tlds_for_check = selected_tlds[:max_tlds]
 
                 items = _check_candidates(label, tlds_for_check)
@@ -819,6 +893,9 @@ def domain_search():
         all_tlds=all_tlds,
         selected_tlds=selected_tlds,
         default_tlds=default_tlds,
+        max_tlds=max_tlds,
+        tld_groups=tld_groups,
+        tld_group_map=tld_group_map,
     )
 
 
