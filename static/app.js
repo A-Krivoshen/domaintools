@@ -7,6 +7,7 @@
     loading: body?.dataset.i18nLoading || '⌛ Working...',
     themeLight: body?.dataset.i18nThemeLight || 'Switch to light theme',
     themeDark: body?.dataset.i18nThemeDark || 'Switch to dark theme',
+    themeAutoTip: body?.dataset.i18nThemeAutoTip || 'Auto mode: theme follows time of day (RU — Moscow time, EN — local time).',
   };
 
   // ===== Copy by selector: <button data-copy="#selector">...</button>
@@ -111,6 +112,39 @@
     btn.setAttribute('title', title);
   }
 
+  function showAutoThemeHintOnce() {
+    const btn = document.querySelector('[data-theme-toggle]');
+    if (!btn) return;
+    if (getThemeMode() !== 'auto') return;
+    try {
+      if (localStorage.getItem('theme_auto_hint_seen') === '1') return;
+      localStorage.setItem('theme_auto_hint_seen', '1');
+    } catch (e) {}
+
+    const prevTitle = btn.getAttribute('title') || '';
+    btn.setAttribute('title', i18n.themeAutoTip);
+    btn.setAttribute('aria-label', i18n.themeAutoTip);
+
+    if (window.bootstrap?.Tooltip) {
+      const tip = new bootstrap.Tooltip(btn, {
+        title: i18n.themeAutoTip,
+        trigger: 'manual',
+        placement: 'bottom',
+      });
+      tip.show();
+      setTimeout(() => {
+        tip.dispose();
+        btn.setAttribute('title', prevTitle);
+        updateThemeToggleIcon();
+      }, 4200);
+    } else {
+      setTimeout(() => {
+        btn.setAttribute('title', prevTitle);
+        updateThemeToggleIcon();
+      }, 4200);
+    }
+  }
+
   function setThemeMode(mode, persist = true) {
     const next = (mode === 'dark' || mode === 'light' || mode === 'auto') ? mode : 'auto';
     const effective = getEffectiveTheme(next);
@@ -143,6 +177,7 @@
   }, 60 * 1000);
 
   updateThemeToggleIcon();
+  showAutoThemeHintOnce();
 
   // ===== Domains zones controls =====
   document.querySelectorAll('form[data-zones-controls]').forEach(form => {
@@ -159,9 +194,11 @@
       if (!counter) return;
       const selected = zoneInputs().filter(i => i.checked && !i.disabled).length;
       const limit = maxZones > 0 ? maxZones : 0;
-      const selectedLabel = counter.dataset.selectedLabelRu || 'Выбрано';
-      const limitLabel = counter.dataset.limitLabelRu || 'Рекомендованный лимит';
-      const overLimitText = counter.dataset.overLimitRu || 'Слишком много зон — поиск может быть медленнее.';
+      const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+      const isEn = lang.startsWith('en');
+      const selectedLabel = (isEn ? counter.dataset.selectedLabelEn : counter.dataset.selectedLabelRu) || 'Selected';
+      const limitLabel = (isEn ? counter.dataset.limitLabelEn : counter.dataset.limitLabelRu) || 'Recommended limit';
+      const overLimitText = (isEn ? counter.dataset.overLimitEn : counter.dataset.overLimitRu) || 'Too many zones selected — search may be slower.';
       counter.textContent = `${selectedLabel}: ${selected}${limit ? ` / ${limitLabel}: ${limit}` : ''}`;
       if (limit && selected > limit) {
         counter.classList.remove('text-muted');

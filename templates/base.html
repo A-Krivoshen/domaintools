@@ -100,7 +100,8 @@
       data-i18n-copy-default="{{ tr('Копировать', 'Copy') }}"
       data-i18n-loading="{{ tr('⌛ Выполняю...', '⌛ Working...') }}"
       data-i18n-theme-light="{{ tr('Включить светлую тему', 'Switch to light theme') }}"
-      data-i18n-theme-dark="{{ tr('Включить тёмную тему', 'Switch to dark theme') }}">
+      data-i18n-theme-dark="{{ tr('Включить тёмную тему', 'Switch to dark theme') }}"
+      data-i18n-theme-auto-tip="{{ tr('Авто-режим: тема по времени суток (RU — по Москве, EN — по локальному времени).', 'Auto mode: theme follows time of day (RU — Moscow time, EN — local time).') }}">
 
 <!-- ===== NAVBAR (единый для десктопа и мобилки через collapse) ===== -->
 <nav class="navbar navbar-dark bg-dark navbar-expand-lg mb-3 sticky-top">
@@ -178,7 +179,7 @@
 
 <!-- Скрипты (bootstrap первым, затем наш app.js) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
-<script src="{{ url_for('static', filename='app.js') }}?v=10" defer></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=11" defer></script>
 
 {% if config.get('FORM_RECAPTCHA_ENABLED') and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
   {% if (config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise' %}

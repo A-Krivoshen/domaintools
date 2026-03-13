@@ -200,6 +200,18 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   justify-content: center;
 }
 
+/* Keyboard accessibility: visible focus ring across controls */
+:where(a, button, input, select, textarea, [role="button"], .btn, .form-check-input):focus-visible {
+  outline: 3px solid rgba(13, 110, 253, .55);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .18);
+}
+
+[data-bs-theme="dark"] :where(a, button, input, select, textarea, [role="button"], .btn, .form-check-input):focus-visible {
+  outline-color: rgba(130, 179, 255, .9);
+  box-shadow: 0 0 0 .22rem rgba(130, 179, 255, .35);
+}
+
 [data-bs-theme="dark"] .theme-toggle-btn {
   border-color: rgba(255,255,255,.45);
 }
@@ -239,6 +251,27 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 [data-bs-theme="dark"] .navbar .nav-link:focus {
   color: #f4f7ff;
   background: rgba(72, 135, 255, .25);
+}
+
+[data-bs-theme="dark"] .table-light,
+[data-bs-theme="dark"] .table-light > th,
+[data-bs-theme="dark"] .table-light > td,
+[data-bs-theme="dark"] .table-light th,
+[data-bs-theme="dark"] .table-light td {
+  background-color: #263246 !important;
+  color: #edf3ff !important;
+  border-color: #34445b !important;
+}
+
+[data-bs-theme="dark"] .btn-outline-secondary {
+  color: #d7e2f3;
+  border-color: #5b6b83;
+}
+[data-bs-theme="dark"] .btn-outline-secondary:hover,
+[data-bs-theme="dark"] .btn-outline-secondary:focus {
+  color: #0f1724;
+  background: #c9d8f0;
+  border-color: #c9d8f0;
 }
 
 [data-bs-theme="dark"] .form-control::placeholder {
