@@ -9,6 +9,7 @@ import logging
 import io
 import csv
 import subprocess
+import uuid
 from urllib.parse import urlencode, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
@@ -105,6 +106,11 @@ app.config.update(
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
 app.register_blueprint(site_checker_bp)
+
+SECURITY_JOB_TTL_S = int(os.environ.get("SECURITY_JOB_TTL_S", "3600"))
+SECURITY_ASYNC_WORKERS = int(os.environ.get("SECURITY_ASYNC_WORKERS", "4"))
+_SECURITY_ASYNC_POOL = ThreadPoolExecutor(max_workers=max(1, SECURITY_ASYNC_WORKERS))
+_SECURITY_JOB_LOCAL: Dict[str, Dict] = {}
 
 # Зоны, в которых разрешаем IDN-метки (берём из общего списка зон)
 IDN_READY_TLDS = {
@@ -348,6 +354,61 @@ def load_history(kind: str, hid: str) -> Optional[Dict]:
     except Exception:
         return None
 
+
+def _security_job_key(job_id: str) -> str:
+    return f"dt:security:job:{job_id}"
+
+
+def _save_security_job(job_id: str, payload: Dict, ttl_s: int = SECURITY_JOB_TTL_S) -> None:
+    payload = dict(payload or {})
+    payload["id"] = job_id
+    payload["updated_ts"] = int(time.time())
+    _SECURITY_JOB_LOCAL[job_id] = payload
+    try:
+        r.setex(_security_job_key(job_id), max(60, int(ttl_s)), json.dumps(payload, ensure_ascii=False))
+    except Exception:
+        pass
+
+
+def _load_security_job(job_id: str) -> Optional[Dict]:
+    try:
+        raw = r.get(_security_job_key(job_id))
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    return _SECURITY_JOB_LOCAL.get(job_id)
+
+
+def _normalize_security_hints(hints: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    severity_map = {"low": "low", "medium": "medium", "high": "high", "critical": "high"}
+    out: List[Dict[str, str]] = []
+    for h in hints or []:
+        sev = severity_map.get(str(h.get("severity") or h.get("level") or "").lower(), "medium")
+        item = dict(h)
+        item["severity"] = sev
+        out.append(item)
+    return out
+
+
+def _security_metric_inc(endpoint: str, event: str) -> None:
+    endpoint = re.sub(r"[^a-z0-9_:\-]", "", (endpoint or "security").lower())[:64] or "security"
+    event = "blocked" if event == "blocked" else "allowed"
+    minute = datetime.utcnow().strftime("%Y%m%d%H%M")
+    day = datetime.utcnow().strftime("%Y%m%d")
+    key_min = f"dt:metrics:security_rate:min:{minute}"
+    key_day = f"dt:metrics:security_rate:day:{day}"
+    field = f"{endpoint}:{event}"
+    try:
+        with r.pipeline() as pipe:
+            pipe.hincrby(key_min, field, 1)
+            pipe.expire(key_min, 86400 * 2)
+            pipe.hincrby(key_day, field, 1)
+            pipe.expire(key_day, 86400 * 14)
+            pipe.execute()
+    except Exception:
+        pass
+
 def _split_kind_id(s: str) -> Optional[Tuple[str, str]]:
     try:
         if ":" in s:
@@ -546,6 +607,11 @@ def dt_filter(ts):
 @app.get("/health")
 def health():
     recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
+    security_metrics_minute = {}
+    try:
+        security_metrics_minute = r.hgetall(f"dt:metrics:security_rate:min:{datetime.utcnow().strftime('%Y%m%d%H%M')}") or {}
+    except Exception:
+        pass
     return jsonify(
         status="ok",
         security={
@@ -553,6 +619,7 @@ def health():
             "recaptcha_provider": (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard"),
             "recaptcha_ready": recaptcha_ready,
             "recaptcha_setup_error": recaptcha_setup_error,
+            "rate_limit_current_minute": security_metrics_minute,
         },
     ), 200
 
@@ -1048,7 +1115,7 @@ def _build_port_hints(rows: List[Dict[str, object]]) -> List[Dict[str, str]]:
                 "ru_fix": h["ru_fix"],
                 "en_fix": h["en_fix"],
             })
-    return hints
+    return _normalize_security_hints(hints)
 
 
 def _normalize_wp_target(raw: str) -> Tuple[str | None, str | None, str | None]:
@@ -1136,8 +1203,112 @@ def _wordpress_safe_scan(target_url: str) -> Dict[str, object]:
     if missing_headers:
         hints.append({"level":"medium", "ru":"Не хватает security-заголовков", "en":"Missing security headers", "ru_fix":"Добавьте HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy.", "en_fix":"Add HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy."})
 
-    checks["hints"] = hints
+    checks["hints"] = _normalize_security_hints(hints)
     return checks
+
+
+def _run_port_scan_result(host: str, ports_raw: str) -> Tuple[Dict[str, object] | None, str | None]:
+    target_ip, err = _resolve_public_target_ip(host)
+    if err:
+        return None, err
+
+    max_ports = max(1, int(app.config.get('PORT_SCAN_MAX_PORTS', 50)))
+    ports, p_err = _parse_ports(ports_raw, max_ports=max_ports)
+    if p_err:
+        return None, p_err
+
+    timeout_s = float(app.config.get('PORT_SCAN_CONNECT_TIMEOUT', 0.4))
+    max_workers = max(1, min(int(app.config.get('PORT_SCAN_MAX_WORKERS', 20)), len(ports)))
+    rows: List[Dict[str, object]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futs = [pool.submit(_scan_single_port, target_ip, p, timeout_s) for p in ports]
+        for fut in as_completed(futs):
+            rows.append(fut.result())
+    rows.sort(key=lambda x: int(x['port']))
+
+    hints = _build_port_hints(rows)
+    return {
+        'host': host,
+        'ip': target_ip,
+        'ports': ports,
+        'rows': rows,
+        'open_count': sum(1 for row in rows if row['state'] == 'open'),
+        'closed_count': sum(1 for row in rows if row['state'] == 'closed'),
+        'filtered_count': sum(1 for row in rows if row['state'] == 'filtered'),
+        'limits': {
+            'max_ports': max_ports,
+            'timeout_s': timeout_s,
+            'max_workers': max_workers,
+        },
+        'hints': hints,
+    }, None
+
+
+def _run_wp_scan_result(wp_url_raw: str) -> Tuple[Dict[str, object] | None, str | None]:
+    norm_url, wp_host, n_err = _normalize_wp_target(wp_url_raw)
+    if n_err:
+        return None, n_err
+    target_ip, err = _resolve_public_target_ip(wp_host)
+    if err:
+        return None, err
+
+    wp_result = _wordpress_safe_scan(norm_url)
+    wp_result['target_url'] = norm_url
+    wp_result['target_host'] = wp_host
+    wp_result['target_ip'] = target_ip
+    wp_result['hints'] = _normalize_security_hints(wp_result.get('hints') or [])
+    return wp_result, None
+
+
+def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -> None:
+    with app.app_context():
+        started = int(time.time())
+        _save_security_job(job_id, {
+            "status": "running",
+            "kind": job_kind,
+            "created_ts": started,
+            "started_ts": started,
+            "payload": payload,
+            "result": None,
+            "error": None,
+        })
+        try:
+            if job_kind == "ports":
+                result, err = _run_port_scan_result(payload.get("host", ""), payload.get("ports_raw", ""))
+                if err:
+                    raise ValueError(err)
+                hid = save_history("security", f"ports:{payload.get('host', '')}:{payload.get('ports_raw') or 'default'}", result)
+                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+            elif job_kind == "wp":
+                result, err = _run_wp_scan_result(payload.get("wp_url_raw", ""))
+                if err:
+                    raise ValueError(err)
+                hid = save_history("security", f"wp:{payload.get('wp_url_raw', '')}", result)
+                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+            else:
+                raise ValueError(_("Unsupported scan type."))
+
+            _save_security_job(job_id, {
+                "status": "done",
+                "kind": job_kind,
+                "created_ts": started,
+                "finished_ts": int(time.time()),
+                "payload": payload,
+                "result": result,
+                "error": None,
+                "permalink": permalink,
+            })
+        except Exception as e:
+            _save_security_job(job_id, {
+                "status": "failed",
+                "kind": job_kind,
+                "created_ts": started,
+                "finished_ts": int(time.time()),
+                "payload": payload,
+                "result": None,
+                "error": str(e),
+                "permalink": None,
+            })
 
 
 _SECURITY_RATE_BUCKET: Dict[str, List[float]] = {}
@@ -1493,93 +1664,86 @@ def reverse_lookup():
 
 @app.route('/security', methods=['GET', 'POST'])
 def security_tools():
-    # Port scanner inputs
-    host = (request.args.get('host') or request.form.get('host') or '').strip()
-    ports_raw = (request.args.get('ports') or request.form.get('ports') or '').strip()
-    scan_target = (request.args.get('scan') or request.form.get('scan') or '').strip().lower()
-    wp_url_raw = (request.args.get('wp_url') or request.form.get('wp_url') or '').strip()
+    host = (request.values.get('host') or '').strip()
+    ports_raw = (request.values.get('ports') or '').strip()
+    scan_target = (request.values.get('scan') or '').strip().lower()
+    wp_url_raw = (request.values.get('wp_url') or '').strip()
+    job_id = (request.values.get('job') or '').strip()
 
     active_scan = 'wp' if scan_target == 'wp' else 'ports'
     port_result = None
     port_error = None
+    wp_result = None
+    wp_error = None
     security_error = None
     permalink = None
+    job_status = None
 
     recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
 
-    if host or wp_url_raw:
+    # Poll/render existing job
+    if job_id:
+        job = _load_security_job(job_id)
+        if job:
+            job_status = str(job.get('status') or '').lower() or 'queued'
+            active_scan = 'wp' if str(job.get('kind')) == 'wp' else 'ports'
+            payload = job.get('payload') or {}
+            host = host or str(payload.get('host') or '')
+            ports_raw = ports_raw or str(payload.get('ports_raw') or '')
+            wp_url_raw = wp_url_raw or str(payload.get('wp_url_raw') or '')
+            if job_status == 'done':
+                if active_scan == 'ports':
+                    port_result = job.get('result')
+                else:
+                    wp_result = job.get('result')
+                permalink = job.get('permalink')
+            elif job_status == 'failed':
+                if active_scan == 'ports':
+                    port_error = job.get('error') or _('Scan failed.')
+                else:
+                    wp_error = job.get('error') or _('Scan failed.')
+
+    # Submit new async job
+    if request.method == 'POST' and not job_id and (host or wp_url_raw):
         if (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
             security_error = recaptcha_setup_error or _('reCAPTCHA is not configured.')
         else:
             ip = _client_ip()
+            endpoint_name = f"security:{active_scan}"
             if _security_is_rate_limited(ip, int(app.config.get('SECURITY_RATE_LIMIT_PER_MIN', 15))):
+                _security_metric_inc(endpoint_name, 'blocked')
                 security_error = _('Too many security scan requests. Please retry in a minute.')
             else:
+                _security_metric_inc(endpoint_name, 'allowed')
                 recaptcha_token = (request.values.get('recaptcha_token') or '').strip()
                 ok, recaptcha_err = _verify_recaptcha_token(recaptcha_token, action=str(app.config.get('SECURITY_RECAPTCHA_ACTION', 'security_scan')))
                 if not ok:
                     security_error = recaptcha_err or _('Captcha validation failed.')
+                else:
+                    job_id = uuid.uuid4().hex
+                    payload = {
+                        'host': host,
+                        'ports_raw': ports_raw,
+                        'wp_url_raw': wp_url_raw,
+                    }
+                    _save_security_job(job_id, {
+                        'status': 'queued',
+                        'kind': active_scan,
+                        'payload': payload,
+                        'created_ts': int(time.time()),
+                        'result': None,
+                        'error': None,
+                        'permalink': None,
+                    })
+                    _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
+                    return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
 
-    if (not security_error) and (host or scan_target == 'ports'):
-        target_ip, err = _resolve_public_target_ip(host)
-        if err:
-            port_error = err
-        else:
-            max_ports = max(1, int(app.config.get('PORT_SCAN_MAX_PORTS', 50)))
-            ports, p_err = _parse_ports(ports_raw, max_ports=max_ports)
-            if p_err:
-                port_error = p_err
-            else:
-                timeout_s = float(app.config.get('PORT_SCAN_CONNECT_TIMEOUT', 0.4))
-                max_workers = max(1, min(int(app.config.get('PORT_SCAN_MAX_WORKERS', 20)), len(ports)))
-
-                rows: List[Dict[str, object]] = []
-                with ThreadPoolExecutor(max_workers=max_workers) as pool:
-                    futs = [pool.submit(_scan_single_port, target_ip, p, timeout_s) for p in ports]
-                    for fut in as_completed(futs):
-                        rows.append(fut.result())
-                rows.sort(key=lambda x: int(x['port']))
-
-                hints = _build_port_hints(rows)
-                port_result = {
-                    'host': host,
-                    'ip': target_ip,
-                    'ports': ports,
-                    'rows': rows,
-                    'open_count': sum(1 for r in rows if r['state'] == 'open'),
-                    'closed_count': sum(1 for r in rows if r['state'] == 'closed'),
-                    'filtered_count': sum(1 for r in rows if r['state'] == 'filtered'),
-                    'limits': {
-                        'max_ports': max_ports,
-                        'timeout_s': timeout_s,
-                        'max_workers': max_workers,
-                    },
-                    'hints': hints,
-                }
-                hid = save_history("security", f"ports:{host}:{ports_raw or 'default'}", port_result)
-                if load_history("security", hid):
-                    permalink = url_for("history_view", kind="security", hid=hid, _external=True)
-
-    # WordPress safe scan inputs
-    wp_result = None
-    wp_error = None
-
-    if (not security_error) and (wp_url_raw or scan_target == 'wp'):
-        norm_url, wp_host, n_err = _normalize_wp_target(wp_url_raw)
-        if n_err:
-            wp_error = n_err
-        else:
-            target_ip, err = _resolve_public_target_ip(wp_host)
-            if err:
-                wp_error = err
-            else:
-                wp_result = _wordpress_safe_scan(norm_url)
-                wp_result['target_url'] = norm_url
-                wp_result['target_host'] = wp_host
-                wp_result['target_ip'] = target_ip
-                hid = save_history("security", f"wp:{wp_url_raw}", wp_result)
-                if load_history("security", hid):
-                    permalink = url_for("history_view", kind="security", hid=hid, _external=True)
+    # Backward compatibility: old history repeat links may come via GET
+    if request.method == 'GET' and not job_id and not security_error:
+        if active_scan == 'ports' and host:
+            port_result, port_error = _run_port_scan_result(host, ports_raw)
+        elif active_scan == 'wp' and wp_url_raw:
+            wp_result, wp_error = _run_wp_scan_result(wp_url_raw)
 
     return render_template(
         'security.html',
@@ -1600,7 +1764,41 @@ def security_tools():
         recaptcha_setup_error=recaptcha_setup_error,
         permalink=permalink,
         common_ports=COMMON_SAFE_PORTS[:20],
+        job_id=job_id,
+        job_status=job_status,
     )
+
+
+@app.get('/security/jobs/<job_id>')
+def security_job_status(job_id: str):
+    job = _load_security_job(job_id)
+    if not job:
+        return jsonify(ok=False, error='not_found'), 404
+    return jsonify(
+        ok=True,
+        id=job_id,
+        status=job.get('status') or 'queued',
+        kind=job.get('kind') or 'ports',
+        error=job.get('error'),
+        permalink=job.get('permalink'),
+        updated_ts=job.get('updated_ts'),
+    ), 200
+
+
+@app.get('/security/metrics')
+def security_metrics():
+    day = datetime.utcnow().strftime('%Y%m%d')
+    minute = datetime.utcnow().strftime('%Y%m%d%H%M')
+    day_key = f"dt:metrics:security_rate:day:{day}"
+    minute_key = f"dt:metrics:security_rate:min:{minute}"
+    data_day: Dict[str, str] = {}
+    data_min: Dict[str, str] = {}
+    try:
+        data_day = r.hgetall(day_key) or {}
+        data_min = r.hgetall(minute_key) or {}
+    except Exception:
+        pass
+    return jsonify(ok=True, day=data_day, current_minute=data_min), 200
 
 
 # ---------- История ----------
