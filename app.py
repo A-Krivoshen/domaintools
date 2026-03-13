@@ -1007,16 +1007,34 @@ def _is_public_ip(ip: str) -> bool:
         return False
 
 
+def _tr_no_req(msg: str, **kwargs) -> str:
+    """gettext-safe helper that also works in background jobs without request context."""
+    try:
+        return _(msg, **kwargs)
+    except RuntimeError:
+        # No request context (e.g., async worker thread): return source text.
+        if kwargs:
+            try:
+                return msg % kwargs
+            except Exception:
+                return msg
+        return msg
+
+
 def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
     host = (host or '').strip()
     if not host:
-        return None, _('Empty host')
+        return None, _tr_no_req('Empty host')
+
+    # Simple hostname format pre-check to avoid noisy resolver errors
+    if not re.match(r'^[A-Za-z0-9.-]+$', host):
+        return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
 
     # direct IP input
     try:
         ipaddress.ip_address(host)
         if not _is_public_ip(host):
-            return None, _('Only public IP targets are allowed.')
+            return None, _tr_no_req('Only public IP targets are allowed.')
         return host, None
     except Exception:
         pass
@@ -1031,10 +1049,10 @@ def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
                 ips.append(ip)
         public_ips = [ip for ip in ips if _is_public_ip(ip)]
         if not public_ips:
-            return None, _('Resolved host does not have a public IP.')
+            return None, _tr_no_req('Resolved host does not have a public IP.')
         return public_ips[0], None
     except Exception:
-        return None, _('Could not resolve host.')
+        return None, _tr_no_req('Could not resolve host.')
 
 
 def _parse_ports(raw_ports: str, max_ports: int) -> Tuple[List[int], str | None]:
@@ -1050,26 +1068,26 @@ def _parse_ports(raw_ports: str, max_ports: int) -> Tuple[List[int], str | None]
         if '-' in p:
             a, b = p.split('-', 1)
             if not (a.strip().isdigit() and b.strip().isdigit()):
-                return [], _('Ports format is invalid.')
+                return [], _tr_no_req('Ports format is invalid.')
             start, end = int(a), int(b)
             if start > end:
                 start, end = end, start
             if start < 1 or end > 65535:
-                return [], _('Ports must be in range 1..65535.')
+                return [], _tr_no_req('Ports must be in range 1..65535.')
             ports.extend(range(start, end + 1))
         else:
             if not p.isdigit():
-                return [], _('Ports format is invalid.')
+                return [], _tr_no_req('Ports format is invalid.')
             port = int(p)
             if port < 1 or port > 65535:
-                return [], _('Ports must be in range 1..65535.')
+                return [], _tr_no_req('Ports must be in range 1..65535.')
             ports.append(port)
 
     ports = sorted(set(ports))
     if not ports:
-        return [], _('Please select at least one port.')
+        return [], _tr_no_req('Please select at least one port.')
     if len(ports) > max_ports:
-        return [], _('Too many ports selected. Limit is %(n)s.', n=max_ports)
+        return [], _tr_no_req('Too many ports selected. Limit is %(n)s.', n=max_ports)
     return ports, None
 
 
@@ -1122,16 +1140,16 @@ def _normalize_wp_target(raw: str) -> Tuple[str | None, str | None, str | None]:
     """Return (normalized_url, host, error)."""
     txt = (raw or "").strip()
     if not txt:
-        return None, None, _('Empty host')
+        return None, None, _tr_no_req('Empty host')
     if not re.match(r"^https?://", txt, re.I):
         txt = f"https://{txt}"
     try:
         u = urlparse(txt)
     except Exception:
-        return None, None, _('Invalid URL')
+        return None, None, _tr_no_req('Invalid URL')
     host = (u.hostname or "").strip()
     if not host:
-        return None, None, _('Invalid URL')
+        return None, None, _tr_no_req('Invalid URL')
     return txt, host, None
 
 
@@ -1286,7 +1304,7 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 hid = save_history("security", f"wp:{payload.get('wp_url_raw', '')}", result)
                 permalink = f"/history/security/{hid}" if load_history("security", hid) else None
             else:
-                raise ValueError(_("Unsupported scan type."))
+                raise ValueError(_tr_no_req("Unsupported scan type."))
 
             _save_security_job(job_id, {
                 "status": "done",
