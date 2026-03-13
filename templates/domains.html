@@ -29,12 +29,12 @@
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
       <div class="small text-muted">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
       <div class="d-flex flex-wrap gap-2">
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Основные', 'Core') }}</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('RU', 'RU') }}</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Global', 'Global') }}</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="new">{{ tr('New gTLD', 'New gTLD') }}</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
+        <button type="submit" name="zone_preset" value="defaults" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Основные', 'Core') }}</button>
+        <button type="submit" name="zone_preset" value="ru" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('RU', 'RU') }}</button>
+        <button type="submit" name="zone_preset" value="global" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Global', 'Global') }}</button>
+        <button type="submit" name="zone_preset" value="newgtld" class="btn btn-sm btn-outline-secondary" data-zone-action="newgtld">{{ tr('New gTLD', 'New gTLD') }}</button>
+        <button type="submit" name="zone_preset" value="all" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
+        <button type="submit" name="zone_preset" value="none" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
       </div>
     </div>
     <div class="small mb-2" data-zone-count-wrap>

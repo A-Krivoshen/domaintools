@@ -175,7 +175,8 @@
     }
 
     form.querySelectorAll('[data-zone-action]').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
         const action = btn.getAttribute('data-zone-action');
         const inputs = zoneInputs();
         if (action === 'all') {
@@ -188,7 +189,7 @@
           inputs.forEach(i => { if (!i.disabled) i.checked = groupRu.has(i.value); });
         } else if (action === 'global') {
           inputs.forEach(i => { if (!i.disabled) i.checked = groupGlobal.has(i.value); });
-        } else if (action === 'new') {
+        } else if (action === 'new' || action === 'newgtld') {
           inputs.forEach(i => { if (!i.disabled) i.checked = groupNew.has(i.value); });
         }
         updateZonesCounter();
@@ -248,47 +249,6 @@
       portsInput.focus();
       portsInput.select();
     });
-  });
-
-  setThemeMode(getThemeMode(), false);
-  setInterval(() => {
-    if (getThemeMode() === 'auto') setThemeMode('auto', false);
-  }, 60 * 1000);
-
-  updateThemeToggleIcon();
-
-  // ===== Domains zones controls =====
-  document.querySelectorAll('form[data-zones-controls]').forEach(form => {
-    const zoneInputs = () => Array.from(form.querySelectorAll('input[name="zones"]'));
-    const list = form.querySelector('[data-zones-list]');
-    const defaults = new Set((list?.dataset.defaultZones || '').split(',').map(s => s.trim()).filter(Boolean));
-
-    form.querySelectorAll('[data-zone-action]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const action = btn.getAttribute('data-zone-action');
-        const inputs = zoneInputs();
-        if (action === 'all') {
-          inputs.forEach(i => { if (!i.disabled) i.checked = true; });
-        } else if (action === 'none') {
-          inputs.forEach(i => { if (!i.disabled) i.checked = false; });
-        } else if (action === 'defaults') {
-          inputs.forEach(i => { if (!i.disabled) i.checked = defaults.has(i.value); });
-        }
-      });
-    });
-
-    const filter = form.querySelector('[data-zone-filter]');
-    if (filter) {
-      filter.addEventListener('input', () => {
-        const q = filter.value.trim().toLowerCase().replace(/^\./, '');
-        zoneInputs().forEach(input => {
-          const label = input.closest('label');
-          if (!label) return;
-          const v = (input.value || '').toLowerCase();
-          label.style.display = (!q || v.includes(q)) ? '' : 'none';
-        });
-      });
-    }
   });
 
   // ===== Security quick-set ports (client-side only; no extra GET requests)
