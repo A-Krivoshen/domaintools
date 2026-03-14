@@ -288,6 +288,223 @@
     });
   });
 
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
+  });
+
+  // ===== Domain buy-flow analytics (no PII)
+  document.querySelectorAll('[data-buy-track]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const domain = (link.getAttribute('data-buy-domain') || '').toLowerCase();
+      const locale = (link.getAttribute('data-buy-locale') || '').toLowerCase();
+      const tld = domain.includes('.') ? domain.split('.').slice(-1)[0] : '';
+      if (!tld) return;
+      const payload = JSON.stringify({ tld, locale: (locale === 'en' ? 'en' : 'ru') });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/track/buy-click', new Blob([payload], { type: 'application/json' }));
+        } else {
+          fetch('/track/buy-click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    });
+  });
+
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
+  });
+
+  setThemeMode(getThemeMode(), false);
+  setInterval(() => {
+    if (getThemeMode() === 'auto') setThemeMode('auto', false);
+  }, 60 * 1000);
+
+  updateThemeToggleIcon();
+  showAutoThemeHintOnce();
+
+  // ===== Domains zones controls =====
+  document.querySelectorAll('form[data-zones-controls]').forEach(form => {
+    const zoneInputs = () => Array.from(form.querySelectorAll('input[name="zones"]'));
+    const list = form.querySelector('[data-zones-list]');
+    const defaults = new Set((list?.dataset.defaultZones || '').split(',').map(s => s.trim()).filter(Boolean));
+    const groupRu = new Set((list?.dataset.groupRu || '').split(',').map(s => s.trim()).filter(Boolean));
+    const groupGlobal = new Set((list?.dataset.groupGlobal || '').split(',').map(s => s.trim()).filter(Boolean));
+    const groupNew = new Set((list?.dataset.groupNew || '').split(',').map(s => s.trim()).filter(Boolean));
+    const maxZones = Number(list?.dataset.maxZones || 0) || 0;
+    const counter = form.querySelector('[data-zone-count]');
+
+    function updateZonesCounter() {
+      if (!counter) return;
+      const selected = zoneInputs().filter(i => i.checked && !i.disabled).length;
+      const limit = maxZones > 0 ? maxZones : 0;
+      const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+      const isEn = lang.startsWith('en');
+      const selectedLabel = (isEn ? counter.dataset.selectedLabelEn : counter.dataset.selectedLabelRu) || 'Selected';
+      const limitLabel = (isEn ? counter.dataset.limitLabelEn : counter.dataset.limitLabelRu) || 'Recommended limit';
+      const overLimitText = (isEn ? counter.dataset.overLimitEn : counter.dataset.overLimitRu) || 'Too many zones selected — search may be slower.';
+      counter.textContent = `${selectedLabel}: ${selected}${limit ? ` / ${limitLabel}: ${limit}` : ''}`;
+      if (limit && selected > limit) {
+        counter.classList.remove('text-muted');
+        counter.classList.add('text-danger');
+        counter.setAttribute('title', overLimitText);
+      } else {
+        counter.classList.remove('text-danger');
+        counter.classList.add('text-muted');
+        counter.removeAttribute('title');
+      }
+    }
+
+    form.querySelectorAll('[data-zone-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.preventDefault();
+        const action = btn.getAttribute('data-zone-action');
+        const inputs = zoneInputs();
+        if (action === 'all') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = true; });
+        } else if (action === 'none') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = false; });
+        } else if (action === 'defaults') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = defaults.has(i.value); });
+        } else if (action === 'ru') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = groupRu.has(i.value); });
+        } else if (action === 'global') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = groupGlobal.has(i.value); });
+        } else if (action === 'new' || action === 'newgtld') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = groupNew.has(i.value); });
+        }
+        updateZonesCounter();
+      });
+    });
+
+    const filter = form.querySelector('[data-zone-filter]');
+    if (filter) {
+      filter.addEventListener('input', () => {
+        const q = filter.value.trim().toLowerCase().replace(/^\./, '');
+        zoneInputs().forEach(input => {
+          const label = input.closest('label');
+          if (!label) return;
+          const v = (input.value || '').toLowerCase();
+          label.style.display = (!q || v.includes(q)) ? '' : 'none';
+        });
+      });
+    }
+
+    zoneInputs().forEach(input => {
+      input.addEventListener('change', updateZonesCounter);
+    });
+    updateZonesCounter();
+  });
+
+  // ===== Domain buy-flow analytics (no PII)
+  document.querySelectorAll('[data-buy-track]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const domain = (link.getAttribute('data-buy-domain') || '').toLowerCase();
+      const locale = (link.getAttribute('data-buy-locale') || '').toLowerCase();
+      const tld = domain.includes('.') ? domain.split('.').slice(-1)[0] : '';
+      if (!tld) return;
+      const payload = JSON.stringify({ tld, locale: (locale === 'en' ? 'en' : 'ru') });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/track/buy-click', new Blob([payload], { type: 'application/json' }));
+        } else {
+          fetch('/track/buy-click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    });
+  });
+
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
+  });
+
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
+  });
+
+  updateThemeToggleIcon();
+
+  // ===== Domains zones controls =====
+  document.querySelectorAll('form[data-zones-controls]').forEach(form => {
+    const zoneInputs = () => Array.from(form.querySelectorAll('input[name="zones"]'));
+    const list = form.querySelector('[data-zones-list]');
+    const defaults = new Set((list?.dataset.defaultZones || '').split(',').map(s => s.trim()).filter(Boolean));
+
+    form.querySelectorAll('[data-zone-action]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const action = btn.getAttribute('data-zone-action');
+        const inputs = zoneInputs();
+        if (action === 'all') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = true; });
+        } else if (action === 'none') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = false; });
+        } else if (action === 'defaults') {
+          inputs.forEach(i => { if (!i.disabled) i.checked = defaults.has(i.value); });
+        }
+      });
+    });
+
+    const filter = form.querySelector('[data-zone-filter]');
+    if (filter) {
+      filter.addEventListener('input', () => {
+        const q = filter.value.trim().toLowerCase().replace(/^\./, '');
+        zoneInputs().forEach(input => {
+          const label = input.closest('label');
+          if (!label) return;
+          const v = (input.value || '').toLowerCase();
+          label.style.display = (!q || v.includes(q)) ? '' : 'none';
+        });
+      });
+    }
+  });
+
+  updateThemeToggleIcon();
+
   // ===== Collapse helpers: auto-close menu after click
   function closeNav() {
     const nav = document.getElementById('mainNav');
