@@ -371,6 +371,11 @@ def _save_security_job(job_id: str, payload: Dict, ttl_s: int = SECURITY_JOB_TTL
         pass
 
 
+def _is_valid_security_job_id(job_id: str) -> bool:
+    txt = (job_id or '').strip()
+    return bool(re.fullmatch(r'[a-f0-9]{32}', txt))
+
+
 def _load_security_job(job_id: str) -> Optional[Dict]:
     try:
         raw = r.get(_security_job_key(job_id))
@@ -1336,7 +1341,8 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 "duration_ms": max(0, int((time.time() - started) * 1000)),
                 "permalink": None,
             })
-        except Exception as e:
+        except Exception:
+            app.logger.exception("Security scan job failed: kind=%s", job_kind)
             _save_security_job(job_id, {
                 "status": "failed",
                 "kind": job_kind,
@@ -1344,7 +1350,7 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 "finished_ts": int(time.time()),
                 "payload": payload,
                 "result": None,
-                "error": str(e),
+                "error": _tr_no_req("Internal scan error. Please retry later."),
                 "error_code": "internal_error",
                 "duration_ms": max(0, int((time.time() - started) * 1000)),
                 "permalink": None,
@@ -1722,8 +1728,13 @@ def security_tools():
     recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
 
     # Poll/render existing job
+    job = None
     if job_id:
-        job = _load_security_job(job_id)
+        if not _is_valid_security_job_id(job_id):
+            security_error = _('Invalid scan job id.')
+            job_id = ''
+        else:
+            job = _load_security_job(job_id)
         if job:
             job_status = str(job.get('status') or '').lower() or 'queued'
             active_scan = 'wp' if str(job.get('kind')) == 'wp' else 'ports'
@@ -1779,7 +1790,8 @@ def security_tools():
                     })
                     try:
                         _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
-                    except Exception as e:
+                    except Exception:
+                        app.logger.exception('Security scan queue submit failed: kind=%s', active_scan)
                         _save_security_job(job_id, {
                             'status': 'failed',
                             'kind': active_scan,
@@ -1787,7 +1799,7 @@ def security_tools():
                             'created_ts': int(time.time()),
                             'finished_ts': int(time.time()),
                             'result': None,
-                            'error': str(e),
+                            'error': _tr_no_req('Internal scan error. Please retry later.'),
                             'error_code': 'internal_error',
                             'duration_ms': 0,
                             'permalink': None,
@@ -1823,6 +1835,9 @@ def security_tools():
 
 @app.get('/security/jobs/<job_id>')
 def security_job_status(job_id: str):
+    if not _is_valid_security_job_id(job_id):
+        return jsonify(ok=False, error='invalid_job_id'), 400
+
     job = _load_security_job(job_id)
     if not job:
         return jsonify(ok=False, error='not_found'), 404

@@ -113,6 +113,42 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertEqual(r.status_code, 200)
         body = r.get_data(as_text=True)
         self.assertIn('Could not start scan job. Please retry.', body)
+        self.assertNotIn('pool down', body)
+
+
+    def test_security_internal_job_error_is_sanitized(self):
+        app_module._SECURITY_ASYNC_POOL = _ImmediatePool()
+
+        def _boom(*_a, **_kw):
+            raise RuntimeError('secret backend stacktrace marker')
+
+        app_module._run_port_scan_result = _boom
+
+        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+        self.assertIn(r.status_code, (301, 302))
+        location = r.headers.get('Location', '')
+        self.assertIn('job=', location)
+        job_id = location.split('job=', 1)[1].split('&', 1)[0]
+
+        jr = self.client.get(f'/security/jobs/{job_id}')
+        self.assertEqual(jr.status_code, 200)
+        data = jr.get_json()
+        self.assertEqual(data.get('status'), 'failed')
+        self.assertEqual(data.get('error_code'), 'internal_error')
+        self.assertEqual(data.get('error'), 'Internal scan error. Please retry later.')
+        self.assertNotIn('secret backend stacktrace marker', data.get('error') or '')
+
+    def test_security_jobs_endpoint_rejects_invalid_job_id(self):
+        r = self.client.get('/security/jobs/not-a-valid-id')
+        self.assertEqual(r.status_code, 400)
+        data = r.get_json()
+        self.assertEqual(data.get('error'), 'invalid_job_id')
+
+    def test_security_page_shows_error_for_invalid_job_id_query(self):
+        r = self.client.get('/security?job=not-a-valid-id')
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Invalid scan job id.', body)
 
     def test_security_metrics_public_flag(self):
         r1 = self.client.get('/security/metrics')
