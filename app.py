@@ -1114,6 +1114,11 @@ def _scan_single_port(ip: str, port: int, timeout_s: float) -> Dict[str, object]
         except Exception:
             pass
 
+
+SECURITY_MAX_HOST_LEN = int(os.environ.get('SECURITY_MAX_HOST_LEN', '255'))
+SECURITY_MAX_PORTS_RAW_LEN = int(os.environ.get('SECURITY_MAX_PORTS_RAW_LEN', '512'))
+SECURITY_MAX_WP_URL_LEN = int(os.environ.get('SECURITY_MAX_WP_URL_LEN', '2048'))
+
 PORT_SECURITY_HINTS = {
     21: {"level":"high", "ru":"FTP открыт", "en":"FTP is exposed", "ru_fix":"Отключите FTP или используйте SFTP/FTPS.", "en_fix":"Disable FTP or use SFTP/FTPS."},
     22: {"level":"medium", "ru":"SSH открыт", "en":"SSH is exposed", "ru_fix":"Ограничьте доступ по IP и используйте только ключи.", "en_fix":"Restrict by IP and use key-only authentication."},
@@ -1756,7 +1761,13 @@ def security_tools():
 
     # Submit new async job
     if request.method == 'POST' and not job_id and (host or wp_url_raw):
-        if (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
+        if len(host) > SECURITY_MAX_HOST_LEN:
+            security_error = _('Host is too long.')
+        elif len(ports_raw) > SECURITY_MAX_PORTS_RAW_LEN:
+            security_error = _('Ports list is too long.')
+        elif len(wp_url_raw) > SECURITY_MAX_WP_URL_LEN:
+            security_error = _('WordPress URL is too long.')
+        elif (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
             security_error = recaptcha_setup_error or _('reCAPTCHA is not configured.')
         else:
             ip = _client_ip()

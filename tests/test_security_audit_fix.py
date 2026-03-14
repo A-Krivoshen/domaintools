@@ -150,6 +150,21 @@ class SecurityAuditFixTests(unittest.TestCase):
         body = r.get_data(as_text=True)
         self.assertIn('Invalid scan job id.', body)
 
+
+    def test_security_rejects_oversized_host_input(self):
+        big_host = 'a' * 300
+        r = self.client.post('/security', data={'scan': 'ports', 'host': big_host, 'ports': '80'})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Host is too long.', body)
+
+    def test_security_rejects_oversized_wp_url_input(self):
+        big_url = 'https://' + ('a' * 2100) + '.com'
+        r = self.client.post('/security', data={'scan': 'wp', 'wp_url': big_url})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('WordPress URL is too long.', body)
+
     def test_security_metrics_public_flag(self):
         r1 = self.client.get('/security/metrics')
         self.assertEqual(r1.status_code, 404)
