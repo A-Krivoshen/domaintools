@@ -138,6 +138,18 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertEqual(data.get('error'), 'Internal scan error. Please retry later.')
         self.assertNotIn('secret backend stacktrace marker', data.get('error') or '')
 
+    def test_security_jobs_endpoint_rejects_invalid_job_id(self):
+        r = self.client.get('/security/jobs/not-a-valid-id')
+        self.assertEqual(r.status_code, 400)
+        data = r.get_json()
+        self.assertEqual(data.get('error'), 'invalid_job_id')
+
+    def test_security_page_shows_error_for_invalid_job_id_query(self):
+        r = self.client.get('/security?job=not-a-valid-id')
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Invalid scan job id.', body)
+
     def test_security_metrics_public_flag(self):
         r1 = self.client.get('/security/metrics')
         self.assertEqual(r1.status_code, 404)

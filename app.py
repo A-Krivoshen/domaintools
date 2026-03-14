@@ -371,6 +371,11 @@ def _save_security_job(job_id: str, payload: Dict, ttl_s: int = SECURITY_JOB_TTL
         pass
 
 
+def _is_valid_security_job_id(job_id: str) -> bool:
+    txt = (job_id or '').strip()
+    return bool(re.fullmatch(r'[a-f0-9]{32}', txt))
+
+
 def _load_security_job(job_id: str) -> Optional[Dict]:
     try:
         raw = r.get(_security_job_key(job_id))
@@ -1723,8 +1728,13 @@ def security_tools():
     recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
 
     # Poll/render existing job
+    job = None
     if job_id:
-        job = _load_security_job(job_id)
+        if not _is_valid_security_job_id(job_id):
+            security_error = _('Invalid scan job id.')
+            job_id = ''
+        else:
+            job = _load_security_job(job_id)
         if job:
             job_status = str(job.get('status') or '').lower() or 'queued'
             active_scan = 'wp' if str(job.get('kind')) == 'wp' else 'ports'
@@ -1825,6 +1835,9 @@ def security_tools():
 
 @app.get('/security/jobs/<job_id>')
 def security_job_status(job_id: str):
+    if not _is_valid_security_job_id(job_id):
+        return jsonify(ok=False, error='invalid_job_id'), 400
+
     job = _load_security_job(job_id)
     if not job:
         return jsonify(ok=False, error='not_found'), 404
