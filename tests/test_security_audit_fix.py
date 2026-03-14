@@ -12,6 +12,11 @@ class _ImmediatePool:
         return _Done()
 
 
+class _FailingPool:
+    def submit(self, fn, *args, **kwargs):
+        raise RuntimeError('pool down')
+
+
 class SecurityAuditFixTests(unittest.TestCase):
     def setUp(self):
         self.app = app_module.app
@@ -99,6 +104,15 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertEqual(data.get('status'), 'failed')
         self.assertEqual(data.get('error_code'), 'validation_error')
         self.assertNotIn('Working outside of request context', data.get('error') or '')
+
+
+    def test_security_submit_failure_sets_human_error_message(self):
+        app_module._SECURITY_ASYNC_POOL = _FailingPool()
+
+        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Could not start scan job. Please retry.', body)
 
     def test_security_metrics_public_flag(self):
         r1 = self.client.get('/security/metrics')

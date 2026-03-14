@@ -288,6 +288,19 @@
     });
   });
 
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
+  });
+
   // ===== Domain buy-flow analytics (no PII)
   document.querySelectorAll('[data-buy-track]').forEach((link) => {
     link.addEventListener('click', () => {

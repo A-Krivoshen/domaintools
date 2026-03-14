@@ -1777,8 +1777,25 @@ def security_tools():
                         'duration_ms': None,
                         'permalink': None,
                     })
-                    _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
-                    return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
+                    try:
+                        _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
+                    except Exception as e:
+                        _save_security_job(job_id, {
+                            'status': 'failed',
+                            'kind': active_scan,
+                            'payload': payload,
+                            'created_ts': int(time.time()),
+                            'finished_ts': int(time.time()),
+                            'result': None,
+                            'error': str(e),
+                            'error_code': 'internal_error',
+                            'duration_ms': 0,
+                            'permalink': None,
+                        })
+                        security_error = _('Could not start scan job. Please retry.')
+                        job_id = ''
+                    else:
+                        return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
 
     return render_template(
         'security.html',
