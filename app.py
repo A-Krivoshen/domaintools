@@ -13,7 +13,7 @@ import uuid
 from urllib.parse import urlencode, urlparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Tuple
 from markupsafe import Markup, escape
 import redis
@@ -102,6 +102,7 @@ app.config.update(
     SECURITY_RECAPTCHA_ACTION=os.environ.get("SECURITY_RECAPTCHA_ACTION", "security_scan").strip() or "security_scan",
     FORM_RECAPTCHA_ENABLED=(os.environ.get("FORM_RECAPTCHA_ENABLED", os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0")).strip().lower() in {"1", "true", "yes", "on"}),
     FORM_RECAPTCHA_ACTION=os.environ.get("FORM_RECAPTCHA_ACTION", "form_submit").strip() or "form_submit",
+    SECURITY_METRICS_PUBLIC=(os.environ.get("SECURITY_METRICS_PUBLIC", "0").strip().lower() in {"1", "true", "yes", "on"}),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -394,8 +395,9 @@ def _normalize_security_hints(hints: List[Dict[str, str]]) -> List[Dict[str, str
 def _security_metric_inc(endpoint: str, event: str) -> None:
     endpoint = re.sub(r"[^a-z0-9_:\-]", "", (endpoint or "security").lower())[:64] or "security"
     event = "blocked" if event == "blocked" else "allowed"
-    minute = datetime.utcnow().strftime("%Y%m%d%H%M")
-    day = datetime.utcnow().strftime("%Y%m%d")
+    now_utc = datetime.now(timezone.utc)
+    minute = now_utc.strftime("%Y%m%d%H%M")
+    day = now_utc.strftime("%Y%m%d")
     key_min = f"dt:metrics:security_rate:min:{minute}"
     key_day = f"dt:metrics:security_rate:day:{day}"
     field = f"{endpoint}:{event}"
@@ -609,7 +611,8 @@ def health():
     recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
     security_metrics_minute = {}
     try:
-        security_metrics_minute = r.hgetall(f"dt:metrics:security_rate:min:{datetime.utcnow().strftime('%Y%m%d%H%M')}") or {}
+        minute = datetime.now(timezone.utc).strftime('%Y%m%d%H%M')
+        security_metrics_minute = r.hgetall(f"dt:metrics:security_rate:min:{minute}") or {}
     except Exception:
         pass
     return jsonify(
@@ -642,7 +645,7 @@ def track_buy_click():
     if not tld:
         return jsonify(ok=False, error="bad_tld"), 400
 
-    day_key = datetime.utcnow().strftime("%Y%m%d")
+    day_key = datetime.now(timezone.utc).strftime("%Y%m%d")
     redis_key = f"dt:analytics:buy_clicks:{day_key}:{locale}"
     try:
         with r.pipeline() as pipe:
@@ -1289,6 +1292,8 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
             "payload": payload,
             "result": None,
             "error": None,
+            "error_code": None,
+            "duration_ms": None,
         })
         try:
             if job_kind == "ports":
@@ -1314,7 +1319,22 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 "payload": payload,
                 "result": result,
                 "error": None,
+                "error_code": None,
+                "duration_ms": max(0, int((time.time() - started) * 1000)),
                 "permalink": permalink,
+            })
+        except ValueError as e:
+            _save_security_job(job_id, {
+                "status": "failed",
+                "kind": job_kind,
+                "created_ts": started,
+                "finished_ts": int(time.time()),
+                "payload": payload,
+                "result": None,
+                "error": str(e),
+                "error_code": "validation_error",
+                "duration_ms": max(0, int((time.time() - started) * 1000)),
+                "permalink": None,
             })
         except Exception as e:
             _save_security_job(job_id, {
@@ -1325,6 +1345,8 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 "payload": payload,
                 "result": None,
                 "error": str(e),
+                "error_code": "internal_error",
+                "duration_ms": max(0, int((time.time() - started) * 1000)),
                 "permalink": None,
             })
 
@@ -1751,17 +1773,12 @@ def security_tools():
                         'created_ts': int(time.time()),
                         'result': None,
                         'error': None,
+                        'error_code': None,
+                        'duration_ms': None,
                         'permalink': None,
                     })
                     _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
                     return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
-
-    # Backward compatibility: old history repeat links may come via GET
-    if request.method == 'GET' and not job_id and not security_error:
-        if active_scan == 'ports' and host:
-            port_result, port_error = _run_port_scan_result(host, ports_raw)
-        elif active_scan == 'wp' and wp_url_raw:
-            wp_result, wp_error = _run_wp_scan_result(wp_url_raw)
 
     return render_template(
         'security.html',
@@ -1798,6 +1815,8 @@ def security_job_status(job_id: str):
         status=job.get('status') or 'queued',
         kind=job.get('kind') or 'ports',
         error=job.get('error'),
+        error_code=job.get('error_code'),
+        duration_ms=job.get('duration_ms'),
         permalink=job.get('permalink'),
         updated_ts=job.get('updated_ts'),
     ), 200
@@ -1805,8 +1824,11 @@ def security_job_status(job_id: str):
 
 @app.get('/security/metrics')
 def security_metrics():
-    day = datetime.utcnow().strftime('%Y%m%d')
-    minute = datetime.utcnow().strftime('%Y%m%d%H%M')
+    if not bool(app.config.get('SECURITY_METRICS_PUBLIC')):
+        return jsonify(ok=False, error='disabled'), 404
+    now_utc = datetime.now(timezone.utc)
+    day = now_utc.strftime('%Y%m%d')
+    minute = now_utc.strftime('%Y%m%d%H%M')
     day_key = f"dt:metrics:security_rate:day:{day}"
     minute_key = f"dt:metrics:security_rate:min:{minute}"
     data_day: Dict[str, str] = {}
