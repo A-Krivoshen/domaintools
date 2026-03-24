@@ -400,3 +400,28 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 [data-bs-theme="dark"] .nav-group-label {
   color: rgba(199,211,229,.75);
 }
+
+
+.site-footer .footer-top {
+  border-bottom: 1px dashed var(--bs-border-color);
+}
+
+.site-footer .footer-note,
+.site-footer .footer-analytics-label {
+  color: var(--bs-secondary-color);
+}
+
+.site-footer .footer-nav .nav-link {
+  font-size: .9rem;
+}
+
+.site-footer .footer-nav .nav-link:hover {
+  color: var(--bs-primary) !important;
+}
+
+@media (max-width: 576px) {
+  .site-footer .footer-nav {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}
