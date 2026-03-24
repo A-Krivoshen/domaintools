@@ -9,8 +9,11 @@ import logging
 import io
 import csv
 import subprocess
+import uuid
+from urllib.parse import urlencode, urlparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, List, Tuple
 from markupsafe import Markup, escape
 import redis
@@ -22,8 +25,6 @@ from ipwhois import IPWhois
 import idna
 import ipaddress
 import requests
-
-from geopy.geocoders import Nominatim
 
 from flask import (
     Flask,
@@ -64,24 +65,110 @@ app.config.update(
     # Domain search
     AFFILIATE_BUY_BASE=os.environ.get(
         "AFFILIATE_BUY_BASE",
-        "https://beget.com/p754742/domains/search/{domain}",
+        "https://beget.com/p754742/ru/domains/search/{domain}#search-form-section",
     ),
-    # TLDs (включая IDN и транслит-зоны)
+    AFFILIATE_BUY_BASE_RU=os.environ.get(
+        "AFFILIATE_BUY_BASE_RU",
+        os.environ.get("AFFILIATE_BUY_BASE", "https://beget.com/p754742/ru/domains/search/{domain}#search-form-section"),
+    ),
+    AFFILIATE_BUY_BASE_EN=os.environ.get(
+        "AFFILIATE_BUY_BASE_EN",
+        "https://beget.com/p754742/en/domains/search/{domain}#search-form-section",
+    ),
+    # Все зоны для подбора (ориентир: доступно у популярных российских регистраторов)
     TLD_LIST=os.environ.get(
         "TLD_LIST",
-        "ru,su,рф,рус,онлайн,сайт,москва,дети,ком,нет,орг,com,net,org,info,pro,xyz,site,online,store,app,io,ai,co,me,blog",
+        "ru,su,рф,рус,москва,дети,tatar,com,net,org,info,biz,name,pro,mobi,tel,asia,me,tv,cc,ws,bz,in,co,io,ai,app,dev,site,online,store,shop,blog,tech,xyz,top,club,space,website,fun,live,digital,group,company,center,solutions,services,agency,media,today,world,email,expert,guru,news,software,cloud,team,systems,network,plus,art,icu,life,wiki,zone,run",
     ).split(","),
+    # Основные зоны (по умолчанию отмечены в форме)
+    DOMAIN_DEFAULT_TLDS=os.environ.get(
+        "DOMAIN_DEFAULT_TLDS",
+        "ru,рф,su,рус,com,net,org,info,pro,site,online,store,app,io,ai,co,me,xyz,shop,blog",
+    ).split(","),
+    DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "80")),
+    DOMAIN_CHECK_WORKERS=int(os.environ.get("DOMAIN_CHECK_WORKERS", "8")),
+    # Security scanner
+    PORT_SCAN_MAX_PORTS=int(os.environ.get("PORT_SCAN_MAX_PORTS", "50")),
+    PORT_SCAN_MAX_WORKERS=int(os.environ.get("PORT_SCAN_MAX_WORKERS", "20")),
+    PORT_SCAN_CONNECT_TIMEOUT=float(os.environ.get("PORT_SCAN_CONNECT_TIMEOUT", "0.4")),
+    SECURITY_RATE_LIMIT_PER_MIN=int(os.environ.get("SECURITY_RATE_LIMIT_PER_MIN", "15")),
+    SECURITY_RECAPTCHA_ENABLED=(os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}),
+    SECURITY_RECAPTCHA_PROVIDER=(os.environ.get("SECURITY_RECAPTCHA_PROVIDER", "standard").strip().lower() or "standard"),
+    SECURITY_RECAPTCHA_SITE_KEY=(os.environ.get("SECURITY_RECAPTCHA_SITE_KEY") or os.environ.get("RECAPTCHA_SITE_KEY") or "").strip(),
+    SECURITY_RECAPTCHA_SECRET_KEY=(os.environ.get("SECURITY_RECAPTCHA_SECRET_KEY") or os.environ.get("RECAPTCHA_SECRET_KEY") or "").strip(),
+    SECURITY_RECAPTCHA_ENTERPRISE_PROJECT=os.environ.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT", "").strip(),
+    SECURITY_RECAPTCHA_API_KEY=os.environ.get("SECURITY_RECAPTCHA_API_KEY", "").strip(),
+    SECURITY_RECAPTCHA_MIN_SCORE=float(os.environ.get("SECURITY_RECAPTCHA_MIN_SCORE", "0.5")),
+    SECURITY_RECAPTCHA_ACTION=os.environ.get("SECURITY_RECAPTCHA_ACTION", "security_scan").strip() or "security_scan",
+    FORM_RECAPTCHA_ENABLED=(os.environ.get("FORM_RECAPTCHA_ENABLED", os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0")).strip().lower() in {"1", "true", "yes", "on"}),
+    FORM_RECAPTCHA_ACTION=os.environ.get("FORM_RECAPTCHA_ACTION", "form_submit").strip() or "form_submit",
+    SECURITY_METRICS_PUBLIC=(os.environ.get("SECURITY_METRICS_PUBLIC", "0").strip().lower() in {"1", "true", "yes", "on"}),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
 app.register_blueprint(site_checker_bp)
 
-# Зоны, в которых разумно показывать кириллические метки (IDN)
+SECURITY_JOB_TTL_S = int(os.environ.get("SECURITY_JOB_TTL_S", "3600"))
+SECURITY_ASYNC_WORKERS = int(os.environ.get("SECURITY_ASYNC_WORKERS", "4"))
+_SECURITY_ASYNC_POOL = ThreadPoolExecutor(max_workers=max(1, SECURITY_ASYNC_WORKERS))
+_SECURITY_JOB_LOCAL: Dict[str, Dict] = {}
+
+# Зоны, в которых разрешаем IDN-метки (берём из общего списка зон)
 IDN_READY_TLDS = {
-    "рф", "рус", "онлайн", "сайт", "москва", "дети",
-    "ком", "нет", "орг",
-    "com", "net", "org", "info", "pro", "site", "online", "store",
+    t.strip().lstrip(".").lower()
+    for t in app.config.get("TLD_LIST", [])
+    if (t or "").strip()
 }
+
+RU_PRIORITY_TLDS = {
+    "ru", "su", "рф", "рус", "москва", "дети", "tatar",
+}
+
+GLOBAL_PRIORITY_TLDS = {
+    "com", "net", "org", "info", "biz", "name", "pro", "mobi", "tel", "asia", "me", "tv", "cc", "ws",
+}
+
+NEW_GTLD_PRIORITY_TLDS = {
+    "io", "ai", "app", "dev", "site", "online", "store", "shop", "blog", "tech", "xyz", "top", "club", "space",
+    "website", "fun", "live", "digital", "group", "company", "center", "solutions", "services", "agency", "media",
+    "today", "world", "email", "expert", "guru", "news", "software", "cloud", "team", "systems", "network", "plus",
+    "art", "icu", "life", "wiki", "zone", "run",
+}
+
+
+def _build_tld_groups(all_tlds: List[str], default_tlds: List[str]) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
+    ordered = [t for t in all_tlds if t]
+    ru_group = [t for t in ordered if t in RU_PRIORITY_TLDS]
+    global_group = [t for t in ordered if t in GLOBAL_PRIORITY_TLDS]
+    new_group = [t for t in ordered if t in NEW_GTLD_PRIORITY_TLDS]
+
+    # fallback: if list/env changed, keep groups useful
+    if not ru_group:
+        ru_group = [t for t in ordered if any(c in t for c in "абвгдежзийклмнопрстуфхцчшщъыьэюяё") or t in {"ru", "su"}]
+    if not global_group:
+        global_group = [t for t in ordered if len(t) <= 3][:20]
+    if not new_group:
+        new_group = [t for t in ordered if t not in set(ru_group + global_group)]
+
+    groups = {
+        "core": [t for t in ordered if t in set(default_tlds)],
+        "ru": ru_group,
+        "global": global_group,
+        "new": new_group,
+        "all": ordered,
+    }
+
+    group_map: Dict[str, str] = {}
+    for t in ordered:
+        if t in set(groups["ru"]):
+            group_map[t] = "ru"
+        elif t in set(groups["global"]):
+            group_map[t] = "global"
+        elif t in set(groups["new"]):
+            group_map[t] = "new"
+        else:
+            group_map[t] = "all"
+    return groups, group_map
 
 # Redis
 app.config.setdefault("REDIS_URL", os.getenv("REDIS_URL", "redis://127.0.0.1:6379/3"))
@@ -93,20 +180,108 @@ HIST_LIMIT = 5000
 # -------------------------------------------------
 # Babel (Flask-Babel v3+)
 # -------------------------------------------------
+def _locale_by_country_header() -> str | None:
+    """Определение локали по geo-заголовкам прокси/CDN (если доступны)."""
+    # На проде обычно приходит один из этих заголовков.
+    for h in ("CF-IPCountry", "X-AppEngine-Country", "X-Country-Code", "CloudFront-Viewer-Country"):
+        cc = (request.headers.get(h) or "").strip().upper()
+        if not cc or cc in {"XX", "T1", "UNKNOWN"}:
+            continue
+        return "ru" if cc == "RU" else "en"
+    return None
+
+
+
+# Небольшой in-memory кэш для гео-IP фолбэка (country by IP)
+_IP_COUNTRY_CACHE: Dict[str, Tuple[str, float]] = {}
+
+
+def _country_code_from_remote_ip(timeout_s: float = 0.8) -> str | None:
+    """Пытаемся определить country code по IP клиента, если geo-заголовков нет."""
+    ip = (request.remote_addr or "").strip()
+    if not ip:
+        return None
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local:
+            return None
+    except Exception:
+        return None
+
+    now = time.time()
+    cached = _IP_COUNTRY_CACHE.get(ip)
+    if cached and cached[1] > now:
+        return cached[0]
+
+    # Лёгкий публичный geo endpoint без ключа
+    url = f"http://ip-api.com/json/{ip}?fields=countryCode,status"
+    try:
+        resp = requests.get(url, timeout=timeout_s)
+        data = resp.json() if resp.ok else {}
+        cc = (data.get("countryCode") or "").strip().upper()
+        if data.get("status") == "success" and len(cc) == 2:
+            _IP_COUNTRY_CACHE[ip] = (cc, now + 3600)
+            return cc
+    except Exception:
+        pass
+
+    # Кэшируем неуспех на короткое время, чтобы не спамить внешний сервис
+    _IP_COUNTRY_CACHE[ip] = ("", now + 300)
+    return None
+
+
 def _select_locale():
     # ?lang=ru|en имеет приоритет
-    lang = request.args.get("lang")
-    if lang:
+    lang = (request.args.get("lang") or "").strip().lower()
+    if lang in {"ru", "en"}:
         return lang
-    # далее — из заголовков
-    return request.accept_languages.best_match(["ru", "en"]) or "ru"
+
+    # Явно выбранный ранее язык (cookie)
+    c_lang = (request.cookies.get("lang") or "").strip().lower()
+    if c_lang in {"ru", "en"}:
+        return c_lang
+
+    # Geo from edge headers: RU -> ru, any non-RU -> en
+    by_country = _locale_by_country_header()
+    if by_country:
+        return by_country
+
+    # Fallback: best-effort geo by remote IP (useful if proxy headers absent)
+    cc = _country_code_from_remote_ip()
+    if cc:
+        return "ru" if cc == "RU" else "en"
+
+    # Last fallback: browser language
+    return request.accept_languages.best_match(["ru", "en"]) or "en"
 
 babel = Babel(app, locale_selector=_select_locale)
 
 # Пробросить get_locale() в шаблоны Jinja (для base.html и др.)
 @app.context_processor
 def inject_babel_helpers():
-    return {"get_locale": (lambda: str(babel_get_locale() or "ru"))}
+    def _lang_url(lang: str) -> str:
+        params = request.args.to_dict(flat=False)
+        params["lang"] = [lang]
+        qs = urlencode(params, doseq=True)
+        return f"{request.path}?{qs}" if qs else request.path
+
+    def _tr(ru_text: str, en_text: str) -> str:
+        return en_text if str(babel_get_locale() or "ru") == "en" else ru_text
+
+    return {
+        "get_locale": (lambda: str(babel_get_locale() or "ru")),
+        "lang_url": _lang_url,
+        "tr": _tr,
+    }
+
+
+@app.after_request
+def persist_lang_cookie(resp: Response):
+    lang = (request.args.get("lang") or "").strip().lower()
+    if lang in {"ru", "en"}:
+        resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    return resp
 
 # -------------------------------------------------
 # Cache
@@ -179,6 +354,67 @@ def load_history(kind: str, hid: str) -> Optional[Dict]:
         return json.loads(s)
     except Exception:
         return None
+
+
+def _security_job_key(job_id: str) -> str:
+    return f"dt:security:job:{job_id}"
+
+
+def _save_security_job(job_id: str, payload: Dict, ttl_s: int = SECURITY_JOB_TTL_S) -> None:
+    payload = dict(payload or {})
+    payload["id"] = job_id
+    payload["updated_ts"] = int(time.time())
+    _SECURITY_JOB_LOCAL[job_id] = payload
+    try:
+        r.setex(_security_job_key(job_id), max(60, int(ttl_s)), json.dumps(payload, ensure_ascii=False))
+    except Exception:
+        pass
+
+
+def _is_valid_security_job_id(job_id: str) -> bool:
+    txt = (job_id or '').strip()
+    return bool(re.fullmatch(r'[a-f0-9]{32}', txt))
+
+
+def _load_security_job(job_id: str) -> Optional[Dict]:
+    try:
+        raw = r.get(_security_job_key(job_id))
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    return _SECURITY_JOB_LOCAL.get(job_id)
+
+
+def _normalize_security_hints(hints: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    severity_map = {"low": "low", "medium": "medium", "high": "high", "critical": "high"}
+    out: List[Dict[str, str]] = []
+    for h in hints or []:
+        sev = severity_map.get(str(h.get("severity") or h.get("level") or "").lower(), "medium")
+        item = dict(h)
+        item["severity"] = sev
+        out.append(item)
+    return out
+
+
+def _security_metric_inc(endpoint: str, event: str) -> None:
+    endpoint = re.sub(r"[^a-z0-9_:\-]", "", (endpoint or "security").lower())[:64] or "security"
+    event = "blocked" if event == "blocked" else "allowed"
+    now_utc = datetime.now(timezone.utc)
+    minute = now_utc.strftime("%Y%m%d%H%M")
+    day = now_utc.strftime("%Y%m%d")
+    key_min = f"dt:metrics:security_rate:min:{minute}"
+    key_day = f"dt:metrics:security_rate:day:{day}"
+    field = f"{endpoint}:{event}"
+    try:
+        with r.pipeline() as pipe:
+            pipe.hincrby(key_min, field, 1)
+            pipe.expire(key_min, 86400 * 2)
+            pipe.hincrby(key_day, field, 1)
+            pipe.expire(key_day, 86400 * 14)
+            pipe.execute()
+    except Exception:
+        pass
 
 def _split_kind_id(s: str) -> Optional[Tuple[str, str]]:
     try:
@@ -316,6 +552,39 @@ def prettyjson_filter(value):
         s = str(value)
     # отдать как «безопасный» текст (ничего не экранируется повторно)
     return Markup(escape(s))
+
+
+def json_rows_filter(value):
+    """Преобразует dict/list в плоский список пар (поле, значение) для табличного вывода."""
+    rows = []
+
+    def walk(node, prefix=""):
+        if isinstance(node, dict):
+            if not node:
+                rows.append((prefix or "—", "{}"))
+                return
+            for k, v in node.items():
+                key = f"{prefix}.{k}" if prefix else str(k)
+                walk(v, key)
+            return
+
+        if isinstance(node, list):
+            if not node:
+                rows.append((prefix or "—", "[]"))
+                return
+            for i, v in enumerate(node):
+                key = f"{prefix}[{i}]" if prefix else f"[{i}]"
+                walk(v, key)
+            return
+
+        if isinstance(node, tuple):
+            walk(list(node), prefix)
+            return
+
+        rows.append((prefix or "value", "" if node is None else str(node)))
+
+    walk(value)
+    return rows
 # --- country_flag для geo.html ---
 def country_flag(cc: str) -> str:
     if not cc or len(cc) != 2 or not cc.isalpha():
@@ -329,6 +598,7 @@ def jinja_more_globals():
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
 app.jinja_env.filters['prettyjson'] = prettyjson_filter
+app.jinja_env.filters['json_rows'] = json_rows_filter
 # --- форматирование времени для истории ---
 @app.template_filter("dt")
 def dt_filter(ts):
@@ -343,7 +613,23 @@ def dt_filter(ts):
 # -------------------------------------------------
 @app.get("/health")
 def health():
-    return jsonify(status="ok"), 200
+    recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
+    security_metrics_minute = {}
+    try:
+        minute = datetime.now(timezone.utc).strftime('%Y%m%d%H%M')
+        security_metrics_minute = r.hgetall(f"dt:metrics:security_rate:min:{minute}") or {}
+    except Exception:
+        pass
+    return jsonify(
+        status="ok",
+        security={
+            "recaptcha_enabled": bool(app.config.get("SECURITY_RECAPTCHA_ENABLED")),
+            "recaptcha_provider": (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard"),
+            "recaptcha_ready": recaptcha_ready,
+            "recaptcha_setup_error": recaptcha_setup_error,
+            "rate_limit_current_minute": security_metrics_minute,
+        },
+    ), 200
 
 @app.get("/favicon.ico")
 def favicon():
@@ -352,6 +638,29 @@ def favicon():
         "favicon.ico",
         mimetype="image/x-icon",
     )
+
+
+@app.post("/track/buy-click")
+def track_buy_click():
+    payload = request.get_json(silent=True) or {}
+    tld = re.sub(r"[^a-zа-яё0-9-]", "", str(payload.get("tld") or "").strip().lower())[:32]
+    locale = str(payload.get("locale") or "").strip().lower()[:8]
+    if locale not in {"ru", "en"}:
+        locale = "other"
+    if not tld:
+        return jsonify(ok=False, error="bad_tld"), 400
+
+    day_key = datetime.now(timezone.utc).strftime("%Y%m%d")
+    redis_key = f"dt:analytics:buy_clicks:{day_key}:{locale}"
+    try:
+        with r.pipeline() as pipe:
+            pipe.hincrby(redis_key, tld, 1)
+            pipe.expire(redis_key, 86400 * 45)
+            pipe.execute()
+    except Exception:
+        app.logger.warning("Buy click analytics write failed", exc_info=True)
+
+    return jsonify(ok=True), 200
 
 @app.get("/robots.txt")
 def robots():
@@ -374,6 +683,7 @@ def sitemap():
         url_for("domain_search", _external=True),
         url_for("reverse_lookup", _external=True),
         url_for("history_list", _external=True),
+        url_for("security_tools", _external=True),
         # ссылка на маршрут блюпринта
         url_for("site_checker.site_checker", _external=True),
     ]
@@ -400,13 +710,49 @@ def index():
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
 def dns_lookup():
+    dns_type_options = [
+        "A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA", "CAA", "SRV", "PTR", "NAPTR",
+        "TLSA", "SSHFP", "DS", "DNSKEY", "CDS", "CDNSKEY", "SPF", "HTTPS", "SVCB", "LOC",
+        "RP", "HINFO", "CERT", "DNAME", "URI",
+    ]
+    default_types = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
+
     meta = {
         "title": "DNS Lookup",
         "description": "Проверка DNS записей домена (A/AAAA/CNAME/MX/NS/TXT/SOA).",
     }
-    query = (request.args.get("q") or "").strip()
+    query = (request.args.get("q") or request.form.get("q") or "").strip()
+    selected_types = [t.strip().upper() for t in request.values.getlist("types") if t and t.strip()]
+    if not selected_types:
+        selected_types = list(default_types)
+    if "ALL" in selected_types:
+        selected_types = list(dns_type_options)
+    selected_types = [t for t in selected_types if t in dns_type_options]
+    if not selected_types:
+        selected_types = list(default_types)
+
     if not query:
-        return render_template("dns.html", meta=meta, result=None, error=None, query="")
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=None,
+            query="",
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
+
+    captcha_error = _verify_form_recaptcha_if_needed()
+    if captcha_error:
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=captcha_error,
+            query=query,
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
 
     error = None
     try:
@@ -415,7 +761,15 @@ def dns_lookup():
             query = idna.encode(query, uts46=True).decode("ascii")
         validate_domain(query)
     except Exception:
-        return render_template("dns.html", meta=meta, result=None, error=_("Invalid domain name."), query=query)
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=_("Invalid domain name."),
+            query=query,
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
 
     records: Dict[str, List[str]] = {}
     def fetch(rtype: str):
@@ -423,19 +777,59 @@ def dns_lookup():
             answers = dns.resolver.resolve(query, rtype)
             vals = []
             for r in answers:
-                vals.append(str(r).rstrip("."))
+                if rtype == "MX":
+                    vals.append(f"{getattr(r, 'preference', '')} {str(getattr(r, 'exchange', '')).rstrip('.')}".strip())
+                elif rtype == "SOA":
+                    vals.append(
+                        f"{str(getattr(r, 'mname', '')).rstrip('.')} {str(getattr(r, 'rname', '')).rstrip('.')} "
+                        f"{getattr(r, 'serial', '')} {getattr(r, 'refresh', '')} {getattr(r, 'retry', '')} "
+                        f"{getattr(r, 'expire', '')} {getattr(r, 'minimum', '')}"
+                    )
+                elif rtype == "SRV":
+                    vals.append(
+                        f"{getattr(r, 'priority', '')} {getattr(r, 'weight', '')} {getattr(r, 'port', '')} "
+                        f"{str(getattr(r, 'target', '')).rstrip('.')}"
+                    )
+                elif rtype == "CAA":
+                    vals.append(f"{getattr(r, 'flags', '')} {getattr(r, 'tag', '')} {getattr(r, 'value', '')}".strip())
+                elif rtype in {"DS", "CDS"}:
+                    vals.append(
+                        f"{getattr(r, 'key_tag', '')} {getattr(r, 'algorithm', '')} {getattr(r, 'digest_type', '')} {getattr(r, 'digest', '')}"
+                    )
+                elif rtype in {"DNSKEY", "CDNSKEY"}:
+                    vals.append(
+                        f"{getattr(r, 'flags', '')} {getattr(r, 'protocol', '')} {getattr(r, 'algorithm', '')} {getattr(r, 'key', '')}"
+                    )
+                elif rtype == "TXT":
+                    chunks = getattr(r, "strings", None)
+                    if chunks:
+                        vals.append("".join(ch.decode("utf-8", errors="ignore") if isinstance(ch, bytes) else str(ch) for ch in chunks))
+                    else:
+                        vals.append(str(r).rstrip("."))
+                else:
+                    vals.append(str(r).rstrip("."))
             if vals:
                 records[rtype] = vals
         except Exception:
             pass
 
-    for rt in ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]:
+    for rt in selected_types:
         fetch(rt)
 
     result = {"domain": query, "has_records": bool(records), "records": records}
-    permalink = url_for("dns_lookup", q=query, _external=False)
+    permalink = url_for("dns_lookup", q=query, types=selected_types, _external=False)
 
-    return render_template("dns.html", meta=meta, result=result, records=records, error=error, query=query, permalink=permalink)
+    return render_template(
+        "dns.html",
+        meta=meta,
+        result=result,
+        records=records,
+        error=error,
+        query=query,
+        permalink=permalink,
+        selected_types=selected_types,
+        dns_type_options=dns_type_options,
+    )
 
 # ---------- Domains ----------
 def _normalize_label(label: str) -> str:
@@ -474,46 +868,125 @@ def _is_available_via_whois(fqdn_ascii: str) -> bool:
         return False
 
 def _check_candidates(label: str, tlds: List[str]) -> List[Dict]:
-    out = []
+    out: List[Dict] = []
     is_idn_label = not label.isascii()
 
+    filtered_tlds: List[str] = []
     for t in tlds:
         t = t.strip().lstrip(".")
         if not t:
             continue
         if is_idn_label and t not in IDN_READY_TLDS:
             continue
+        filtered_tlds.append(t)
 
+    def _check_single_tld(t: str) -> Dict:
         fqdn_unicode = f"{label}.{t}"
         try:
             puny = idna.encode(fqdn_unicode, uts46=True).decode("ascii")
             avail_dns = _is_available_via_dns(puny)
             avail = _is_available_via_whois(puny) if avail_dns else False
-            out.append({"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None})
+            return {"fqdn": fqdn_unicode, "puny": puny, "available": bool(avail), "error": None}
         except Exception as e:
-            out.append({"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"})
+            return {"fqdn": fqdn_unicode, "puny": None, "available": False, "error": str(e) or "IDN error"}
+
+    max_workers = max(1, min(int(app.config.get("DOMAIN_CHECK_WORKERS", 8)), len(filtered_tlds) or 1))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        future_to_index = {
+            pool.submit(_check_single_tld, t): i
+            for i, t in enumerate(filtered_tlds)
+        }
+        ordered_results: List[Optional[Dict]] = [None] * len(filtered_tlds)
+        for fut in as_completed(future_to_index):
+            idx = future_to_index[fut]
+            ordered_results[idx] = fut.result()
+
+    out.extend(item for item in ordered_results if item)
     return out
 
 @app.route("/domains", methods=["GET", "POST"])
 def domain_search():
-    query = (request.args.get("query") or request.args.get("q") or request.form.get("q") or "").strip()
+    is_post = request.method == "POST"
+    query = (
+        request.form.get("query")
+        if is_post
+        else (request.args.get("query") or request.args.get("q") or "")
+    )
+    query = (query or "").strip()
     items = []
     error = None
     suggestions = []
 
+    all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
+    # Убираем дубли, сохраняя порядок
+    all_tlds = list(dict.fromkeys(all_tlds))
+
+    default_tlds_cfg = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
+    default_tlds = [t for t in default_tlds_cfg if t in all_tlds] or all_tlds[:20]
+    tld_groups, tld_group_map = _build_tld_groups(all_tlds, default_tlds)
+    max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
+
+    selected_source = request.form if is_post else request.args
+    selected_from_req = [t.strip().lstrip(".") for t in selected_source.getlist("zones") if (t or "").strip()]
+    preset = (selected_source.get("zone_preset") or "").strip().lower()
+    preset_map = {
+        "core": default_tlds,
+        "defaults": default_tlds,
+        "ru": tld_groups.get("ru", []),
+        "global": tld_groups.get("global", []),
+        "new": tld_groups.get("new", []),
+        "newgtld": tld_groups.get("new", []),
+        "all": all_tlds,
+        "none": [],
+    }
+    if preset in preset_map:
+        selected_tlds = [t for t in all_tlds if t in set(preset_map[preset])]
+    else:
+        selected_tlds = [t for t in all_tlds if t in set(selected_from_req)] if selected_from_req else default_tlds
+
     if query:
-        try:
-            if "." in query:
-                query = query.split(".")[0]
-            label = _normalize_label(query)
-            if any("а" <= ch <= "я" or ch == "ё" for ch in label):
-                suggestions = sorted(set([
-                    _translit_ru(label),
-                    _translit_ru(label).replace("sch", "sh").replace("ya", "a"),
-                ]))
-            items = _check_candidates(label, app.config.get("TLD_LIST", []))
-        except Exception as e:
-            error = str(e)
+        if not selected_tlds:
+            error = _("Выберите хотя бы одну зону для проверки.")
+            return render_template(
+                "domains.html",
+                q=query,
+                items=items,
+                error=error,
+                suggestions=suggestions,
+                buy_base=(app.config.get("AFFILIATE_BUY_BASE_EN") if str(babel_get_locale() or "ru").startswith("en") else app.config.get("AFFILIATE_BUY_BASE_RU")) or app.config.get("AFFILIATE_BUY_BASE"),
+                all_tlds=all_tlds,
+                selected_tlds=selected_tlds,
+                default_tlds=default_tlds,
+                max_tlds=max_tlds,
+                tld_groups=tld_groups,
+                tld_group_map=tld_group_map,
+            )
+        captcha_error = _verify_form_recaptcha_if_needed() if is_post else None
+        if captcha_error:
+            error = captcha_error
+        else:
+            try:
+                if "." in query:
+                    query = query.split(".")[0]
+                label = _normalize_label(query)
+                if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                    translit = _translit_ru(label)
+                    suggestions = sorted(set([
+                        translit,
+                        translit.replace("sch", "sh").replace("ya", "a"),
+                    ]))
+
+                tlds_for_check = selected_tlds
+                if not selected_from_req:
+                    tlds_for_check = selected_tlds[:max_tlds]
+
+                items = _check_candidates(label, tlds_for_check)
+            except Exception:
+                app.logger.exception("Domain search failed", extra={"query": query})
+                error = _("Не удалось выполнить подбор доменов. Попробуйте ещё раз.")
+
+    locale = str(babel_get_locale() or "ru")
+    buy_base = app.config.get("AFFILIATE_BUY_BASE_EN") if locale.startswith("en") else app.config.get("AFFILIATE_BUY_BASE_RU")
 
     return render_template(
         "domains.html",
@@ -521,8 +994,515 @@ def domain_search():
         items=items,
         error=error,
         suggestions=suggestions,
-        buy_base=app.config.get("AFFILIATE_BUY_BASE"),
+        buy_base=(buy_base or app.config.get("AFFILIATE_BUY_BASE")),
+        all_tlds=all_tlds,
+        selected_tlds=selected_tlds,
+        default_tlds=default_tlds,
+        max_tlds=max_tlds,
+        tld_groups=tld_groups,
+        tld_group_map=tld_group_map,
     )
+
+
+COMMON_SAFE_PORTS = [20,21,22,25,53,80,110,111,123,135,139,143,161,389,443,445,465,587,993,995,1433,1521,1723,1883,2049,2083,2087,2096,2375,2376,3000,3128,3306,3389,3690,4369,5000,5432,5672,5900,5985,5986,6379,6443,7001,7002,7443,8000,8080,8081,8443,9000,9090,9200,9300,10000,11211,15672,27017]
+
+
+def _is_public_ip(ip: str) -> bool:
+    try:
+        addr = ipaddress.ip_address(ip)
+        return not (addr.is_private or addr.is_loopback or addr.is_link_local or addr.is_multicast or addr.is_reserved)
+    except Exception:
+        return False
+
+
+def _tr_no_req(msg: str, **kwargs) -> str:
+    """gettext-safe helper that also works in background jobs without request context."""
+    try:
+        return _(msg, **kwargs)
+    except RuntimeError:
+        # No request context (e.g., async worker thread): return source text.
+        if kwargs:
+            try:
+                return msg % kwargs
+            except Exception:
+                return msg
+        return msg
+
+
+def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
+    host = (host or '').strip()
+    if not host:
+        return None, _tr_no_req('Empty host')
+
+    # Simple hostname format pre-check to avoid noisy resolver errors
+    if not re.match(r'^[A-Za-z0-9.-]+$', host):
+        return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
+
+    # direct IP input
+    try:
+        ipaddress.ip_address(host)
+        if not _is_public_ip(host):
+            return None, _tr_no_req('Only public IP targets are allowed.')
+        return host, None
+    except Exception:
+        pass
+
+    # domain input
+    try:
+        infos = socket.getaddrinfo(host, None, proto=socket.IPPROTO_TCP)
+        ips = []
+        for info in infos:
+            ip = info[4][0]
+            if ip not in ips:
+                ips.append(ip)
+        public_ips = [ip for ip in ips if _is_public_ip(ip)]
+        if not public_ips:
+            return None, _tr_no_req('Resolved host does not have a public IP.')
+        return public_ips[0], None
+    except Exception:
+        return None, _tr_no_req('Could not resolve host.')
+
+
+def _parse_ports(raw_ports: str, max_ports: int) -> Tuple[List[int], str | None]:
+    raw = (raw_ports or '').strip()
+    if not raw:
+        return COMMON_SAFE_PORTS[:max_ports], None
+
+    ports: List[int] = []
+    for part in raw.split(','):
+        p = part.strip()
+        if not p:
+            continue
+        if '-' in p:
+            a, b = p.split('-', 1)
+            if not (a.strip().isdigit() and b.strip().isdigit()):
+                return [], _tr_no_req('Ports format is invalid.')
+            start, end = int(a), int(b)
+            if start > end:
+                start, end = end, start
+            if start < 1 or end > 65535:
+                return [], _tr_no_req('Ports must be in range 1..65535.')
+            ports.extend(range(start, end + 1))
+        else:
+            if not p.isdigit():
+                return [], _tr_no_req('Ports format is invalid.')
+            port = int(p)
+            if port < 1 or port > 65535:
+                return [], _tr_no_req('Ports must be in range 1..65535.')
+            ports.append(port)
+
+    ports = sorted(set(ports))
+    if not ports:
+        return [], _tr_no_req('Please select at least one port.')
+    if len(ports) > max_ports:
+        return [], _tr_no_req('Too many ports selected. Limit is %(n)s.', n=max_ports)
+    return ports, None
+
+
+def _scan_single_port(ip: str, port: int, timeout_s: float) -> Dict[str, object]:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.settimeout(timeout_s)
+    try:
+        rc = sock.connect_ex((ip, port))
+        state = 'open' if rc == 0 else 'closed'
+        return {'port': port, 'state': state}
+    except Exception:
+        return {'port': port, 'state': 'filtered'}
+    finally:
+        try:
+            sock.close()
+        except Exception:
+            pass
+
+
+SECURITY_MAX_HOST_LEN = int(os.environ.get('SECURITY_MAX_HOST_LEN', '255'))
+SECURITY_MAX_PORTS_RAW_LEN = int(os.environ.get('SECURITY_MAX_PORTS_RAW_LEN', '512'))
+SECURITY_MAX_WP_URL_LEN = int(os.environ.get('SECURITY_MAX_WP_URL_LEN', '2048'))
+
+PORT_SECURITY_HINTS = {
+    21: {"level":"high", "ru":"FTP открыт", "en":"FTP is exposed", "ru_fix":"Отключите FTP или используйте SFTP/FTPS.", "en_fix":"Disable FTP or use SFTP/FTPS."},
+    22: {"level":"medium", "ru":"SSH открыт", "en":"SSH is exposed", "ru_fix":"Ограничьте доступ по IP и используйте только ключи.", "en_fix":"Restrict by IP and use key-only authentication."},
+    23: {"level":"high", "ru":"Telnet открыт", "en":"Telnet is exposed", "ru_fix":"Закройте Telnet и используйте SSH.", "en_fix":"Disable Telnet and use SSH."},
+    25: {"level":"medium", "ru":"SMTP открыт", "en":"SMTP is exposed", "ru_fix":"Проверьте, что это не open-relay, и включите SPF/DKIM/DMARC.", "en_fix":"Ensure it is not open relay and enable SPF/DKIM/DMARC."},
+    3389: {"level":"high", "ru":"RDP открыт", "en":"RDP is exposed", "ru_fix":"Разрешайте доступ только через VPN/ACL.", "en_fix":"Allow access only via VPN/ACL."},
+    3306: {"level":"high", "ru":"MySQL открыт", "en":"MySQL is exposed", "ru_fix":"БД не должна быть доступна из интернета.", "en_fix":"Database should not be publicly reachable."},
+    5432: {"level":"high", "ru":"PostgreSQL открыт", "en":"PostgreSQL is exposed", "ru_fix":"Ограничьте доступ только внутренней сетью.", "en_fix":"Restrict access to internal network only."},
+    6379: {"level":"critical", "ru":"Redis открыт", "en":"Redis is exposed", "ru_fix":"Закройте порт снаружи и включите аутентификацию.", "en_fix":"Close external access and enable authentication."},
+    27017: {"level":"high", "ru":"MongoDB открыт", "en":"MongoDB is exposed", "ru_fix":"Закройте публичный доступ и включите auth.", "en_fix":"Close public access and enforce auth."},
+}
+
+
+def _build_port_hints(rows: List[Dict[str, object]]) -> List[Dict[str, str]]:
+    open_ports = sorted(int(r["port"]) for r in rows if r.get("state") == "open")
+    hints: List[Dict[str, str]] = []
+    for p in open_ports:
+        if p in PORT_SECURITY_HINTS:
+            h = PORT_SECURITY_HINTS[p]
+            hints.append({
+                "port": str(p),
+                "level": h["level"],
+                "ru": h["ru"],
+                "en": h["en"],
+                "ru_fix": h["ru_fix"],
+                "en_fix": h["en_fix"],
+            })
+    return _normalize_security_hints(hints)
+
+
+def _normalize_wp_target(raw: str) -> Tuple[str | None, str | None, str | None]:
+    """Return (normalized_url, host, error)."""
+    txt = (raw or "").strip()
+    if not txt:
+        return None, None, _tr_no_req('Empty host')
+    if not re.match(r"^https?://", txt, re.I):
+        txt = f"https://{txt}"
+    try:
+        u = urlparse(txt)
+    except Exception:
+        return None, None, _tr_no_req('Invalid URL')
+    host = (u.hostname or "").strip()
+    if not host:
+        return None, None, _tr_no_req('Invalid URL')
+    return txt, host, None
+
+
+def _safe_get_text(url: str, timeout_s: float = 4.0) -> Tuple[int, str, Dict[str, str], str | None]:
+    try:
+        r = requests.get(url, timeout=timeout_s, allow_redirects=True, headers={"User-Agent": "DomainTools-SecurityScanner/1.0"})
+        return r.status_code, (r.text or ""), dict(r.headers), None
+    except Exception as e:
+        return 0, "", {}, str(e)
+
+
+def _wordpress_safe_scan(target_url: str) -> Dict[str, object]:
+    status, html, headers, err = _safe_get_text(target_url)
+    html_l = (html or "").lower()
+
+    checks: Dict[str, object] = {
+        "homepage_status": status,
+        "reachable": status > 0 and err is None,
+        "error": err,
+    }
+
+    # WP markers
+    markers = ["wp-content", "wp-includes", "wp-json", "wordpress"]
+    is_wp = any(m in html_l for m in markers)
+
+    wp_login_status, wp_login_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/wp-login.php')
+    xmlrpc_status, xmlrpc_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/xmlrpc.php')
+    readme_status, readme_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/readme.html')
+    wpjson_status, _, _, _ = _safe_get_text(target_url.rstrip('/') + '/wp-json/')
+    uploads_status, uploads_text, _, _ = _safe_get_text(target_url.rstrip('/') + '/wp-content/uploads/')
+
+    if wp_login_status in {200, 301, 302, 403}:
+        is_wp = True
+
+    # version extraction (best-effort)
+    ver = None
+    m = re.search(r"wordpress\s*([0-9]+(?:\.[0-9]+){1,3})", html_l)
+    if m:
+        ver = m.group(1)
+
+    sec_headers = {
+        "strict-transport-security": headers.get("Strict-Transport-Security"),
+        "content-security-policy": headers.get("Content-Security-Policy"),
+        "x-frame-options": headers.get("X-Frame-Options"),
+        "x-content-type-options": headers.get("X-Content-Type-Options"),
+        "referrer-policy": headers.get("Referrer-Policy"),
+    }
+
+    checks.update({
+        "is_wordpress": is_wp,
+        "version": ver,
+        "wp_login_status": wp_login_status,
+        "xmlrpc_enabled": xmlrpc_status == 200 and ("xml-rpc" in (xmlrpc_text or "").lower()),
+        "readme_exposed": readme_status == 200 and "wordpress" in (readme_text or "").lower(),
+        "wp_json_enabled": wpjson_status in {200, 401, 403},
+        "uploads_listing": uploads_status == 200 and "index of" in (uploads_text or "").lower(),
+        "security_headers": sec_headers,
+    })
+
+    hints: List[Dict[str, str]] = []
+    if checks["xmlrpc_enabled"]:
+        hints.append({"level":"medium", "ru":"Доступен xmlrpc.php", "en":"xmlrpc.php is enabled", "ru_fix":"Ограничьте xmlrpc.php, если не используете Jetpack/приложения.", "en_fix":"Restrict xmlrpc.php unless required by Jetpack/apps."})
+    if checks["readme_exposed"]:
+        hints.append({"level":"low", "ru":"Доступен readme.html", "en":"readme.html is exposed", "ru_fix":"Удалите/скройте readme.html, чтобы не светить версию.", "en_fix":"Hide/remove readme.html to reduce version disclosure."})
+    if checks["uploads_listing"]:
+        hints.append({"level":"high", "ru":"Открыт листинг /wp-content/uploads/", "en":"Directory listing enabled for /wp-content/uploads/", "ru_fix":"Отключите directory listing на веб-сервере.", "en_fix":"Disable directory listing in web server config."})
+
+    missing_headers = [k for k,v in sec_headers.items() if not v]
+    if missing_headers:
+        hints.append({"level":"medium", "ru":"Не хватает security-заголовков", "en":"Missing security headers", "ru_fix":"Добавьте HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy.", "en_fix":"Add HSTS/CSP/X-Frame-Options/X-Content-Type-Options/Referrer-Policy."})
+
+    checks["hints"] = _normalize_security_hints(hints)
+    return checks
+
+
+def _run_port_scan_result(host: str, ports_raw: str) -> Tuple[Dict[str, object] | None, str | None]:
+    target_ip, err = _resolve_public_target_ip(host)
+    if err:
+        return None, err
+
+    max_ports = max(1, int(app.config.get('PORT_SCAN_MAX_PORTS', 50)))
+    ports, p_err = _parse_ports(ports_raw, max_ports=max_ports)
+    if p_err:
+        return None, p_err
+
+    timeout_s = float(app.config.get('PORT_SCAN_CONNECT_TIMEOUT', 0.4))
+    max_workers = max(1, min(int(app.config.get('PORT_SCAN_MAX_WORKERS', 20)), len(ports)))
+    rows: List[Dict[str, object]] = []
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        futs = [pool.submit(_scan_single_port, target_ip, p, timeout_s) for p in ports]
+        for fut in as_completed(futs):
+            rows.append(fut.result())
+    rows.sort(key=lambda x: int(x['port']))
+
+    hints = _build_port_hints(rows)
+    return {
+        'host': host,
+        'ip': target_ip,
+        'ports': ports,
+        'rows': rows,
+        'open_count': sum(1 for row in rows if row['state'] == 'open'),
+        'closed_count': sum(1 for row in rows if row['state'] == 'closed'),
+        'filtered_count': sum(1 for row in rows if row['state'] == 'filtered'),
+        'limits': {
+            'max_ports': max_ports,
+            'timeout_s': timeout_s,
+            'max_workers': max_workers,
+        },
+        'hints': hints,
+    }, None
+
+
+def _run_wp_scan_result(wp_url_raw: str) -> Tuple[Dict[str, object] | None, str | None]:
+    norm_url, wp_host, n_err = _normalize_wp_target(wp_url_raw)
+    if n_err:
+        return None, n_err
+    target_ip, err = _resolve_public_target_ip(wp_host)
+    if err:
+        return None, err
+
+    wp_result = _wordpress_safe_scan(norm_url)
+    wp_result['target_url'] = norm_url
+    wp_result['target_host'] = wp_host
+    wp_result['target_ip'] = target_ip
+    wp_result['hints'] = _normalize_security_hints(wp_result.get('hints') or [])
+    return wp_result, None
+
+
+def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -> None:
+    with app.app_context():
+        started = int(time.time())
+        _save_security_job(job_id, {
+            "status": "running",
+            "kind": job_kind,
+            "created_ts": started,
+            "started_ts": started,
+            "payload": payload,
+            "result": None,
+            "error": None,
+            "error_code": None,
+            "duration_ms": None,
+        })
+        try:
+            if job_kind == "ports":
+                result, err = _run_port_scan_result(payload.get("host", ""), payload.get("ports_raw", ""))
+                if err:
+                    raise ValueError(err)
+                hid = save_history("security", f"ports:{payload.get('host', '')}:{payload.get('ports_raw') or 'default'}", result)
+                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+            elif job_kind == "wp":
+                result, err = _run_wp_scan_result(payload.get("wp_url_raw", ""))
+                if err:
+                    raise ValueError(err)
+                hid = save_history("security", f"wp:{payload.get('wp_url_raw', '')}", result)
+                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+            else:
+                raise ValueError(_tr_no_req("Unsupported scan type."))
+
+            _save_security_job(job_id, {
+                "status": "done",
+                "kind": job_kind,
+                "created_ts": started,
+                "finished_ts": int(time.time()),
+                "payload": payload,
+                "result": result,
+                "error": None,
+                "error_code": None,
+                "duration_ms": max(0, int((time.time() - started) * 1000)),
+                "permalink": permalink,
+            })
+        except ValueError as e:
+            _save_security_job(job_id, {
+                "status": "failed",
+                "kind": job_kind,
+                "created_ts": started,
+                "finished_ts": int(time.time()),
+                "payload": payload,
+                "result": None,
+                "error": str(e),
+                "error_code": "validation_error",
+                "duration_ms": max(0, int((time.time() - started) * 1000)),
+                "permalink": None,
+            })
+        except Exception:
+            app.logger.exception("Security scan job failed: kind=%s", job_kind)
+            _save_security_job(job_id, {
+                "status": "failed",
+                "kind": job_kind,
+                "created_ts": started,
+                "finished_ts": int(time.time()),
+                "payload": payload,
+                "result": None,
+                "error": _tr_no_req("Internal scan error. Please retry later."),
+                "error_code": "internal_error",
+                "duration_ms": max(0, int((time.time() - started) * 1000)),
+                "permalink": None,
+            })
+
+
+_SECURITY_RATE_BUCKET: Dict[str, List[float]] = {}
+
+
+def _client_ip() -> str:
+    xff = (request.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        return xff.split(",", 1)[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _security_is_rate_limited(ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+    """Rate-limit by IP with Redis primary storage and in-memory fallback."""
+    if not ip:
+        return False
+
+    limit = max(1, int(limit_per_min))
+    win = max(1, int(window_s))
+
+    # Primary: Redis shared counter (works across gunicorn workers)
+    try:
+        key = f"rl:security:{ip}"
+        with r.pipeline() as pipe:
+            pipe.incr(key)
+            pipe.expire(key, win, nx=True)
+            vals = pipe.execute()
+        current = int(vals[0] or 0)
+        return current > limit
+    except Exception:
+        # Fallback: local in-memory bucket (keeps service operational if Redis unavailable)
+        now = time.time()
+        bucket = _SECURITY_RATE_BUCKET.get(ip, [])
+        fresh = [t for t in bucket if now - t < win]
+        limited = len(fresh) >= limit
+        fresh.append(now)
+        _SECURITY_RATE_BUCKET[ip] = fresh[-200:]
+        return limited
+
+
+
+def _recaptcha_setup_status() -> Tuple[bool, str | None]:
+    if not app.config.get("SECURITY_RECAPTCHA_ENABLED"):
+        return True, None
+    provider = (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    if provider not in {"standard", "enterprise"}:
+        provider = "standard"
+    if provider == "enterprise":
+        ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT") and app.config.get("SECURITY_RECAPTCHA_API_KEY"))
+        return (ok, None if ok else _("reCAPTCHA Enterprise config is incomplete."))
+    ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_SECRET_KEY"))
+    return (ok, None if ok else _("reCAPTCHA v3 config is incomplete."))
+
+def _verify_form_recaptcha_if_needed() -> str | None:
+    """Validate captcha for generic data-entry forms when enabled."""
+    if not app.config.get("FORM_RECAPTCHA_ENABLED"):
+        return None
+
+    token = (request.values.get("recaptcha_token") or "").strip()
+    if request.method != "POST" and not token:
+        # keep GET permalink/repeat links working when no captcha token is present
+        return None
+
+    ok, err = _verify_recaptcha_token(token, action=str(app.config.get("FORM_RECAPTCHA_ACTION", "form_submit")))
+    if ok:
+        return None
+    return err or _("Captcha validation failed.")
+
+
+def _has_any_request_value(*keys: str) -> bool:
+    for k in keys:
+        v = (request.values.get(k) or "").strip()
+        if v:
+            return True
+    return False
+
+
+def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
+    if not app.config.get("SECURITY_RECAPTCHA_ENABLED"):
+        return True, None
+
+    if not token:
+        return False, _("Captcha token is missing.")
+
+    provider = (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    if provider not in {"standard", "enterprise"}:
+        provider = "standard"
+    min_score = float(app.config.get("SECURITY_RECAPTCHA_MIN_SCORE", 0.5))
+
+    try:
+        if provider == "enterprise":
+            api_key = app.config.get("SECURITY_RECAPTCHA_API_KEY")
+            project = app.config.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT")
+            site_key = app.config.get("SECURITY_RECAPTCHA_SITE_KEY")
+            if not (api_key and project and site_key):
+                return False, _("reCAPTCHA Enterprise is not configured.")
+
+            endpoint = f"https://recaptchaenterprise.googleapis.com/v1/projects/{project}/assessments?key={api_key}"
+            payload = {
+                "event": {
+                    "token": token,
+                    "siteKey": site_key,
+                    "expectedAction": action,
+                    "userIpAddress": _client_ip(),
+                }
+            }
+            resp = requests.post(endpoint, json=payload, timeout=4)
+            data = resp.json() if resp.ok else {}
+            token_props = data.get("tokenProperties") or {}
+            risk = data.get("riskAnalysis") or {}
+            if not token_props.get("valid"):
+                return False, _("Captcha validation failed.")
+            if token_props.get("action") and token_props.get("action") != action:
+                return False, _("Captcha action mismatch.")
+            score = float(risk.get("score") or 0.0)
+            if score < min_score:
+                return False, _("Captcha score is too low.")
+            return True, None
+
+        secret = app.config.get("SECURITY_RECAPTCHA_SECRET_KEY")
+        if not secret:
+            return False, _("reCAPTCHA is not configured.")
+        resp = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
+            data={
+                "secret": secret,
+                "response": token,
+                "remoteip": _client_ip(),
+            },
+            timeout=4,
+        )
+        data = resp.json() if resp.ok else {}
+        if not data.get("success"):
+            return False, _("Captcha validation failed.")
+        if data.get("action") and data.get("action") != action:
+            return False, _("Captcha action mismatch.")
+        score = float(data.get("score") or 0.0)
+        if score < min_score:
+            return False, _("Captcha score is too low.")
+        return True, None
+    except Exception:
+        return False, _("Captcha verification is temporarily unavailable.")
+
 
 # ---------- WHOIS ----------
 @app.route("/whois", methods=["GET", "POST"])
@@ -534,6 +1514,10 @@ def whois_lookup():
 
     if not query:
         return render_template("whois.html", result=None, error=None, query=query, permalink=None)
+
+    captcha_error = _verify_form_recaptcha_if_needed()
+    if captcha_error:
+        return render_template("whois.html", result=None, error=captcha_error, query=query, permalink=None)
 
     try:
         q, err = _normalize_domain_query(query)
@@ -590,6 +1574,9 @@ def geo_lookup():
 
     if request.method == "POST" or (request.method == "GET" and request.args.get("query")):
         query = (request.form.get("query") or request.args.get("query") or "").strip()
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            return render_template('geo.html', result=None, error=captcha_error, query=(query or ''), permalink=None)
         query, err = _normalize_domain_query(query)
         if err:
             error = err
@@ -620,7 +1607,6 @@ def geo_lookup():
             def _compute_geo():
                 ipw = IPWhois(ip)
                 who = ipw.lookup_rdap()
-                geocoder = Nominatim(user_agent="domaintools.site")
                 country_code = (who.get("asn_country_code") or "").upper()
                 country_name = who.get("network", {}).get("country", "") or country_code
                 return {
@@ -680,6 +1666,9 @@ def reverse_lookup():
         return row
 
     if query:
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            return render_template("reverse.html", result=None, error=captcha_error, query=query, permalink=None)
         try:
             # IP?
             try:
@@ -723,12 +1712,192 @@ def reverse_lookup():
 
     return render_template("reverse.html", result=result, error=error, query=query, permalink=permalink)
 
+
+@app.route('/security', methods=['GET', 'POST'])
+def security_tools():
+    host = (request.values.get('host') or '').strip()
+    ports_raw = (request.values.get('ports') or '').strip()
+    scan_target = (request.values.get('scan') or '').strip().lower()
+    wp_url_raw = (request.values.get('wp_url') or '').strip()
+    job_id = (request.values.get('job') or '').strip()
+
+    active_scan = 'wp' if scan_target == 'wp' else 'ports'
+    port_result = None
+    port_error = None
+    wp_result = None
+    wp_error = None
+    security_error = None
+    permalink = None
+    job_status = None
+
+    recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
+
+    # Poll/render existing job
+    job = None
+    if job_id:
+        if not _is_valid_security_job_id(job_id):
+            security_error = _('Invalid scan job id.')
+            job_id = ''
+        else:
+            job = _load_security_job(job_id)
+        if job:
+            job_status = str(job.get('status') or '').lower() or 'queued'
+            active_scan = 'wp' if str(job.get('kind')) == 'wp' else 'ports'
+            payload = job.get('payload') or {}
+            host = host or str(payload.get('host') or '')
+            ports_raw = ports_raw or str(payload.get('ports_raw') or '')
+            wp_url_raw = wp_url_raw or str(payload.get('wp_url_raw') or '')
+            if job_status == 'done':
+                if active_scan == 'ports':
+                    port_result = job.get('result')
+                else:
+                    wp_result = job.get('result')
+                permalink = job.get('permalink')
+            elif job_status == 'failed':
+                if active_scan == 'ports':
+                    port_error = job.get('error') or _('Scan failed.')
+                else:
+                    wp_error = job.get('error') or _('Scan failed.')
+
+    # Submit new async job
+    if request.method == 'POST' and not job_id and (host or wp_url_raw):
+        if len(host) > SECURITY_MAX_HOST_LEN:
+            security_error = _('Host is too long.')
+        elif len(ports_raw) > SECURITY_MAX_PORTS_RAW_LEN:
+            security_error = _('Ports list is too long.')
+        elif len(wp_url_raw) > SECURITY_MAX_WP_URL_LEN:
+            security_error = _('WordPress URL is too long.')
+        elif (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
+            security_error = recaptcha_setup_error or _('reCAPTCHA is not configured.')
+        else:
+            ip = _client_ip()
+            endpoint_name = f"security:{active_scan}"
+            if _security_is_rate_limited(ip, int(app.config.get('SECURITY_RATE_LIMIT_PER_MIN', 15))):
+                _security_metric_inc(endpoint_name, 'blocked')
+                security_error = _('Too many security scan requests. Please retry in a minute.')
+            else:
+                _security_metric_inc(endpoint_name, 'allowed')
+                recaptcha_token = (request.values.get('recaptcha_token') or '').strip()
+                ok, recaptcha_err = _verify_recaptcha_token(recaptcha_token, action=str(app.config.get('SECURITY_RECAPTCHA_ACTION', 'security_scan')))
+                if not ok:
+                    security_error = recaptcha_err or _('Captcha validation failed.')
+                else:
+                    job_id = uuid.uuid4().hex
+                    payload = {
+                        'host': host,
+                        'ports_raw': ports_raw,
+                        'wp_url_raw': wp_url_raw,
+                    }
+                    _save_security_job(job_id, {
+                        'status': 'queued',
+                        'kind': active_scan,
+                        'payload': payload,
+                        'created_ts': int(time.time()),
+                        'result': None,
+                        'error': None,
+                        'error_code': None,
+                        'duration_ms': None,
+                        'permalink': None,
+                    })
+                    try:
+                        _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
+                    except Exception:
+                        app.logger.exception('Security scan queue submit failed: kind=%s', active_scan)
+                        _save_security_job(job_id, {
+                            'status': 'failed',
+                            'kind': active_scan,
+                            'payload': payload,
+                            'created_ts': int(time.time()),
+                            'finished_ts': int(time.time()),
+                            'result': None,
+                            'error': _tr_no_req('Internal scan error. Please retry later.'),
+                            'error_code': 'internal_error',
+                            'duration_ms': 0,
+                            'permalink': None,
+                        })
+                        security_error = _('Could not start scan job. Please retry.')
+                        job_id = ''
+                    else:
+                        return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
+
+    return render_template(
+        'security.html',
+        host=host,
+        ports_raw=ports_raw,
+        port_result=port_result,
+        port_error=port_error,
+        wp_url_raw=wp_url_raw,
+        wp_result=wp_result,
+        wp_error=wp_error,
+        security_error=security_error,
+        active_scan=active_scan,
+        recaptcha_enabled=bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')),
+        recaptcha_site_key=(app.config.get('SECURITY_RECAPTCHA_SITE_KEY') or ''),
+        recaptcha_provider=(app.config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard'),
+        recaptcha_action=(app.config.get('SECURITY_RECAPTCHA_ACTION') or 'security_scan'),
+        recaptcha_ready=recaptcha_ready,
+        recaptcha_setup_error=recaptcha_setup_error,
+        permalink=permalink,
+        common_ports=COMMON_SAFE_PORTS[:20],
+        job_id=job_id,
+        job_status=job_status,
+    )
+
+
+@app.get('/security/jobs/<job_id>')
+def security_job_status(job_id: str):
+    if not _is_valid_security_job_id(job_id):
+        return jsonify(ok=False, error='invalid_job_id'), 400
+
+    job = _load_security_job(job_id)
+    if not job:
+        return jsonify(ok=False, error='not_found'), 404
+    return jsonify(
+        ok=True,
+        id=job_id,
+        status=job.get('status') or 'queued',
+        kind=job.get('kind') or 'ports',
+        error=job.get('error'),
+        error_code=job.get('error_code'),
+        duration_ms=job.get('duration_ms'),
+        permalink=job.get('permalink'),
+        updated_ts=job.get('updated_ts'),
+    ), 200
+
+
+@app.get('/security/metrics')
+def security_metrics():
+    if not bool(app.config.get('SECURITY_METRICS_PUBLIC')):
+        return jsonify(ok=False, error='disabled'), 404
+    now_utc = datetime.now(timezone.utc)
+    day = now_utc.strftime('%Y%m%d')
+    minute = now_utc.strftime('%Y%m%d%H%M')
+    day_key = f"dt:metrics:security_rate:day:{day}"
+    minute_key = f"dt:metrics:security_rate:min:{minute}"
+    data_day: Dict[str, str] = {}
+    data_min: Dict[str, str] = {}
+    try:
+        data_day = r.hgetall(day_key) or {}
+        data_min = r.hgetall(minute_key) or {}
+    except Exception:
+        pass
+    return jsonify(ok=True, day=data_day, current_minute=data_min), 200
+
+
 # ---------- История ----------
 @app.get("/history")
 def history_list():
-    # последние 100
-    keys = r.zrevrange(HIST_ZSET, 0, 99)
     items = []
+    history_error = None
+
+    try:
+        # последние 100
+        keys = r.zrevrange(HIST_ZSET, 0, 99)
+    except Exception:
+        app.logger.warning("History Redis unavailable", exc_info=True)
+        keys = []
+        history_error = _("History storage is temporarily unavailable. Please try again later.")
+
     for s in keys:
         pair = _split_kind_id(s)
         if not pair:
@@ -752,6 +1921,16 @@ def history_list():
             repeat_url = url_for("geo_lookup", query=q)
         elif kind == "reverse":
             repeat_url = url_for("reverse_lookup", q=q)
+        elif kind == "security":
+            if q.startswith("ports:"):
+                host_part = q.split(":", 2)[1] if ":" in q else ""
+                ports_part = q.split(":", 2)[2] if q.count(":") >= 2 else ""
+                repeat_url = url_for("security_tools", host=host_part, ports=ports_part, scan="ports")
+            elif q.startswith("wp:"):
+                wp_target = q.split(":", 1)[1] if ":" in q else ""
+                repeat_url = url_for("security_tools", wp_url=wp_target, scan="wp")
+            else:
+                repeat_url = url_for("security_tools")
         else:
             repeat_url = None
 
@@ -764,11 +1943,11 @@ def history_list():
             "repeat_url": repeat_url,
         })
 
-    return render_template("history.html", items=items)
+    return render_template("history.html", items=items, history_error=history_error)
 
 @app.route("/history/<kind>/<hid>")
 def history_view(kind: str, hid: str):
-    if kind not in {"dns", "whois", "geo", "reverse"}:
+    if kind not in {"dns", "whois", "geo", "reverse", "security"}:
         abort(404)
     doc = load_history(kind, hid)
     if not doc:
@@ -784,12 +1963,33 @@ def history_view(kind: str, hid: str):
         return render_template("geo.html", result=res, error=None, query=q, permalink=permalink)
     if kind == "reverse":
         return render_template("reverse.html", result=res, error=None, query=q, permalink=permalink)
+    if kind == "security":
+        return render_template(
+            "security.html",
+            host=(res or {}).get("host", ""),
+            ports_raw=",".join(str(p) for p in ((res or {}).get("ports") or [])),
+            port_result=res if isinstance(res, dict) and "rows" in res else None,
+            port_error=None,
+            wp_url_raw=(res or {}).get("target_url", "") if isinstance(res, dict) else "",
+            wp_result=res if isinstance(res, dict) and "is_wordpress" in res else None,
+            wp_error=None,
+            security_error=None,
+            active_scan='wp' if isinstance(res, dict) and "is_wordpress" in res else 'ports',
+            recaptcha_enabled=bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')),
+            recaptcha_site_key=(app.config.get('SECURITY_RECAPTCHA_SITE_KEY') or ''),
+            recaptcha_provider=(app.config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard'),
+            recaptcha_action=(app.config.get('SECURITY_RECAPTCHA_ACTION') or 'security_scan'),
+            recaptcha_ready=_recaptcha_setup_status()[0],
+            recaptcha_setup_error=_recaptcha_setup_status()[1],
+            permalink=permalink,
+            common_ports=COMMON_SAFE_PORTS[:20],
+        )
     abort(404)
 
 # ---------- Экспорт ----------
 @app.get("/export/<kind>/<hid>.<fmt>")
 def export_result(kind: str, hid: str, fmt: str):
-    if kind not in {"dns", "whois", "geo", "reverse"}:
+    if kind not in {"dns", "whois", "geo", "reverse", "security"}:
         abort(404)
     doc = load_history(kind, hid)
     if not doc:
