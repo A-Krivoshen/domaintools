@@ -1,6 +1,7 @@
 {# templates/dns.html #}
 {% extends "base.html" %}
-{% block title %}DNS — DomainTools{% endblock %}
+{% block title %}{{ tr('DNS-проверка — DomainTools', 'DNS lookup — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Проверка DNS-записей домена: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV и другие типы.', 'Check domain DNS records: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV and other types.') }}{% endblock %}
 
 {% block content %}
 <div class="container my-4">

@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>{% block title %}DomainTools{% endblock %}</title>
-  <meta name="description" content="{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}">
+  {% block meta_snippet %}{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}{% endblock %}
+  <meta name="description" content="{% block meta_description %}{{ self.meta_snippet()|striptags }}{% endblock %}">
 
   <!-- Favicon pack -->
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -13,11 +14,19 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="DomainTools">
-  <meta property="og:description" content="{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов', 'DNS / WHOIS / GeoIP tools with query history') }}">
+  <meta property="og:title" content="{% block og_title %}{% block og_title_text %}{{ self.title()|striptags }}{% endblock %}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{% block og_description_text %}{{ self.meta_snippet()|striptags }}{% endblock %}{% endblock %}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
   <meta property="og:image" content="{{ url_for('static', filename='og.png', _external=True) }}">
+
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{% block twitter_title %}{{ self.title()|striptags }}{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}{{ self.meta_snippet()|striptags }}{% endblock %}">
+  <meta name="twitter:image" content="{{ url_for('static', filename='og.png', _external=True) }}">
+  <meta property="og:locale" content="{{ 'ru_RU' if get_locale() == 'ru' else 'en_US' }}">
+  <meta property="og:locale:alternate" content="{{ 'en_US' if get_locale() == 'ru' else 'ru_RU' }}">
 
   {% set _site_root = request.url_root.rstrip('/') %}
   <link rel="canonical" href="{{ _site_root }}{{ request.path }}?lang={{ get_locale() }}">

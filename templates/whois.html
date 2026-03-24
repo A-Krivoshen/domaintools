@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}WHOIS — DomainTools{% endblock %}
+{% block title %}{{ tr('WHOIS-проверка — DomainTools', 'WHOIS lookup — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('WHOIS для доменов и IP: регистратор, даты, статусы, NS и подробная информация о регистрации.', 'WHOIS for domains and IPs: registrar, dates, statuses, NS, and full registration details.') }}{% endblock %}
 
 {% block jsonld_extra %}
 <script type="application/ld+json">

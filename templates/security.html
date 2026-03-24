@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ tr('Безопасность', 'Security') }} — DomainTools{% endblock %}
+{% block title %}{{ tr('Проверка безопасности — DomainTools', 'Security checks — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Безопасные проверки хоста: порт-сканер с лимитами и пассивная WordPress-проверка без brute-force.', 'Safe host checks: rate-limited port scanner and passive WordPress checks without brute-force.') }}{% endblock %}
 
 {% block content %}
 <div class="container my-4">

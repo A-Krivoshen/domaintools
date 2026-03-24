@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Domains — DomainTools{% endblock %}
+{% block title %}{{ tr('Подбор доменов — DomainTools', 'Domain search — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Подбор свободных доменных имён по множеству зон, включая IDN и популярные RU/Global TLD.', 'Find available domain names across many zones, including IDN and popular RU/Global TLDs.') }}{% endblock %}
 
 {% block jsonld_extra %}
 <script type="application/ld+json">
