@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Reverse — DomainTools{% endblock %}
+
+{% block content %}
+<div class="container my-4">
+  <h1 class="mb-3">{{ tr('Reverse (rDNS + FCrDNS)', 'Reverse (rDNS + FCrDNS)') }}</h1>
+
+  <form method="get" action="{{ url_for('reverse_lookup') }}" class="mb-4" autocomplete="off">
+    <div class="input-group input-group-lg searchbar">
+      <input type="text"
+             class="form-control form-control-lg"
+             name="q"
+             placeholder="{{ tr('8.8.8.8 или example.com', '8.8.8.8 or example.com') }}"
+             value="{{ query or '' }}">
+      <button class="btn btn-primary btn-lg" type="submit">{{ tr('Проверить', 'Check') }}</button>
+    </div>
+  </form>
+
+  {% if error %}
+    <div class="alert alert-danger">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+    <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ result.input or query }}</code></h2>
+    {% if result.input_ascii and result.input_ascii != result.input %}
+      <p class="text-muted small mb-1">ASCII: <code>{{ result.input_ascii }}</code></p>
+    {% endif %}
+    {% if permalink %}
+      <p class="small mb-3"><a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a></p>
+    {% endif %}
+
+    {% if result.type == 'host' and result.forward %}
+      <div class="card mb-3">
+        <div class="card-header"><strong>Forward DNS</strong></div>
+        <div class="card-body">
+          {% set fwd = result.forward %}
+          {% if fwd.get('A') %}
+            <div class="mb-2"><strong>A:</strong> {{ fwd.get('A')|join(', ') }}</div>
+          {% endif %}
+          {% if fwd.get('AAAA') %}
+            <div><strong>AAAA:</strong> {{ fwd.get('AAAA')|join(', ') }}</div>
+          {% endif %}
+          {% if not fwd.get('A') and not fwd.get('AAAA') %}
+            <span class="text-muted">{{ tr('A/AAAA не найдены.', 'A/AAAA not found.') }}</span>
+          {% endif %}
+        </div>
+      </div>
+    {% endif %}
+
+    <div class="card mb-3">
+      <div class="card-header"><strong>PTR / FCrDNS</strong></div>
+      <div class="card-body p-0">
+        <div class="table-responsive mb-0">
+          <table class="table table-sm mb-0 align-middle">
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>PTR</th>
+                <th>FCrDNS</th>
+                <th>{{ tr('Детали', 'Details') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in result.rows or [] %}
+                <tr>
+                  <td><code>{{ row.ip }}</code></td>
+                  <td>
+                    {% if row.ptr %}
+                      {% for hn in row.ptr %}
+                        <div><code>{{ hn }}</code></div>
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.fcrdns_ok %}
+                      <span class="badge text-bg-success">OK</span>
+                    {% else %}
+                      <span class="badge text-bg-secondary">FAIL</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    {% if row.error %}
+                      <span class="text-danger small">{{ row.error }}</span>
+                    {% elif row.forward_of_ptr %}
+                      {% for host, addrs in row.forward_of_ptr.items() %}
+                        <div class="small mb-1">
+                          <strong>{{ host }}</strong><br>
+                          {% if addrs.get('A') %}A: {{ addrs.get('A')|join(', ') }}<br>{% endif %}
+                          {% if addrs.get('AAAA') %}AAAA: {{ addrs.get('AAAA')|join(', ') }}{% endif %}
+                        </div>
+                      {% endfor %}
+                    {% else %}
+                      <span class="text-muted">—</span>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    {% set data = result %}
+    {% set title = tr('Показать Reverse-результат в табличном виде (максимум полей)', 'Show Reverse result in table view (maximum fields)') %}
+    {% include "_json_table.html" %}
+
+  {% else %}
+    {% include "_cards_under_tools.html" %}
+  {% endif %}
+</div>
+{% endblock %}

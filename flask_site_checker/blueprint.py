@@ -2,21 +2,114 @@ from flask import Blueprint, request, render_template, Response, current_app
 from .services import resolve_dns, http_check, ip_info_for_domain, rkn_domain_list, is_in_rkn
 import time
 import html as _html
+import re
+import requests
 
 # Шаблоны лежат в пакете flask_site_checker/templates
 site_checker_bp = Blueprint("site_checker", __name__, template_folder="templates")
 
 # --- простецкий кэш для РКН ---------------------------------
-_RKN_CACHE = {"data": None, "ts": 0}
+_RKN_CACHE = {"data": None, "data_set": None, "ts": 0}
 _RKN_TTL = 3 * 3600  # 3 часа
+
+_DOMAIN_RE = re.compile(r"^(?=.{1,253}$)(?!-)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$", re.IGNORECASE)
+
+
+def _is_valid_domain(raw: str) -> bool:
+    d = (raw or "").strip().rstrip(".")
+    if not d:
+        return False
+    try:
+        # Приводим IDN к ASCII для корректной проверки меток
+        d = d.encode("idna").decode("ascii")
+    except Exception:
+        return False
+    return bool(_DOMAIN_RE.match(d))
+
+
+
+def _client_ip() -> str:
+    xff = (request.headers.get("X-Forwarded-For") or "").strip()
+    if xff:
+        return xff.split(",", 1)[0].strip()
+    return (request.remote_addr or "").strip()
+
+
+def _verify_site_checker_captcha() -> str | None:
+    cfg = current_app.config
+    if not cfg.get("FORM_RECAPTCHA_ENABLED"):
+        return None
+
+    token = (request.values.get("recaptcha_token") or "").strip()
+    if request.method != "POST" and not token:
+        return None
+
+    provider = (cfg.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
+    if provider not in {"standard", "enterprise"}:
+        provider = "standard"
+    action = (cfg.get("FORM_RECAPTCHA_ACTION") or "form_submit")
+    min_score = float(cfg.get("SECURITY_RECAPTCHA_MIN_SCORE", 0.5))
+
+    if not token:
+        return "Captcha token is missing."
+
+    try:
+        if provider == "enterprise":
+            api_key = cfg.get("SECURITY_RECAPTCHA_API_KEY")
+            project = cfg.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT")
+            site_key = cfg.get("SECURITY_RECAPTCHA_SITE_KEY")
+            if not (api_key and project and site_key):
+                return "reCAPTCHA Enterprise config is incomplete."
+            endpoint = f"https://recaptchaenterprise.googleapis.com/v1/projects/{project}/assessments?key={api_key}"
+            payload = {
+                "event": {
+                    "token": token,
+                    "siteKey": site_key,
+                    "expectedAction": action,
+                    "userIpAddress": _client_ip(),
+                }
+            }
+            resp = requests.post(endpoint, json=payload, timeout=4)
+            data = resp.json() if resp.ok else {}
+            token_props = data.get("tokenProperties") or {}
+            risk = data.get("riskAnalysis") or {}
+            if not token_props.get("valid"):
+                return "Captcha validation failed."
+            if token_props.get("action") and token_props.get("action") != action:
+                return "Captcha action mismatch."
+            if float(risk.get("score") or 0.0) < min_score:
+                return "Captcha score is too low."
+            return None
+
+        secret = cfg.get("SECURITY_RECAPTCHA_SECRET_KEY")
+        if not secret:
+            return "reCAPTCHA v3 config is incomplete."
+        resp = requests.post(
+            "https://www.google.com/recaptcha/api/siteverify",
+            data={"secret": secret, "response": token, "remoteip": _client_ip()},
+            timeout=4,
+        )
+        data = resp.json() if resp.ok else {}
+        if not data.get("success"):
+            return "Captcha validation failed."
+        if data.get("action") and data.get("action") != action:
+            return "Captcha action mismatch."
+        if float(data.get("score") or 0.0) < min_score:
+            return "Captcha score is too low."
+        return None
+    except Exception:
+        return "Captcha verification is temporarily unavailable."
 
 def _get_rkn_cached():
     now = time.time()
     if not _RKN_CACHE["data"] or now - _RKN_CACHE["ts"] > _RKN_TTL:
         try:
-            _RKN_CACHE["data"] = rkn_domain_list()
+            data = rkn_domain_list()
+            _RKN_CACHE["data"] = data
+            _RKN_CACHE["data_set"] = {x.lower() for x in data if isinstance(x, str)}
         except Exception:
             _RKN_CACHE["data"] = []
+            _RKN_CACHE["data_set"] = set()
         _RKN_CACHE["ts"] = now
     return _RKN_CACHE["data"]
 
@@ -178,12 +271,21 @@ function copyWpscResult() {
 def site_checker():
     domain = (request.form.get("domain") or request.args.get("domain") or "").strip()
 
+    error = _verify_site_checker_captcha() if domain else None
+    is_invalid = bool(domain) and not _is_valid_domain(domain)
+    if is_invalid and not error:
+        error = "Проверьте корректность домена. Пример: example.com"
+
     # вычисления
-    dns_list = resolve_dns(domain) if domain else []
+    dns_list = resolve_dns(domain) if (domain and not is_invalid) else []
     dns_map = _group_dns(dns_list)
-    http_res = http_check(domain) if domain else {"http_code": 0, "url": None, "error": None}
-    ip_info = ip_info_for_domain(domain) if domain else {"ip": None, "org": None, "country": None, "city": None, "error": None}
-    rkn_flag = is_in_rkn(domain, _get_rkn_cached()) if domain else None
+    http_res = http_check(domain) if (domain and not is_invalid) else {"http_code": 0, "url": None, "error": None}
+    ip_info = ip_info_for_domain(domain) if (domain and not is_invalid) else {"ip": None, "org": None, "country": None, "city": None, "error": None}
+    if domain and not is_invalid:
+        _get_rkn_cached()
+        rkn_flag = is_in_rkn(domain, _RKN_CACHE.get("data_set"))
+    else:
+        rkn_flag = None
 
     # контекст для шаблона (и дубли на верхний уровень)
     result = {
@@ -200,7 +302,7 @@ def site_checker():
         "http": http_res,
         "ip_info": ip_info,
         "rkn_flag": rkn_flag,
-        "error": None,
+        "error": error,
     }
 
     # пробуем нормальные шаблоны (с меню); при фейле — inline
