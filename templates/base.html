@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>{% block title %}DomainTools{% endblock %}</title>
-  {% block meta_snippet %}{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}{% endblock %}
-  <meta name="description" content="{% block meta_description %}{{ self.meta_snippet()|striptags }}{% endblock %}">
+  {% set _meta_snippet %}{% block meta_snippet %}{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}{% endblock %}{% endset %}
+  <meta name="description" content="{% block meta_description %}{{ _meta_snippet|striptags|trim }}{% endblock %}">
 
   <!-- Favicon pack -->
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -15,7 +15,7 @@
 
   <!-- Open Graph -->
   <meta property="og:title" content="{% block og_title %}{% block og_title_text %}{{ self.title()|striptags }}{% endblock %}{% endblock %}">
-  <meta property="og:description" content="{% block og_description %}{% block og_description_text %}{{ self.meta_snippet()|striptags }}{% endblock %}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{% block og_description_text %}{{ _meta_snippet|striptags|trim }}{% endblock %}{% endblock %}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
   <meta property="og:image" content="{{ url_for('static', filename='og.png', _external=True) }}">
@@ -23,7 +23,7 @@
   <!-- Twitter -->
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="{% block twitter_title %}{{ self.title()|striptags }}{% endblock %}">
-  <meta name="twitter:description" content="{% block twitter_description %}{{ self.meta_snippet()|striptags }}{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}{{ _meta_snippet|striptags|trim }}{% endblock %}">
   <meta name="twitter:image" content="{{ url_for('static', filename='og.png', _external=True) }}">
   <meta property="og:locale" content="{{ 'ru_RU' if get_locale() == 'ru' else 'en_US' }}">
   <meta property="og:locale:alternate" content="{{ 'en_US' if get_locale() == 'ru' else 'ru_RU' }}">
@@ -134,25 +134,28 @@
 
       <!-- Левые пункты -->
       <ul class="navbar-nav me-auto my-2 my-lg-0">
+        <li class="nav-group-label d-lg-none">{{ tr('Проверки', 'Lookup') }}</li>
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='dns_lookup' %}active{% endif %}"
              href="{{ url_for('dns_lookup') }}">{{ tr('DNS', 'DNS') }}</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint=='domain_search' %}active{% endif %}"
-             href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='whois_lookup' %}active{% endif %}"
              href="{{ url_for('whois_lookup') }}">{{ tr('WHOIS', 'WHOIS') }}</a>
         </li>
         <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='geo_lookup' %}active{% endif %}"
+             href="{{ url_for('geo_lookup') }}">{{ tr('GeoIP', 'GeoIP') }}</a>
+        </li>
+        <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='reverse_lookup' %}active{% endif %}"
              href="{{ url_for('reverse_lookup') }}">{{ tr('Reverse', 'Reverse') }}</a>
         </li>
+
+        <li class="nav-group-label d-lg-none">{{ tr('Инструменты', 'Tools') }}</li>
         <li class="nav-item">
-          <a class="nav-link {% if request.endpoint=='geo_lookup' %}active{% endif %}"
-             href="{{ url_for('geo_lookup') }}">{{ tr('GeoIP', 'GeoIP') }}</a>
+          <a class="nav-link {% if request.endpoint=='domain_search' %}active{% endif %}"
+             href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.blueprint=='site_checker' %}active{% endif %}"

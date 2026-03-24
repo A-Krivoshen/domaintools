@@ -386,3 +386,17 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 .domain-search-progress .progress {
   height: .5rem;
 }
+
+
+.nav-group-label {
+  padding: .35rem .75rem;
+  margin-top: .35rem;
+  font-size: .72rem;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.65);
+}
+
+[data-bs-theme="dark"] .nav-group-label {
+  color: rgba(199,211,229,.75);
+}

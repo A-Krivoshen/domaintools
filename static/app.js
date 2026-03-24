@@ -275,6 +275,42 @@
     });
   });
 
+  // ===== Domain buy-flow analytics (no PII)
+  document.querySelectorAll('[data-buy-track]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const domain = (link.getAttribute('data-buy-domain') || '').toLowerCase();
+      const locale = (link.getAttribute('data-buy-locale') || '').toLowerCase();
+      const tld = domain.includes('.') ? domain.split('.').slice(-1)[0] : '';
+      if (!tld) return;
+      const payload = JSON.stringify({ tld, locale: (locale === 'en' ? 'en' : 'ru') });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/track/buy-click', new Blob([payload], { type: 'application/json' }));
+        } else {
+          fetch('/track/buy-click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    });
+  });
+
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
+  });
+
   // ===== Security quick-set ports (client-side only; no extra GET requests)
   document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
     btn.addEventListener('click', () => {
