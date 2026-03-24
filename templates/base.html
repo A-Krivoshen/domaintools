@@ -5,7 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <title>{% block title %}DomainTools{% endblock %}</title>
-  <meta name="description" content="DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)">
+  {% set _meta_snippet %}{% block meta_snippet %}{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}{% endblock %}{% endset %}
+  <meta name="description" content="{% block meta_description %}{{ _meta_snippet|striptags|trim }}{% endblock %}">
 
   <!-- Favicon pack -->
   <link rel="shortcut icon" href="/favicon.ico" />
@@ -13,29 +14,64 @@
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
 
   <!-- Open Graph -->
-  <meta property="og:title" content="DomainTools">
-  <meta property="og:description" content="DNS / WHOIS / GeoIP утилиты с историей запросов">
+  <meta property="og:title" content="{% block og_title %}{% block og_title_text %}{{ self.title()|striptags }}{% endblock %}{% endblock %}">
+  <meta property="og:description" content="{% block og_description %}{% block og_description_text %}{{ _meta_snippet|striptags|trim }}{% endblock %}{% endblock %}">
   <meta property="og:type" content="website">
   <meta property="og:url" content="{{ request.url }}">
   <meta property="og:image" content="{{ url_for('static', filename='og.png', _external=True) }}">
 
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{% block twitter_title %}{{ self.title()|striptags }}{% endblock %}">
+  <meta name="twitter:description" content="{% block twitter_description %}{{ _meta_snippet|striptags|trim }}{% endblock %}">
+  <meta name="twitter:image" content="{{ url_for('static', filename='og.png', _external=True) }}">
+  <meta property="og:locale" content="{{ 'ru_RU' if get_locale() == 'ru' else 'en_US' }}">
+  <meta property="og:locale:alternate" content="{{ 'en_US' if get_locale() == 'ru' else 'ru_RU' }}">
+
+  {% set _site_root = request.url_root.rstrip('/') %}
+  <link rel="canonical" href="{{ _site_root }}{{ request.path }}?lang={{ get_locale() }}">
+  <link rel="alternate" hreflang="ru" href="{{ _site_root }}{{ request.path }}?lang=ru">
+  <link rel="alternate" hreflang="en" href="{{ _site_root }}{{ request.path }}?lang=en">
+  <link rel="alternate" hreflang="x-default" href="{{ _site_root }}{{ request.path }}">
+
   <!-- CSS -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css">
-  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}?v=7">
 
-  <!-- Yandex Ads bootstrap -->
-  <script>window.yaContextCb = window.yaContextCb || [];</script>
-  <script async src="https://yandex.ru/ads/system/context.js"></script>
-
-  <!-- Раннее применение сохранённой темы -->
+  <!-- Раннее применение темы: manual override или auto (день/ночь) -->
   <script>
   (function () {
-    try {
-      const saved = localStorage.getItem('theme');
-      if (saved === 'dark' || saved === 'light') {
-        document.documentElement.setAttribute('data-bs-theme', saved);
+    function autoThemeByTime() {
+      const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+      let hour;
+      try {
+        if (lang.startsWith('ru')) {
+          const parts = new Intl.DateTimeFormat('en-GB', {
+            timeZone: 'Europe/Moscow',
+            hour: '2-digit',
+            hour12: false,
+          }).formatToParts(new Date());
+          const hh = parts.find((p) => p.type === 'hour')?.value;
+          hour = Number(hh);
+        } else {
+          hour = new Date().getHours();
+        }
+      } catch (e) {
+        hour = new Date().getHours();
       }
+      return (hour >= 20 || hour < 7) ? 'dark' : 'light';
+    }
+
+    try {
+      const savedMode = localStorage.getItem('theme_mode');
+      const legacy = localStorage.getItem('theme');
+      const mode = (savedMode === 'dark' || savedMode === 'light' || savedMode === 'auto')
+        ? savedMode
+        : ((legacy === 'dark' || legacy === 'light') ? legacy : 'auto');
+      const effective = mode === 'auto' ? autoThemeByTime() : mode;
+      document.documentElement.setAttribute('data-theme-mode', mode);
+      document.documentElement.setAttribute('data-bs-theme', effective);
     } catch (e) {}
   })();
   </script>
@@ -74,7 +110,15 @@
   {% block jsonld_extra %}{% endblock %}
 </head>
 
-<body class="bg-light">
+<body class="bg-body-tertiary d-flex flex-column min-vh-100"
+      data-i18n-copy-done="{{ tr('Скопировано!', 'Copied!') }}"
+      data-i18n-copy-default="{{ tr('Копировать', 'Copy') }}"
+      data-i18n-loading="{{ tr('⌛ Выполняю...', '⌛ Working...') }}"
+      data-i18n-theme-light="{{ tr('Включить светлую тему', 'Switch to light theme') }}"
+      data-i18n-theme-dark="{{ tr('Включить тёмную тему', 'Switch to dark theme') }}"
+      data-i18n-theme-auto-tip="{{ tr('Авто-режим: тема по времени суток (RU — по Москве, EN — по локальному времени).', 'Auto mode: theme follows time of day (RU — Moscow time, EN — local time).') }}">
+
+<a class="skip-link" href="#main-content">{{ tr('Перейти к содержимому', 'Skip to main content') }}</a>
 
 <!-- ===== NAVBAR (единый для десктопа и мобилки через collapse) ===== -->
 <nav class="navbar navbar-dark bg-dark navbar-expand-lg mb-3 sticky-top">
@@ -84,7 +128,7 @@
 
     <button class="navbar-toggler" type="button"
             data-bs-toggle="collapse" data-bs-target="#mainNav"
-            aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+            aria-controls="mainNav" aria-expanded="false" aria-label="{{ tr('Открыть меню', 'Toggle navigation') }}">
       <span class="navbar-toggler-icon"></span>
     </button>
 
@@ -92,59 +136,131 @@
 
       <!-- Левые пункты -->
       <ul class="navbar-nav me-auto my-2 my-lg-0">
+        <li class="nav-group-label d-lg-none">{{ tr('Проверки', 'Lookup') }}</li>
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='dns_lookup' %}active{% endif %}"
-             href="{{ url_for('dns_lookup') }}">DNS</a>
-        </li>
-        <li class="nav-item">
-          <a class="nav-link {% if request.endpoint=='domain_search' %}active{% endif %}"
-             href="{{ url_for('domain_search') }}">Domains</a>
+             href="{{ url_for('dns_lookup') }}">{{ tr('DNS', 'DNS') }}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='whois_lookup' %}active{% endif %}"
-             href="{{ url_for('whois_lookup') }}">WHOIS</a>
+             href="{{ url_for('whois_lookup') }}">{{ tr('WHOIS', 'WHOIS') }}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='geo_lookup' %}active{% endif %}"
-             href="{{ url_for('geo_lookup') }}">GeoIP</a>
+             href="{{ url_for('geo_lookup') }}">{{ tr('GeoIP', 'GeoIP') }}</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='reverse_lookup' %}active{% endif %}"
+             href="{{ url_for('reverse_lookup') }}">{{ tr('Reverse', 'Reverse') }}</a>
+        </li>
+
+        <li class="nav-group-label d-lg-none">{{ tr('Инструменты', 'Tools') }}</li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='domain_search' %}active{% endif %}"
+             href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.blueprint=='site_checker' %}active{% endif %}"
-             href="{{ url_for('site_checker.site_checker') }}">Site Checker</a>
+             href="{{ url_for('site_checker.site_checker') }}">{{ tr('Проверка сайта', 'Site Checker') }}</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='security_tools' %}active{% endif %}"
+             href="{{ url_for('security_tools') }}">{{ tr('Безопасность', 'Security') }}</a>
         </li>
         <li class="nav-item">
           <a class="nav-link {% if request.endpoint=='history_list' %}active{% endif %}"
-             href="{{ url_for('history_list') }}">History</a>
+             href="{{ url_for('history_list') }}">{{ tr('История', 'History') }}</a>
         </li>
       </ul>
 
       <!-- Правый блок -->
-      <div class="d-flex">
-        <button class="btn btn-sm btn-outline-light ms-lg-2" type="button" data-theme-toggle>Тема</button>
+      <div class="d-flex align-items-center gap-2">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Language switcher">
+          <a class="btn btn-outline-light {% if get_locale() == 'ru' %}active{% endif %}" href="{{ lang_url('ru') }}">RU</a>
+          <a class="btn btn-outline-light {% if get_locale() == 'en' %}active{% endif %}" href="{{ lang_url('en') }}">EN</a>
+        </div>
+        <button
+          class="btn btn-sm btn-outline-light ms-lg-2 theme-toggle-btn"
+          type="button"
+          data-theme-toggle
+          aria-label="{{ tr('Переключить тему', 'Toggle theme') }}"
+          title="{{ tr('Переключить тему', 'Toggle theme') }}"
+        >
+          <i class="fa-solid fa-moon" aria-hidden="true"></i>
+        </button>
       </div>
     </div>
   </div>
 </nav>
 
-<main class="container">
+<main id="main-content" class="container flex-grow-1" tabindex="-1">
   {% block content %}{% endblock %}
 </main>
 
 <!-- Скрипты (bootstrap первым, затем наш app.js) -->
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" defer></script>
-<script src="{{ url_for('static', filename='app.js') }}?v=5" defer></script>
+<script src="{{ url_for('static', filename='app.js') }}?v=11" defer></script>
+
+{% if config.get('FORM_RECAPTCHA_ENABLED') and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
+  {% if (config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise' %}
+    <script src="https://www.google.com/recaptcha/enterprise.js?render={{ config.get('SECURITY_RECAPTCHA_SITE_KEY') }}"></script>
+  {% else %}
+    <script src="https://www.google.com/recaptcha/api.js?render={{ config.get('SECURITY_RECAPTCHA_SITE_KEY') }}"></script>
+  {% endif %}
+  <script>
+    (function () {
+      const forms = document.querySelectorAll('main form');
+      if (!forms.length) return;
+      const hasSecurityForms = !!document.querySelector('.security-form');
+      if (hasSecurityForms) return; // security page handles captcha in its own template script
+
+      const siteKey = {{ (config.get('SECURITY_RECAPTCHA_SITE_KEY') or '')|tojson }};
+      const actionName = {{ (config.get('FORM_RECAPTCHA_ACTION') or 'form_submit')|tojson }};
+      const isEnterprise = {{ ((config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise')|tojson }};
+
+      forms.forEach((form) => {
+        const method = (form.getAttribute('method') || 'get').toLowerCase();
+        if (method !== 'get' && method !== 'post') return;
+        if (!form.querySelector('input[type="text"], input[type="search"], input[type="url"], textarea')) return;
+
+        form.addEventListener('submit', function (ev) {
+          if (form.dataset.recaptchaReady === '1') return;
+          ev.preventDefault();
+
+          let tokenInput = form.querySelector('input[name="recaptcha_token"]');
+          if (!tokenInput) {
+            tokenInput = document.createElement('input');
+            tokenInput.type = 'hidden';
+            tokenInput.name = 'recaptcha_token';
+            form.appendChild(tokenInput);
+          }
+
+          const recaptchaApi = isEnterprise ? (window.grecaptcha && window.grecaptcha.enterprise) : window.grecaptcha;
+          if (!recaptchaApi || !window.grecaptcha || !siteKey) {
+            form.dataset.recaptchaReady = '1';
+            form.submit();
+            return;
+          }
+
+          recaptchaApi.ready(function () {
+            recaptchaApi.execute(siteKey, {action: actionName}).then(function (token) {
+              tokenInput.value = token || '';
+              form.dataset.recaptchaReady = '1';
+              form.submit();
+            }).catch(function () {
+              form.dataset.recaptchaReady = '1';
+              form.submit();
+            });
+          });
+        });
+      });
+    })();
+  </script>
+{% endif %}
+
+{% block extra_scripts %}{% endblock %}
 
 {% block before_footer %}{% include "_ad_rsy.html" %}{% endblock %}
 {% include "_footer.html" %}
-
-<!-- Доп. RTB форматы -->
-<script>
-window.yaContextCb.push(() => {
-  Ya.Context.AdvManager.render({ blockId: "R-A-2086160-4", type: "fullscreen", platform: "touch" });
-});
-window.yaContextCb.push(() => {
-  Ya.Context.AdvManager.render({ blockId: "R-A-2086160-5", type: "floorAd", platform: "touch" });
-});
-</script>
 </body>
 </html>
