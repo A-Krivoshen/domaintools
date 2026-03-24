@@ -425,3 +425,23 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
     justify-content: flex-start;
   }
 }
+
+
+.skip-link {
+  position: absolute;
+  left: .75rem;
+  top: -48px;
+  z-index: 2000;
+  background: var(--bs-primary);
+  color: #fff;
+  padding: .45rem .7rem;
+  border-radius: .5rem;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  top: .75rem;
+  color: #fff;
+}

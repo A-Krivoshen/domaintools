@@ -118,6 +118,8 @@
       data-i18n-theme-dark="{{ tr('Включить тёмную тему', 'Switch to dark theme') }}"
       data-i18n-theme-auto-tip="{{ tr('Авто-режим: тема по времени суток (RU — по Москве, EN — по локальному времени).', 'Auto mode: theme follows time of day (RU — Moscow time, EN — local time).') }}">
 
+<a class="skip-link" href="#main-content">{{ tr('Перейти к содержимому', 'Skip to main content') }}</a>
+
 <!-- ===== NAVBAR (единый для десктопа и мобилки через collapse) ===== -->
 <nav class="navbar navbar-dark bg-dark navbar-expand-lg mb-3 sticky-top">
   <div class="container">
@@ -191,7 +193,7 @@
   </div>
 </nav>
 
-<main class="container flex-grow-1">
+<main id="main-content" class="container flex-grow-1" tabindex="-1">
   {% block content %}{% endblock %}
 </main>
 
