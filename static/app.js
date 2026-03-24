@@ -233,23 +233,46 @@
       });
     });
 
-    const filter = form.querySelector('[data-zone-filter]');
-    if (filter) {
-      filter.addEventListener('input', () => {
-        const q = filter.value.trim().toLowerCase().replace(/^\./, '');
-        zoneInputs().forEach(input => {
-          const label = input.closest('label');
-          if (!label) return;
-          const v = (input.value || '').toLowerCase();
-          label.style.display = (!q || v.includes(q)) ? '' : 'none';
-        });
-      });
-    }
-
     zoneInputs().forEach(input => {
       input.addEventListener('change', updateZonesCounter);
     });
     updateZonesCounter();
+  });
+
+  // ===== Domain buy-flow analytics (no PII)
+  document.querySelectorAll('[data-buy-track]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const domain = (link.getAttribute('data-buy-domain') || '').toLowerCase();
+      const locale = (link.getAttribute('data-buy-locale') || '').toLowerCase();
+      const tld = domain.includes('.') ? domain.split('.').slice(-1)[0] : '';
+      if (!tld) return;
+      const payload = JSON.stringify({ tld, locale: (locale === 'en' ? 'en' : 'ru') });
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/track/buy-click', new Blob([payload], { type: 'application/json' }));
+        } else {
+          fetch('/track/buy-click', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: payload,
+            keepalive: true,
+          }).catch(() => {});
+        }
+      } catch (e) {}
+    });
+  });
+
+  // ===== Security quick-set ports (client-side only; no extra GET requests)
+  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const form = btn.closest('form.security-form');
+      if (!form) return;
+      const portsInput = form.querySelector('input[name="ports"]');
+      if (!portsInput) return;
+      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      portsInput.focus();
+      portsInput.select();
+    });
   });
 
   // ===== Domain buy-flow analytics (no PII)

@@ -47,7 +47,6 @@
             data-over-limit-en="{{ tr('Too many zones selected — search may be slower.', 'Too many zones selected — search may be slower.') }}"
       ></span>
     </div>
-    <input type="text" class="form-control form-control-sm mb-2" data-zone-filter placeholder="{{ tr('Фильтр зон, например .ru или shop', 'Filter zones, e.g. .ru or shop') }}">
     <div class="d-flex flex-wrap gap-2" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
          data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
          data-group-global="{{ (tld_groups.global or [])|join(',') }}"
