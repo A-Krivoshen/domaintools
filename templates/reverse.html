@@ -1,11 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Reverse — DomainTools{% endblock %}
+{% block title %}{{ tr('Reverse-проверка — DomainTools', 'Reverse lookup — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Reverse DNS и FCrDNS проверка для IP/доменов с подробными PTR/forward-результатами.', 'Reverse DNS and FCrDNS checks for IP/domains with detailed PTR/forward results.') }}{% endblock %}
 
 {% block content %}
 <div class="container my-4">
-  <h1 class="mb-3">{{ tr('Reverse (rDNS + FCrDNS)', 'Reverse (rDNS + FCrDNS)') }}</h1>
+  <h1 class="mb-2">{{ tr('Reverse (rDNS + FCrDNS)', 'Reverse (rDNS + FCrDNS)') }}</h1>
+  <p class="text-muted tool-intro mb-3">{{ tr('Проверка PTR и согласованности FCrDNS для IP и доменов.', 'Check PTR records and FCrDNS consistency for IPs and domains.') }}</p>
 
-  <form method="get" action="{{ url_for('reverse_lookup') }}" class="mb-4" autocomplete="off">
+  <form method="get" action="{{ url_for('reverse_lookup') }}" class="tool-form mb-4" autocomplete="off">
     <div class="input-group input-group-lg searchbar">
       <input type="text"
              class="form-control form-control-lg"
@@ -25,8 +27,12 @@
     {% if result.input_ascii and result.input_ascii != result.input %}
       <p class="text-muted small mb-1">ASCII: <code>{{ result.input_ascii }}</code></p>
     {% endif %}
-    {% if permalink %}
-      <p class="small mb-3"><a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a></p>
+    {% if permalink or query %}
+      <div class="tool-actions d-flex flex-wrap gap-3 small mb-3">
+        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+        {% if query %}<a href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+        {% if query %}<a href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
+      </div>
     {% endif %}
 
     {% if result.type == 'host' and result.forward %}

@@ -1,4 +1,10 @@
 {% if domain %}
+<div class="tool-actions d-flex flex-wrap gap-3 small mt-3">
+  <a href="{{ url_for('whois_lookup') }}?query={{ domain }}">WHOIS</a>
+  <a href="{{ url_for('dns_lookup') }}?q={{ domain }}">DNS</a>
+  <a href="{{ url_for('geo_lookup') }}?query={{ domain }}">GeoIP</a>
+</div>
+
 <div id="wpsc-result" class="card card-soft wpsc-result mt-3">
   <div class="card-body">
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
