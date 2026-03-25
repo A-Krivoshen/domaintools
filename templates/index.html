@@ -1,52 +1,34 @@
 {% extends 'base.html' %}
-{% block title %}DrSlon — DomainTools{% endblock %}
+{% block title %}{{ tr('Проверка доменов и инфраструктуры — DomainTools', 'Domain and infrastructure checks — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('DNS, WHOIS, GeoIP, Reverse, Site Checker и Security в одном месте с сохранением истории проверок.', 'DNS, WHOIS, GeoIP, Reverse, Site Checker, and Security in one place with saved check history.') }}{% endblock %}
+
 {% block content %}
-<div class="card card-soft p-5">
-  <h1 class="h3 mb-3">Добро пожаловать</h1>
-  <p class="mb-0">Перейдите в разделы  <a href="/domains">Domains</a>, <a href="/dns">DNS</a>, <a href="/whois">WHOIS</a> или <a href="/geo">GeoIP</a>. Сохранённые результаты доступны в <a href="/history">History</a>.</p>
-<p class="small text-muted mt-2">
-  Начните с <a href="/domains">Domains</a> — умный подбор доменных имён под ваш проект:
-  проверим доступность, подскажем альтернативы в популярных зонах (.ru, .рф, .com, .net, .org и др.),
-  предложим транслитерации, короткие и брендовые варианты. Для любой позиции — быстрые действия:
-  WHOIS, DNS, GeoIP и сохранение результата в историю.
-</p>
+<section class="hero-home card-soft p-4 p-md-5 mb-3">
+  <div class="hero-home__badge">DomainTools Suite</div>
+  <h1 class="hero-home__title mb-3">{{ tr('Проверка доменов и инфраструктуры за секунды', 'Check domains and infrastructure in seconds') }}</h1>
+  <p class="hero-home__lead mb-3">
+    {{ tr('DNS, WHOIS, GeoIP, Reverse, Site Checker и Security — в одном месте. Сохраняйте результаты в историю и быстро переходите к связанным проверкам.', 'DNS, WHOIS, GeoIP, Reverse, Site Checker, and Security in one place. Save results to history and jump to related checks instantly.') }}
+  </p>
 
-</div>
+  <div class="hero-home__actions mb-2">
+    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">{{ tr('Проверить домен', 'Check domain') }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('whois_lookup') }}">{{ tr('Открыть WHOIS', 'Open WHOIS') }}</a>
+  </div>
+  <div class="small text-muted">
+    {{ tr('Безопасные проверки, лимиты запросов и сохранение истории результатов.', 'Safe checks, request limits, and saved result history.') }}
+  </div>
+</section>
 
-<!-- info-cards-injected -->
+<section class="mb-3">
+  <h2 class="h5 mb-2">{{ tr('Быстрые инструменты', 'Quick tools') }}</h2>
+  {% include "_home_cards.html" %}
+</section>
 
-<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-4">
-  
-        <div class="col">
-          <div class="card card-soft h-100 text-center">
-            <div class="card-body">
-              <div class="mb-3 text-primary"><i class="fa-solid fa-magnifying-glass fa-2x"></i></div>
-              <h5 class="card-title">Проверка доступности доменного имени</h5>
-              <p class="card-text">Проверьте, свободно ли доменное имя для регистрации с помощью нашего инструмента поиска доменов.</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="col">
-          <div class="card card-soft h-100 text-center">
-            <div class="card-body">
-              <div class="mb-3 text-primary"><i class="fa-solid fa-address-card fa-2x"></i></div>
-              <h5 class="card-title">Информация о владельце домена (WHOIS)</h5>
-              <p class="card-text">Узнайте владельца, регистратор, даты регистрации и другие данные домена через сервис WHOIS.</p>
-            </div>
-          </div>
-        </div>
-        
-        <div class="col">
-          <div class="card card-soft h-100 text-center">
-            <div class="card-body">
-              <div class="mb-3 text-primary"><i class="fa-solid fa-calendar-check fa-2x"></i></div>
-              <h5 class="card-title">Узнать срок действия домена</h5>
-              <p class="card-text">Когда истекает регистрация домена и будет ли он доступен — проверьте срок через WHOIS и поиск доменов.</p>
-            </div>
-          </div>
-        </div>
-        
-</div>
-
+<section class="alert alert-info mb-3" role="note" aria-label="{{ tr('Безопасность сканеров', 'Scanner security') }}">
+  <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
+  <div class="small mb-2">
+    {{ tr('Раздел Security (Port Scanner / WordPress Scan) работает в безопасном режиме: только публичные цели, ограничения запросов и без brute-force.', 'Security section (Port Scanner / WordPress Scan) runs in safe mode: public targets only, strict request limits, and no brute-force.') }}
+  </div>
+  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
+</section>
 {% endblock %}
