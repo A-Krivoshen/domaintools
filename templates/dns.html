@@ -1,20 +1,37 @@
 {# templates/dns.html #}
 {% extends "base.html" %}
-{% block title %}DNS — DomainTools{% endblock %}
+{% block title %}{{ tr('DNS-проверка — DomainTools', 'DNS lookup — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Проверка DNS-записей домена: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV и другие типы.', 'Check domain DNS records: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV and other types.') }}{% endblock %}
 
 {% block content %}
 <div class="container my-4">
-  <h1 class="mb-3">DNS</h1>
+  <h1 class="mb-2">DNS</h1>
+  <p class="text-muted tool-intro mb-3">{{ tr('Проверка DNS-записей домена с выбором типов и быстрыми переходами к связанным инструментам.', 'Check domain DNS records with type selection and quick links to related tools.') }}</p>
 
-  <!-- ФОРМА — как в рабочем варианте -->
-<form method="get" action="{{ url_for('dns_lookup') }}" class="mb-4" autocomplete="off">
+<form method="get" action="{{ url_for('dns_lookup') }}" class="tool-form mb-4" autocomplete="off">
   <div class="input-group input-group-lg searchbar">
     <input type="text"
            class="form-control form-control-lg"
            name="q"
-           placeholder="example.com"
+           placeholder="{{ tr('example.com', 'example.com') }}"
            value="{{ query or '' }}">
-    <button class="btn btn-primary btn-lg" type="submit">Проверить</button>
+    <button class="btn btn-primary btn-lg" type="submit">{{ tr('Проверить', 'Check') }}</button>
+  </div>
+
+  <div class="mt-3">
+    <div class="small text-muted mb-2">{{ tr('Типы DNS-записей для выборки:', 'DNS record types to query:') }}</div>
+    <div class="d-flex flex-wrap gap-2">
+      <label class="btn btn-sm btn-outline-secondary">
+        <input class="form-check-input me-1" type="checkbox" name="types" value="ALL" {% if selected_types and (selected_types|length == dns_type_options|length) %}checked{% endif %}>
+        ALL
+      </label>
+      {% for t in dns_type_options %}
+      <label class="btn btn-sm btn-outline-secondary">
+        <input class="form-check-input me-1" type="checkbox" name="types" value="{{ t }}" {% if t in selected_types %}checked{% endif %}>
+        {{ t }}
+      </label>
+      {% endfor %}
+    </div>
   </div>
 </form>
 
@@ -25,10 +42,15 @@
 
   <!-- РЕЗУЛЬТАТЫ ПОИСКА -->
   {% if result %}
-    <h2 class="h5">Результаты для <code>{{ query }}</code></h2>
-    {% if permalink %}
-      <p class="small mb-3"><a href="{{ permalink }}">Постоянная ссылка</a></p>
+    <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ query }}</code></h2>
+    {% if permalink or query %}
+      <div class="tool-actions d-flex flex-wrap gap-3 small mb-2">
+        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+        {% if query %}<a href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+        {% if query %}<a href="{{ url_for('domain_search') }}?query={{ query }}">{{ tr('Подобрать домен', 'Find domains') }}</a>{% endif %}
+      </div>
     {% endif %}
+    <p class="small text-muted">{{ tr('Выбрано типов:', 'Selected types:') }} {{ selected_types|length }} ({{ selected_types|join(', ') }})</p>
 
     {% if records and records|length > 0 %}
       {% for rtype, values in records.items() %}
@@ -44,8 +66,12 @@
         </div>
       {% endfor %}
     {% else %}
-      <p>DNS-записей не найдено.</p>
+      <p>{{ tr('DNS-записей не найдено.', 'No DNS records found.') }}</p>
     {% endif %}
+
+    {% set data = result %}
+    {% set title = tr('Показать DNS-результат в табличном виде (максимум полей)', 'Show DNS result in table view (maximum fields)') %}
+    {% include "_json_table.html" %}
 
   {% else %}
   <!-- КАРТОЧКИ И ССЫЛКИ — только когда результата ещё нет -->
@@ -55,9 +81,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-book" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Информация о владельце домена (WHOIS)</h2>
-        <p class="text-muted mb-2">Подробные сведения о домене: владелец, регистратор, статусы и даты регистрации.</p>
-        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">Перейти в WHOIS</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Информация о владельце домена (WHOIS)', 'Domain owner info (WHOIS)') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Подробные сведения о домене: владелец, регистратор, статусы и даты регистрации.', 'Detailed domain information: owner, registrar, statuses, and registration dates.') }}</p>
+        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">{{ tr('Открыть WHOIS', 'Open WHOIS') }}</a>
       </div>
     </div>
   </div>
@@ -66,9 +92,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Проверка доступности доменного имени</h2>
-        <p class="text-muted mb-2">Подберите свободное имя в популярных зонах и зарегистрируйте домен у надёжного регистратора.</p>
-        <a class="stretched-link" href="{{ url_for('domain_search') }}">Искать домен</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Проверка доступности доменного имени', 'Domain availability check') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Подберите свободное имя в популярных зонах и зарегистрируйте домен у надёжного регистратора.', 'Pick an available name in popular zones and register it with a trusted registrar.') }}</p>
+        <a class="stretched-link" href="{{ url_for('domain_search') }}">{{ tr('Искать домен', 'Search domain') }}</a>
       </div>
     </div>
   </div>
@@ -77,9 +103,9 @@
     <div class="card feature-card h-100">
       <div class="card-body">
         <div class="icon-wrap"><i class="fa-solid fa-calendar-check" aria-hidden="true"></i></div>
-        <h2 class="h6 card-title mb-2">Узнать срок действия домена</h2>
-        <p class="text-muted mb-2">Следите за сроком продления: вовремя продлевайте или отслеживайте освобождение доменов.</p>
-        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">Проверить через WHOIS</a>
+        <h2 class="h6 card-title mb-2">{{ tr('Узнать срок действия домена', 'Check domain expiry') }}</h2>
+        <p class="text-muted mb-2">{{ tr('Следите за сроком продления: вовремя продлевайте или отслеживайте освобождение доменов.', 'Track renewal dates: renew in time or monitor when domains become available.') }}</p>
+        <a class="stretched-link" href="{{ url_for('whois_lookup') }}">{{ tr('Открыть WHOIS', 'Open WHOIS') }}</a>
       </div>
     </div>
   </div>

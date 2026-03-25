@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}WHOIS — DomainTools{% endblock %}
+{% block title %}{{ tr('WHOIS-проверка — DomainTools', 'WHOIS lookup — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('WHOIS для доменов и IP: регистратор, даты, статусы, NS и подробная информация о регистрации.', 'WHOIS for domains and IPs: registrar, dates, statuses, NS, and full registration details.') }}{% endblock %}
 
 {% block jsonld_extra %}
 <script type="application/ld+json">
@@ -12,21 +13,14 @@
 
 {% block content %}
 <div class="container my-4">
-  <h1 class="mb-3">WHOIS</h1>
+  <h1 class="mb-2">WHOIS</h1>
+  <p class="text-muted tool-intro mb-3">{{ tr('Проверяйте владельца, статусы и даты домена/IP с быстрым доступом к экспорту и связанным проверкам.', 'Check owner, statuses, and dates for domain/IP with quick export and related checks.') }}</p>
 
-  <form method="get" action="{{ url_for('whois_lookup') }}" class="mb-3" autocomplete="off">
+  <form method="get" action="{{ url_for('whois_lookup') }}" class="tool-form mb-3" autocomplete="off">
     <div class="input-group input-group-lg">
-      <input type="text" class="form-control" name="query" placeholder="example.com или 8.8.8.8" value="{{ query or request.args.get('query','') }}">
-      <button class="btn btn-primary" type="submit">Проверить</button>
+      <input type="text" class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}">
+      <button class="btn btn-primary" type="submit">{{ tr('Проверить', 'Check') }}</button>
     </div>
-    {% if permalink %}
-      <div class="d-flex gap-3 small mt-2">
-        <a href="{{ permalink }}">Постоянная ссылка</a>
-        {% if result %}<a href="#" data-copy="#raw-whois">Скопировать WHOIS</a>{% endif %}
-        {% if result %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.json">Экспорт JSON</a>{% endif %}
-        {% if result %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.csv">Экспорт CSV</a>{% endif %}
-      </div>
-    {% endif %}
   </form>
 
   {% if error %}
@@ -35,28 +29,39 @@
 
   {% if result %}
     <!-- таблица как у тебя ранее -->
-    <h2 class="h5">Результаты для <code>{{ result.domain_name or result.query or query }}</code></h2>
+    <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ result.domain_name or result.query or query }}</code></h2>
+    <div class="tool-actions d-flex flex-wrap gap-3 small mb-2">
+      {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      <a href="#" data-copy="#raw-whois">{{ tr('Скопировать WHOIS', 'Copy WHOIS') }}</a>
+      {% if permalink %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
+      {% if permalink %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
+      {% if result.domain_name %}<a href="{{ url_for('dns_lookup') }}?q={{ result.domain_name }}">DNS</a>{% endif %}
+    </div>
     <div class="table-responsive">
       <table class="table table-striped table-sm align-middle">
         <tbody>
-          {% if result.registrar %}<tr><th style="width:240px" class="text-muted">Регистратор</th><td>{{ result.registrar }}</td></tr>{% endif %}
-          {% if result.whois_server %}<tr><th class="text-muted">WHOIS сервер</th><td><code>{{ result.whois_server }}</code></td></tr>{% endif %}
-          {% if result.creation_date %}<tr><th class="text-muted">Создан</th><td>{{ result.creation_date }}</td></tr>{% endif %}
-          {% if result.updated_date %}<tr><th class="text-muted">Обновлён</th><td>{{ result.updated_date }}</td></tr>{% endif %}
-          {% if result.expiration_date %}<tr><th class="text-muted">Истекает</th><td>{{ result.expiration_date }}</td></tr>{% endif %}
+          {% if result.registrar %}<tr><th style="width:240px" class="text-muted">{{ tr('Регистратор', 'Registrar') }}</th><td>{{ result.registrar }}</td></tr>{% endif %}
+          {% if result.whois_server %}<tr><th class="text-muted">{{ tr('WHOIS сервер', 'WHOIS server') }}</th><td><code>{{ result.whois_server }}</code></td></tr>{% endif %}
+          {% if result.creation_date %}<tr><th class="text-muted">{{ tr('Создан', 'Created') }}</th><td>{{ result.creation_date }}</td></tr>{% endif %}
+          {% if result.updated_date %}<tr><th class="text-muted">{{ tr('Обновлён', 'Updated') }}</th><td>{{ result.updated_date }}</td></tr>{% endif %}
+          {% if result.expiration_date %}<tr><th class="text-muted">{{ tr('Истекает', 'Expires') }}</th><td>{{ result.expiration_date }}</td></tr>{% endif %}
           {% if result.status and result.status|length %}
-          <tr><th class="text-muted">Статусы</th><td>{% for s in result.status %}<span class="badge text-bg-secondary me-1">{{ s }}</span>{% endfor %}</td></tr>
+          <tr><th class="text-muted">{{ tr('Статусы', 'Statuses') }}</th><td>{% for s in result.status %}<span class="badge text-bg-secondary me-1">{{ s }}</span>{% endfor %}</td></tr>
           {% endif %}
           {% if result.name_servers and result.name_servers|length %}
           <tr><th class="text-muted">NS</th><td>{% for ns in result.name_servers %}<a class="text-decoration-none me-1" href="{{ url_for('dns_lookup') }}?q={{ ns }}"><span class="badge text-bg-light border"><code>{{ ns }}</code></span></a>{% endfor %}</td></tr>
           {% endif %}
-          {% if result.org or result.name %}<tr><th class="text-muted">Владелец</th><td>{{ result.org or result.name }}</td></tr>{% endif %}
+          {% if result.org or result.name %}<tr><th class="text-muted">{{ tr('Владелец', 'Owner') }}</th><td>{{ result.org or result.name }}</td></tr>{% endif %}
         </tbody>
       </table>
     </div>
 
+    {% set data = result %}
+    {% set title = tr('Показать WHOIS в табличном виде (максимум полей)', 'Show WHOIS in table view (maximum fields)') %}
+    {% include "_json_table.html" %}
+
     <details class="mt-3">
-      <summary class="text-muted">Показать полный WHOIS (JSON/RAW)</summary>
+      <summary class="text-muted">{{ tr('Показать полный WHOIS (JSON/RAW)', 'Show full WHOIS (JSON/RAW)') }}</summary>
       <pre id="raw-whois" class="bg-dark text-light p-3 rounded mt-2" style="white-space:pre-wrap">{{ result | prettyjson }}</pre>
     </details>
   {% endif %}
