@@ -1,5 +1,6 @@
 {% extends "base.html" %}
-{% block title %}Domains — DomainTools{% endblock %}
+{% block title %}{{ tr('Подбор доменов — DomainTools', 'Domain search — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Подбор свободных доменных имён по множеству зон, включая IDN и популярные RU/Global TLD.', 'Find available domain names across many zones, including IDN and popular RU/Global TLDs.') }}{% endblock %}
 
 {% block jsonld_extra %}
 <script type="application/ld+json">
@@ -11,27 +12,72 @@
 {% endblock %}
 
 {% block content %}
-<h1 class="mb-2">Domains</h1>
-<p class="text-muted">
-  Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:
+<h1 class="mb-2">{{ tr('Домены', 'Domains') }}</h1>
+<p class="text-muted tool-intro">
+  {{ tr('Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:', 'Smart domain-name search for your project. We support Cyrillic (IDN) and Russian-language zones:') }}
   <strong>.рф</strong>, <strong>.рус</strong>, <strong>.онлайн</strong>, <strong>.сайт</strong>, <strong>.москва</strong>, <strong>.дети</strong>,
-  а также международные зоны (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> и др.).
-  Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.
+  {{ tr('а также международные зоны', 'as well as international zones') }} (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> {{ tr('и др.', 'and others') }}).
+  {{ tr('Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.', 'For each item, quick actions are available: WHOIS, DNS, GeoIP, and saving result to history.') }}
 </p>
 
-<form method="get" class="mb-3" autocomplete="off">
+<form method="post" action="{{ url_for('domain_search') }}" class="tool-form mb-3" autocomplete="off" data-zones-controls data-domain-progress>
   <div class="input-group input-group-lg">
-    <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="например: mybrand" required>
-    <button class="btn btn-primary">Поиск домена</button>
+    <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required>
+    <button class="btn btn-primary">{{ tr('Поиск домена', 'Search domain') }}</button>
+  </div>
+
+  <div class="mt-2">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+      <div class="small text-muted">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
+      <div class="d-flex flex-wrap gap-2">
+        <button type="submit" name="zone_preset" value="defaults" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Основные', 'Core') }}</button>
+        <button type="submit" name="zone_preset" value="ru" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('RU', 'RU') }}</button>
+        <button type="submit" name="zone_preset" value="global" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Global', 'Global') }}</button>
+        <button type="submit" name="zone_preset" value="newgtld" class="btn btn-sm btn-outline-secondary" data-zone-action="newgtld">{{ tr('New gTLD', 'New gTLD') }}</button>
+        <button type="submit" name="zone_preset" value="all" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
+        <button type="submit" name="zone_preset" value="none" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
+      </div>
+    </div>
+    <div class="small mb-2" data-zone-count-wrap>
+      <span class="text-muted" data-zone-count
+            data-selected-label-ru="{{ tr('Выбрано', 'Selected') }}"
+            data-selected-label-en="{{ tr('Selected', 'Selected') }}"
+            data-limit-label-ru="{{ tr('Рекомендованный лимит', 'Recommended limit') }}"
+            data-limit-label-en="{{ tr('Recommended limit', 'Recommended limit') }}"
+            data-over-limit-ru="{{ tr('Слишком много зон — поиск может быть медленнее.', 'Too many zones selected — search may be slower.') }}"
+            data-over-limit-en="{{ tr('Too many zones selected — search may be slower.', 'Too many zones selected — search may be slower.') }}"
+      ></span>
+    </div>
+    <div class="d-flex flex-wrap gap-2" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
+         data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
+         data-group-global="{{ (tld_groups.global or [])|join(',') }}"
+         data-group-new="{{ (tld_groups.new or [])|join(',') }}">
+      {% for tld in all_tlds %}
+      <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}">
+        <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
+        .{{ tld }}
+      </label>
+      {% endfor %}
+    </div>
   </div>
   {% if suggestions and suggestions|length %}
     <div class="form-text mt-1">
-      Варианты транслитерации:
+      {{ tr('Варианты транслитерации:', 'Transliteration suggestions:') }}
       {% for s in suggestions %}
         <a class="badge text-bg-light border me-1" href="{{ url_for('domain_search') }}?query={{ s }}">{{ s }}</a>
       {% endfor %}
     </div>
   {% endif %}
+
+  <div class="domain-search-progress d-none" data-domain-progress-wrap aria-live="polite" aria-atomic="true">
+    <div class="d-flex justify-content-between align-items-center small text-muted mb-1">
+      <span>{{ tr('Ищем свободные домены…', 'Searching available domains…') }}</span>
+      <span data-domain-progress-percent>12%</span>
+    </div>
+    <div class="progress" role="progressbar" aria-label="{{ tr('Прогресс поиска доменов', 'Domain search progress') }}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="12">
+      <div class="progress-bar progress-bar-striped progress-bar-animated" data-domain-progress-bar style="width: 12%"></div>
+    </div>
+  </div>
 </form>
 
 {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
@@ -41,10 +87,10 @@
   <table class="table align-middle">
     <thead class="table-light">
       <tr>
-        <th style="min-width:260px">Домен</th>
+        <th style="min-width:260px">{{ tr('Домен', 'Domain') }}</th>
         <th class="text-muted">punycode</th>
-        <th class="text-center">Статус</th>
-        <th class="text-end">Действие</th>
+        <th class="text-center">{{ tr('Статус', 'Status') }}</th>
+        <th class="text-end">{{ tr('Действие', 'Action') }}</th>
       </tr>
     </thead>
     <tbody>
@@ -54,15 +100,21 @@
         <td class="text-muted small"><code>{{ it.puny }}</code></td>
         <td class="text-center">
           {% if it.available %}
-            <span class="badge bg-success">Свободен</span>
+            <span class="badge bg-success">{{ tr('Свободен', 'Available') }}</span>
           {% else %}
-            <span class="badge bg-danger">Занят</span>
+            <span class="badge bg-danger">{{ tr('Занят', 'Taken') }}</span>
           {% endif %}
           {% if it.error %}<div class="small text-muted">{{ it.error }}</div>{% endif %}
         </td>
         <td class="text-end">
           {% if it.available %}
-            <a class="btn btn-sm btn-success" href="{{ buy_base.format(domain=it.fqdn) }}" target="_blank" rel="nofollow noopener">Купить</a>
+            <a class="btn btn-sm btn-success"
+               href="{{ buy_base.format(domain=it.fqdn) }}"
+               target="_blank"
+               rel="nofollow noopener"
+               data-buy-track
+               data-buy-domain="{{ it.fqdn }}"
+               data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ tr('Купить', 'Buy') }}</a>
           {% else %}
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">WHOIS</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ it.fqdn }}">DNS</a>
@@ -72,6 +124,12 @@
       {% endfor %}
     </tbody>
   </table>
+</div>
+
+<div class="tool-actions d-flex flex-wrap gap-3 small mt-2">
+  {% if q %}<a href="{{ url_for('whois_lookup') }}?query={{ q }}">WHOIS</a>{% endif %}
+  {% if q %}<a href="{{ url_for('dns_lookup') }}?q={{ q }}">DNS</a>{% endif %}
+  {% if q %}<a href="{{ url_for('geo_lookup') }}?query={{ q }}">GeoIP</a>{% endif %}
 </div>
 {% endif %}
 
