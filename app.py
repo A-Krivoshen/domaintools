@@ -916,6 +916,34 @@ def domain_search():
     items = []
     error = None
     suggestions = []
+    permalink = None
+
+    all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
+    # Убираем дубли, сохраняя порядок
+    all_tlds = list(dict.fromkeys(all_tlds))
+
+    default_tlds_cfg = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
+    default_tlds = [t for t in default_tlds_cfg if t in all_tlds] or all_tlds[:20]
+    tld_groups, tld_group_map = _build_tld_groups(all_tlds, default_tlds)
+    max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
+
+    selected_source = request.form if is_post else request.args
+    selected_from_req = [t.strip().lstrip(".") for t in selected_source.getlist("zones") if (t or "").strip()]
+    preset = (selected_source.get("zone_preset") or "").strip().lower()
+    preset_map = {
+        "core": default_tlds,
+        "defaults": default_tlds,
+        "ru": tld_groups.get("ru", []),
+        "global": tld_groups.get("global", []),
+        "new": tld_groups.get("new", []),
+        "newgtld": tld_groups.get("new", []),
+        "all": all_tlds,
+        "none": [],
+    }
+    if preset in preset_map:
+        selected_tlds = [t for t in all_tlds if t in set(preset_map[preset])]
+    else:
+        selected_tlds = [t for t in all_tlds if t in set(selected_from_req)] if selected_from_req else default_tlds
 
     all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
     # Убираем дубли, сохраняя порядок
@@ -960,6 +988,7 @@ def domain_search():
                 max_tlds=max_tlds,
                 tld_groups=tld_groups,
                 tld_group_map=tld_group_map,
+                permalink=permalink,
             )
         captcha_error = _verify_form_recaptcha_if_needed() if is_post else None
         if captcha_error:
@@ -987,6 +1016,8 @@ def domain_search():
 
     locale = str(babel_get_locale() or "ru")
     buy_base = app.config.get("AFFILIATE_BUY_BASE_EN") if locale.startswith("en") else app.config.get("AFFILIATE_BUY_BASE_RU")
+    if query:
+        permalink = url_for("domain_search", query=query, zones=selected_tlds)
 
     return render_template(
         "domains.html",
@@ -1001,6 +1032,7 @@ def domain_search():
         max_tlds=max_tlds,
         tld_groups=tld_groups,
         tld_group_map=tld_group_map,
+        permalink=permalink,
     )
 
 

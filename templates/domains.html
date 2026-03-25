@@ -127,6 +127,7 @@
 </div>
 
 <div class="tool-actions d-flex flex-wrap gap-3 small mt-2">
+  {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
   {% if q %}<a href="{{ url_for('whois_lookup') }}?query={{ q }}">WHOIS</a>{% endif %}
   {% if q %}<a href="{{ url_for('dns_lookup') }}?q={{ q }}">DNS</a>{% endif %}
   {% if q %}<a href="{{ url_for('geo_lookup') }}?query={{ q }}">GeoIP</a>{% endif %}
