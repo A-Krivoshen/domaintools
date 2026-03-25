@@ -13,21 +13,14 @@
 
 {% block content %}
 <div class="container my-4">
-  <h1 class="mb-3">WHOIS</h1>
+  <h1 class="mb-2">WHOIS</h1>
+  <p class="text-muted tool-intro mb-3">{{ tr('Проверяйте владельца, статусы и даты домена/IP с быстрым доступом к экспорту и связанным проверкам.', 'Check owner, statuses, and dates for domain/IP with quick export and related checks.') }}</p>
 
-  <form method="get" action="{{ url_for('whois_lookup') }}" class="mb-3" autocomplete="off">
+  <form method="get" action="{{ url_for('whois_lookup') }}" class="tool-form mb-3" autocomplete="off">
     <div class="input-group input-group-lg">
       <input type="text" class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}">
       <button class="btn btn-primary" type="submit">{{ tr('Проверить', 'Check') }}</button>
     </div>
-    {% if permalink %}
-      <div class="d-flex gap-3 small mt-2">
-        <a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
-        {% if result %}<a href="#" data-copy="#raw-whois">{{ tr('Скопировать WHOIS', 'Copy WHOIS') }}</a>{% endif %}
-        {% if result %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
-        {% if result %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
-      </div>
-    {% endif %}
   </form>
 
   {% if error %}
@@ -37,6 +30,13 @@
   {% if result %}
     <!-- таблица как у тебя ранее -->
     <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ result.domain_name or result.query or query }}</code></h2>
+    <div class="tool-actions d-flex flex-wrap gap-3 small mb-2">
+      {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      <a href="#" data-copy="#raw-whois">{{ tr('Скопировать WHOIS', 'Copy WHOIS') }}</a>
+      {% if permalink %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
+      {% if permalink %}<a href="/export/whois/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
+      {% if result.domain_name %}<a href="{{ url_for('dns_lookup') }}?q={{ result.domain_name }}">DNS</a>{% endif %}
+    </div>
     <div class="table-responsive">
       <table class="table table-striped table-sm align-middle">
         <tbody>

@@ -5,7 +5,7 @@
 {% block content %}
 <div class="container my-4">
   <h1 class="mb-2">{{ tr('Безопасность', 'Security') }}</h1>
-  <p class="text-muted mb-3">
+  <p class="text-muted tool-intro mb-3">
     {{ tr('Только безопасные проверки: публичные цели, лимиты запросов и без brute-force.', 'Only safe checks: public targets, strict limits, and no brute-force.') }}
   </p>
 
@@ -44,7 +44,7 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'ports' else 'd-none' }}" id="security-ports">
     <h2 class="h5 mb-3">{{ tr('Port Scanner (Safe)', 'Port Scanner (Safe)') }}</h2>
-    <form method="post" autocomplete="off" class="security-form">
+    <form method="post" autocomplete="off" class="security-form tool-form">
       <input type="hidden" name="scan" value="ports">
       <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
@@ -112,7 +112,7 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'wp' else 'd-none' }}" id="security-wp">
     <h2 class="h5 mb-3">{{ tr('WordPress Safe Scan', 'WordPress Safe Scan') }}</h2>
-    <form method="post" autocomplete="off" class="security-form">
+    <form method="post" autocomplete="off" class="security-form tool-form">
       <input type="hidden" name="scan" value="wp">
       <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
@@ -150,9 +150,11 @@
   </div>
 
   {% if permalink %}
-    <div class="alert alert-secondary small">
-      {{ tr('Постоянная ссылка на результат:', 'Permalink to result:') }}
-      <a href="{{ permalink }}"><code>{{ permalink }}</code></a>
+    <div class="tool-actions d-flex flex-wrap gap-3 small mb-3">
+      <span class="text-muted">{{ tr('Результат:', 'Result:') }}</span>
+      <a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
+      {% if host %}<a href="{{ url_for('whois_lookup') }}?query={{ host }}">WHOIS</a>{% endif %}
+      {% if host %}<a href="{{ url_for('dns_lookup') }}?q={{ host }}">DNS</a>{% endif %}
     </div>
   {% endif %}
 

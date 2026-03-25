@@ -13,14 +13,14 @@
 
 {% block content %}
 <h1 class="mb-2">{{ tr('Домены', 'Domains') }}</h1>
-<p class="text-muted">
+<p class="text-muted tool-intro">
   {{ tr('Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:', 'Smart domain-name search for your project. We support Cyrillic (IDN) and Russian-language zones:') }}
   <strong>.рф</strong>, <strong>.рус</strong>, <strong>.онлайн</strong>, <strong>.сайт</strong>, <strong>.москва</strong>, <strong>.дети</strong>,
   {{ tr('а также международные зоны', 'as well as international zones') }} (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> {{ tr('и др.', 'and others') }}).
   {{ tr('Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.', 'For each item, quick actions are available: WHOIS, DNS, GeoIP, and saving result to history.') }}
 </p>
 
-<form method="post" action="{{ url_for('domain_search') }}" class="mb-3" autocomplete="off" data-zones-controls data-domain-progress>
+<form method="post" action="{{ url_for('domain_search') }}" class="tool-form mb-3" autocomplete="off" data-zones-controls data-domain-progress>
   <div class="input-group input-group-lg">
     <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required>
     <button class="btn btn-primary">{{ tr('Поиск домена', 'Search domain') }}</button>
@@ -126,6 +126,11 @@
   </table>
 </div>
 
+<div class="tool-actions d-flex flex-wrap gap-3 small mt-2">
+  {% if q %}<a href="{{ url_for('whois_lookup') }}?query={{ q }}">WHOIS</a>{% endif %}
+  {% if q %}<a href="{{ url_for('dns_lookup') }}?q={{ q }}">DNS</a>{% endif %}
+  {% if q %}<a href="{{ url_for('geo_lookup') }}?query={{ q }}">GeoIP</a>{% endif %}
+</div>
 {% endif %}
 
 {% include "_cards_under_tools.html" %}

@@ -445,3 +445,23 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   top: .75rem;
   color: #fff;
 }
+
+
+.tool-intro {
+  max-width: 980px;
+}
+
+.tool-form {
+  border: 1px solid var(--bs-border-color);
+  border-radius: .75rem;
+  padding: .9rem;
+  background: var(--bs-body-bg);
+}
+
+.tool-actions a {
+  text-decoration: none;
+}
+
+.tool-actions a:hover {
+  text-decoration: underline;
+}
