@@ -171,6 +171,10 @@
           <a class="nav-link {% if request.endpoint=='history_list' %}active{% endif %}"
              href="{{ url_for('history_list') }}">{{ tr('История', 'History') }}</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.endpoint=='domain_report' %}active{% endif %}"
+             href="{{ url_for('domain_report') }}">{{ tr('Отчёт', 'Report') }}</a>
+        </li>
       </ul>
 
       <!-- Правый блок -->
