@@ -371,9 +371,10 @@ def save_history(kind: str, query: str, result: Dict) -> str:
             to_rem = r.zrange(HIST_ZSET, 0, total - HIST_LIMIT - 1)
             if to_rem:
                 r.zrem(HIST_ZSET, *to_rem)
+        return hid
     except Exception:
         app.logger.exception("History save failed")
-    return hid
+        return ""
 
 def load_history(kind: str, hid: str) -> Optional[Dict]:
     try:
@@ -885,6 +886,57 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
             cleaned = [x for x in val if x not in (None, "", [])]
             if cleaned:
                 data[field] = cleaned[0]
+
+    # Дополнительный fallback: прямой парсинг key:value из сырых WHOIS-строк
+    # (полезно, когда python-whois положил всё в text без нормализации полей).
+    def _extract_whois_line_value(text: str, keys: List[str]) -> Optional[str]:
+        if not text:
+            return None
+        key_set = {k.strip().lower() for k in keys if k}
+        for raw_line in text.splitlines():
+            line = (raw_line or "").strip()
+            if ":" not in line:
+                continue
+            key, val = line.split(":", 1)
+            key_norm = re.sub(r"[\s_\-]+", "", key.strip().lower())
+            if key_norm in key_set:
+                value = val.strip()
+                if value:
+                    return value
+        return None
+
+    fallback_text = maybe_text or ""
+    text_from_data = data.get("text")
+    if isinstance(text_from_data, str) and text_from_data.strip():
+        fallback_text = f"{fallback_text}\n{text_from_data}".strip()
+    elif isinstance(text_from_data, (list, tuple)):
+        joined_text = "\n".join(str(x) for x in text_from_data if x)
+        if joined_text.strip():
+            fallback_text = f"{fallback_text}\n{joined_text}".strip()
+
+    if not data.get("registrar"):
+        data["registrar"] = _extract_whois_line_value(
+            fallback_text,
+            ["registrar", "sponsoringregistrar", "registrarname", "регистратор"],
+        )
+    if not data.get("creation_date"):
+        data["creation_date"] = _extract_whois_line_value(
+            fallback_text,
+            ["creationdate", "created", "createddate", "registered", "создан", "датарегистрации"],
+        )
+    if not data.get("expiration_date"):
+        data["expiration_date"] = _extract_whois_line_value(
+            fallback_text,
+            [
+                "expirationdate",
+                "registryexpirydate",
+                "paidtill",
+                "expires",
+                "expirydate",
+                "истекает",
+                "оплачендо",
+            ],
+        )
 
     data["domain_name"] = host_ascii
     du = _to_unicode(host_ascii)
@@ -1662,13 +1714,13 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 if err:
                     raise ValueError(err)
                 hid = save_history("security", f"ports:{payload.get('host', '')}:{payload.get('ports_raw') or 'default'}", result)
-                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+                permalink = f"/history/security/{hid}" if hid and load_history("security", hid) else None
             elif job_kind == "wp":
                 result, err = _run_wp_scan_result(payload.get("wp_url_raw", ""))
                 if err:
                     raise ValueError(err)
                 hid = save_history("security", f"wp:{payload.get('wp_url_raw', '')}", result)
-                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+                permalink = f"/history/security/{hid}" if hid and load_history("security", hid) else None
             else:
                 raise ValueError(_tr_no_req("Unsupported scan type."))
 
@@ -1905,7 +1957,7 @@ def whois_lookup():
         data = cache_json(cache_key, ttl, _compute_whois)
 
         hid = save_history("whois", q, data)
-        permalink = url_for("history_view", kind="whois", hid=hid, _external=True)
+        permalink = url_for("history_view", kind="whois", hid=hid, _external=True) if hid else None
 
     except ValueError as ve:
         error = str(ve)
@@ -1970,7 +2022,7 @@ def geo_lookup():
             cache_key = f"cache:geo:{ip}"
             result = cache_json(cache_key, 300, _compute_geo)
             hid = save_history("geo", query, result)
-            permalink = url_for("history_view", kind="geo", hid=hid, _external=True)
+            permalink = url_for("history_view", kind="geo", hid=hid, _external=True) if hid else None
 
         except Exception:
             app.logger.exception("GeoIP error")
@@ -2053,7 +2105,7 @@ def reverse_lookup():
                 result = cache_json(cache_key, 300, _compute_reverse_host)
 
             hid = save_history("reverse", query, result)
-            permalink = url_for("history_view", kind="reverse", hid=hid, _external=True)
+            permalink = url_for("history_view", kind="reverse", hid=hid, _external=True) if hid else None
 
         except ValueError as ve:
             error = str(ve)
