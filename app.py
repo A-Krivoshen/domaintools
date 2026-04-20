@@ -2275,6 +2275,8 @@ def history_list():
                 repeat_url = url_for("security_tools", wp_url=wp_target, scan="wp")
             else:
                 repeat_url = url_for("security_tools")
+        elif kind == "report":
+            repeat_url = url_for("domain_report", q=q)
         else:
             repeat_url = None
 
@@ -2291,7 +2293,7 @@ def history_list():
 
 @app.route("/history/<kind>/<hid>")
 def history_view(kind: str, hid: str):
-    if kind not in {"dns", "whois", "geo", "reverse", "security"}:
+    if kind not in {"dns", "whois", "geo", "reverse", "security", "report"}:
         abort(404)
     doc = load_history(kind, hid)
     if not doc:
@@ -2328,12 +2330,23 @@ def history_view(kind: str, hid: str):
             permalink=permalink,
             common_ports=COMMON_SAFE_PORTS[:20],
         )
+    if kind == "report":
+        return render_template(
+            "report.html",
+            query=q,
+            report=res if isinstance(res, dict) else None,
+            reports=[res] if isinstance(res, dict) else [],
+            error=None,
+            job_status=None,
+            job_id="",
+            batch_max=REPORT_MAX_BATCH,
+        )
     abort(404)
 
 # ---------- Экспорт ----------
 @app.get("/export/<kind>/<hid>.<fmt>")
 def export_result(kind: str, hid: str, fmt: str):
-    if kind not in {"dns", "whois", "geo", "reverse", "security"}:
+    if kind not in {"dns", "whois", "geo", "reverse", "security", "report"}:
         abort(404)
     doc = load_history(kind, hid)
     if not doc:

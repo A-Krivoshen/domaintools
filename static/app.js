@@ -356,4 +356,20 @@
     const link = e.target.closest('.navbar .nav-link');
     if (link) closeNav();
   });
+
+  // ===== Navbar de-dup guard for Report link (keep the last one)
+  (function dedupeReportNavLink() {
+    const nav = document.getElementById('mainNav');
+    if (!nav) return;
+    const links = Array.from(nav.querySelectorAll('.nav-link[href]'));
+    const reportLinks = links.filter((a) => {
+      try {
+        return new URL(a.href, window.location.origin).pathname === '/report';
+      } catch (e) {
+        return false;
+      }
+    });
+    if (reportLinks.length <= 1) return;
+    reportLinks.slice(0, -1).forEach((a) => a.closest('.nav-item')?.remove());
+  })();
 })();
