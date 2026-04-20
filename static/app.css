@@ -338,6 +338,26 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   margin-inline: auto;
 }
 
+/* Report page */
+.report-panel .report-card {
+  border: 1px solid var(--bs-border-color);
+}
+
+.report-panel .report-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .2rem 0;
+}
+
+.report-panel .report-label {
+  font-weight: 600;
+}
+
+[data-bs-theme="light"] .report-panel .report-label {
+  color: #d63384;
+}
+
 /* === WHOIS: компактные заголовки таблицы и чипы === */
 .whois-table .w-th { width: 240px; }
 @media (max-width: 576px) {

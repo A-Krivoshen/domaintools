@@ -42,7 +42,7 @@
 
 {% if reports %}
   {% for one in reports %}
-<section class="card-soft p-3 p-md-4 mb-3">
+<section class="card-soft p-3 p-md-4 mb-3 report-panel">
   <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-3">
     <h2 class="h5 mb-0">
       <i class="fa-solid fa-globe me-2 text-primary" aria-hidden="true"></i>{{ one.domain_display or one.domain }}
@@ -57,13 +57,13 @@
 
   <div class="row g-3">
     <div class="col-12 col-lg-6">
-      <div class="card feature-card h-100">
+      <div class="card h-100 report-card">
         <div class="card-body">
           <h3 class="h6">DNS</h3>
           {% if one.dns.has_records %}
-            <ul class="mb-0 small">
+            <ul class="report-list list-unstyled mb-0 small">
               {% for rtype, vals in one.dns.records.items() %}
-                <li><strong>{{ rtype }}</strong>: {{ vals|length }}</li>
+                <li><span class="report-label">{{ rtype }}</span><span class="report-value">{{ vals|length }}</span></li>
               {% endfor %}
             </ul>
           {% else %}
@@ -74,30 +74,30 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <div class="card feature-card h-100">
+      <div class="card h-100 report-card">
         <div class="card-body">
           <h3 class="h6">WHOIS</h3>
-          <ul class="mb-0 small">
-            <li><strong>{{ tr('Домен', 'Domain') }}:</strong> {{ one.whois.domain_unicode or one.domain_display or one.domain }}</li>
-            <li><strong>{{ tr('Регистратор', 'Registrar') }}:</strong> {{ one.whois.registrar or '—' }}</li>
-            <li><strong>{{ tr('Создан', 'Created') }}:</strong> {{ one.whois.creation_date or '—' }}</li>
-            <li><strong>{{ tr('Истекает', 'Expires') }}:</strong> {{ one.whois.expiration_date or '—' }}</li>
+          <ul class="report-list list-unstyled mb-0 small">
+            <li><span class="report-label">{{ tr('Домен', 'Domain') }}</span><span class="report-value">{{ one.whois.domain_unicode or one.domain_display or one.domain }}</span></li>
+            <li><span class="report-label">{{ tr('Регистратор', 'Registrar') }}</span><span class="report-value">{{ one.whois.registrar or '—' }}</span></li>
+            <li><span class="report-label">{{ tr('Создан', 'Created') }}</span><span class="report-value">{{ one.whois.creation_date or '—' }}</span></li>
+            <li><span class="report-label">{{ tr('Истекает', 'Expires') }}</span><span class="report-value">{{ one.whois.expiration_date or '—' }}</span></li>
           </ul>
         </div>
       </div>
     </div>
 
     <div class="col-12 col-lg-6">
-      <div class="card feature-card h-100">
+      <div class="card h-100 report-card">
         <div class="card-body">
           <h3 class="h6">GeoIP</h3>
           {% if one.geo.error %}
             <div class="text-muted small">{{ one.geo.error }}</div>
           {% else %}
-            <ul class="mb-0 small">
-              <li><strong>IP:</strong> {{ one.geo.ip or '—' }}</li>
-              <li><strong>ASN:</strong> {{ one.geo.asn or '—' }}</li>
-              <li><strong>{{ tr('Страна', 'Country') }}:</strong> {{ one.geo.country_name or one.geo.country_code or '—' }}</li>
+            <ul class="report-list list-unstyled mb-0 small">
+              <li><span class="report-label">IP</span><span class="report-value">{{ one.geo.ip or '—' }}</span></li>
+              <li><span class="report-label">ASN</span><span class="report-value">{{ one.geo.asn or '—' }}</span></li>
+              <li><span class="report-label">{{ tr('Страна', 'Country') }}</span><span class="report-value">{{ one.geo.country_name or one.geo.country_code or '—' }}</span></li>
             </ul>
           {% endif %}
         </div>
@@ -105,16 +105,16 @@
     </div>
 
     <div class="col-12 col-lg-6">
-      <div class="card feature-card h-100">
+      <div class="card h-100 report-card">
         <div class="card-body">
           <h3 class="h6">Reverse</h3>
           {% if one.reverse.error %}
             <div class="text-muted small">{{ tr('PTR-запись не найдена или DNS-ответ недоступен.', 'PTR record not found or DNS response unavailable.') }}</div>
           {% else %}
-            <ul class="mb-0 small">
-              <li><strong>IP:</strong> {{ one.reverse.ip or '—' }}</li>
-              <li><strong>PTR:</strong> {{ (one.reverse.ptr or [])|join(', ') if one.reverse.ptr else '—' }}</li>
-              <li><strong>FCrDNS:</strong> {{ tr('да', 'yes') if one.reverse.fcrdns_ok else tr('нет', 'no') }}</li>
+            <ul class="report-list list-unstyled mb-0 small">
+              <li><span class="report-label">IP</span><span class="report-value">{{ one.reverse.ip or '—' }}</span></li>
+              <li><span class="report-label">PTR</span><span class="report-value">{{ (one.reverse.ptr or [])|join(', ') if one.reverse.ptr else '—' }}</span></li>
+              <li><span class="report-label">FCrDNS</span><span class="report-value">{{ tr('да', 'yes') if one.reverse.fcrdns_ok else tr('нет', 'no') }}</span></li>
             </ul>
           {% endif %}
         </div>
