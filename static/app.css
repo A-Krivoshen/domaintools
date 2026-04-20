@@ -312,6 +312,17 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   width: 100%;
 }
 
+.before-footer-ad .wps-widget {
+  width: 100%;
+  max-width: 390px; /* mobile-like baseline */
+}
+
+@media (min-width: 992px) {
+  .before-footer-ad .wps-widget {
+    max-width: 728px; /* wider desktop slot */
+  }
+}
+
 .ref-banner-link {
   display: flex;
   justify-content: center;
@@ -325,6 +336,26 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   height: auto;
   border-radius: .5rem;
   margin-inline: auto;
+}
+
+/* Report page */
+.report-panel .report-card {
+  border: 1px solid var(--bs-border-color);
+}
+
+.report-panel .report-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .2rem 0;
+}
+
+.report-panel .report-label {
+  font-weight: 600;
+}
+
+[data-bs-theme="light"] .report-panel .report-label {
+  color: #d63384;
 }
 
 /* === WHOIS: компактные заголовки таблицы и чипы === */
