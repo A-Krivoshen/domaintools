@@ -113,6 +113,32 @@ SECURITY_ASYNC_WORKERS = int(os.environ.get("SECURITY_ASYNC_WORKERS", "4"))
 _SECURITY_ASYNC_POOL = ThreadPoolExecutor(max_workers=max(1, SECURITY_ASYNC_WORKERS))
 _SECURITY_JOB_LOCAL: Dict[str, Dict] = {}
 
+REPORT_JOB_TTL_S = int(os.environ.get("REPORT_JOB_TTL_S", "3600"))
+REPORT_ASYNC_WORKERS = int(os.environ.get("REPORT_ASYNC_WORKERS", "4"))
+_REPORT_ASYNC_POOL = ThreadPoolExecutor(max_workers=max(1, REPORT_ASYNC_WORKERS))
+_REPORT_JOB_LOCAL: Dict[str, Dict] = {}
+
+REPORT_DNS_TTL_S = int(os.environ.get("REPORT_DNS_TTL_S", "180"))
+REPORT_WHOIS_TTL_S = int(os.environ.get("REPORT_WHOIS_TTL_S", "900"))
+REPORT_GEO_TTL_S = int(os.environ.get("REPORT_GEO_TTL_S", "1800"))
+REPORT_REVERSE_TTL_S = int(os.environ.get("REPORT_REVERSE_TTL_S", "300"))
+REPORT_FULL_TTL_S = int(os.environ.get("REPORT_FULL_TTL_S", "120"))
+REPORT_MAX_BATCH = max(1, int(os.environ.get("REPORT_MAX_BATCH", "10")))
+
+REPORT_RATE_LIMIT_PER_MIN = max(1, int(os.environ.get("REPORT_RATE_LIMIT_PER_MIN", "30")))
+REPORT_RATE_LIMIT_ASN_LOW_PER_MIN = max(1, int(os.environ.get("REPORT_RATE_LIMIT_ASN_LOW_PER_MIN", "10")))
+REPORT_RATE_LIMIT_ASN_HIGH_PER_MIN = max(1, int(os.environ.get("REPORT_RATE_LIMIT_ASN_HIGH_PER_MIN", "60")))
+REPORT_ASN_HIGH_TRUST = {
+    s.strip()
+    for s in (os.environ.get("REPORT_ASN_HIGH_TRUST", "") or "").split(",")
+    if s.strip()
+}
+REPORT_ASN_LOW_TRUST = {
+    s.strip()
+    for s in (os.environ.get("REPORT_ASN_LOW_TRUST", "") or "").split(",")
+    if s.strip()
+}
+
 # Зоны, в которых разрешаем IDN-метки (берём из общего списка зон)
 IDN_READY_TLDS = {
     t.strip().lstrip(".").lower()
@@ -289,7 +315,10 @@ def persist_lang_cookie(resp: Response):
 cache = Cache(app)
 
 def cache_json(key: str, ttl: int, compute_fn):
-    data = r.get(key)
+    try:
+        data = r.get(key)
+    except Exception:
+        data = None
     if data:
         try:
             return json.loads(data)
@@ -354,6 +383,84 @@ def load_history(kind: str, hid: str) -> Optional[Dict]:
         return json.loads(s)
     except Exception:
         return None
+
+
+def _report_job_key(job_id: str) -> str:
+    return f"dt:report:job:{job_id}"
+
+
+def _save_report_job(job_id: str, payload: Dict, ttl_s: int = REPORT_JOB_TTL_S) -> None:
+    payload = dict(payload or {})
+    payload["id"] = job_id
+    payload["updated_ts"] = int(time.time())
+    _REPORT_JOB_LOCAL[job_id] = payload
+    try:
+        r.setex(_report_job_key(job_id), max(60, int(ttl_s)), json.dumps(payload, ensure_ascii=False))
+    except Exception:
+        pass
+
+
+def _load_report_job(job_id: str) -> Optional[Dict]:
+    try:
+        raw = r.get(_report_job_key(job_id))
+        if raw:
+            return json.loads(raw)
+    except Exception:
+        pass
+    return _REPORT_JOB_LOCAL.get(job_id)
+
+
+def _is_valid_report_job_id(job_id: str) -> bool:
+    txt = (job_id or "").strip()
+    return bool(re.fullmatch(r"[a-f0-9]{32}", txt))
+
+
+def _endpoint_ip_rate_limited(endpoint: str, ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+    if not ip:
+        return False
+    key = f"rl:{endpoint}:{ip}"
+    limit = max(1, int(limit_per_min))
+    win = max(1, int(window_s))
+    try:
+        with r.pipeline() as pipe:
+            pipe.incr(key)
+            pipe.expire(key, win, nx=True)
+            vals = pipe.execute()
+        return int(vals[0] or 0) > limit
+    except Exception:
+        return False
+
+
+def _ip_asn(ip: str) -> str:
+    if not ip:
+        return ""
+    cache_key = f"cache:asn:{ip}"
+    try:
+        cached = r.get(cache_key)
+        if cached:
+            return str(cached or "")
+    except Exception:
+        pass
+    try:
+        who = IPWhois(ip).lookup_rdap(depth=1)
+        asn = str(who.get("asn") or "")
+    except Exception:
+        asn = ""
+    try:
+        if asn:
+            r.setex(cache_key, 86400, asn)
+    except Exception:
+        pass
+    return asn
+
+
+def _report_limit_for_ip(ip: str) -> int:
+    asn = _ip_asn(ip)
+    if asn and asn in REPORT_ASN_LOW_TRUST:
+        return REPORT_RATE_LIMIT_ASN_LOW_PER_MIN
+    if asn and asn in REPORT_ASN_HIGH_TRUST:
+        return REPORT_RATE_LIMIT_ASN_HIGH_PER_MIN
+    return REPORT_RATE_LIMIT_PER_MIN
 
 
 def _security_job_key(job_id: str) -> str:
@@ -737,15 +844,25 @@ def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
 
 def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     data: Dict[str, object] = {}
+    maybe_text = _whois_call(["whois", "-H", host_ascii], timeout=12)
+    important = False
     try:
         w = whois.whois(host_ascii)
-        for key in ("registrar", "creation_date", "expiration_date", "updated_date", "status", "name_servers"):
-            val = getattr(w, key, None)
-            if val:
-                data[key] = val
+        for k, v in w.__dict__.items():
+            if k.startswith("_"):
+                continue
+            if v:
+                data[k] = v
+        important = True
     except Exception:
         pass
+    if maybe_text and not important:
+        parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(host_ascii, maybe_text)
+        data.update(parsed)
     data["domain_name"] = host_ascii
+    du = _to_unicode(host_ascii)
+    if du and du != host_ascii:
+        data["domain_unicode"] = du
     return data
 
 
@@ -791,47 +908,116 @@ def _report_reverse_summary(ip: str | None) -> Dict[str, object]:
     return row
 
 
+def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object]:
+    dns_part = cache_json(f"cache:report:dns:{host_ascii}", REPORT_DNS_TTL_S, lambda: _report_dns_summary(host_ascii))
+    whois_part = cache_json(f"cache:report:whois:{host_ascii}", REPORT_WHOIS_TTL_S, lambda: _report_whois_summary(host_ascii))
+    first_ip = (dns_part.get("ips") or [None])[0]
+    geo_part = cache_json(
+        f"cache:report:geo:{first_ip or 'none'}",
+        REPORT_GEO_TTL_S,
+        lambda: _report_geo_summary(first_ip),
+    )
+    reverse_part = cache_json(
+        f"cache:report:reverse:{first_ip or 'none'}",
+        REPORT_REVERSE_TTL_S,
+        lambda: _report_reverse_summary(first_ip),
+    )
+    domain_unicode = _to_unicode(host_ascii)
+    return {
+        "input": source_input,
+        "domain": host_ascii,
+        "domain_display": domain_unicode or host_ascii,
+        "dns": dns_part,
+        "whois": whois_part,
+        "geo": geo_part,
+        "reverse": reverse_part,
+    }
+
+
+def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> None:
+    try:
+        _save_report_job(job_id, {"status": "running", "domains": domains, "source_input": source_input})
+        reports = []
+        for d in domains:
+            report = cache_json(f"cache:report:full:{d}", REPORT_FULL_TTL_S, lambda d=d: _build_domain_report(d, source_input))
+            hid = save_history("report", d, report)
+            report["permalink"] = f"/history/report/{hid}"
+            reports.append(report)
+        _save_report_job(job_id, {"status": "done", "domains": domains, "source_input": source_input, "reports": reports})
+    except Exception as e:
+        _save_report_job(job_id, {"status": "failed", "domains": domains, "source_input": source_input, "error": str(e)})
+
+
 @app.route("/report", methods=["GET", "POST"])
 def domain_report():
     query = (request.args.get("q") or request.form.get("q") or "").strip()
+    job_id = (request.args.get("job") or request.form.get("job") or "").strip()
     report = None
+    reports = []
     error = None
+    job_status = None
 
-    if query:
+    # Poll existing async job
+    if job_id:
+        if not _is_valid_report_job_id(job_id):
+            error = _("Invalid report job id.")
+            job_id = ""
+        else:
+            job = _load_report_job(job_id)
+            if job:
+                job_status = str(job.get("status") or "").lower() or "queued"
+                query = query or str(job.get("source_input") or "")
+                if job_status == "done":
+                    reports = list(job.get("reports") or [])
+                    report = reports[0] if reports else None
+                elif job_status == "failed":
+                    error = str(job.get("error") or _("Failed to build domain report."))
+
+    if request.method == "POST" and query and not job_id:
         recaptcha_token = (request.values.get("recaptcha_token") or "").strip()
         captcha_error = _verify_form_recaptcha_if_needed() if recaptcha_token else None
         if captcha_error:
             error = captcha_error
         else:
             try:
-                host_ascii, err = _normalize_domain_query(query)
-                if err:
-                    raise ValueError(err)
+                raw_items = re.split(r"[\s,;]+", query)
+                uniq_items = [x for x in dict.fromkeys(i.strip() for i in raw_items if i.strip())]
+                if not uniq_items:
+                    raise ValueError(_("Invalid domain name."))
+                if len(uniq_items) > REPORT_MAX_BATCH:
+                    raise ValueError(_("Too many domains in batch."))
+                normalized: List[str] = []
+                for item in uniq_items:
+                    host_ascii, err = _normalize_domain_query(item)
+                    if err or not host_ascii:
+                        raise ValueError(err or _("Invalid domain name."))
+                    normalized.append(host_ascii)
 
-                cache_key = f"cache:report:{host_ascii}"
+                client_ip = _client_ip()
+                limit = _report_limit_for_ip(client_ip)
+                if _endpoint_ip_rate_limited("report", client_ip, limit):
+                    raise ValueError(_("Too many report requests. Please try again later."))
 
-                def _compute_report():
-                    dns_part = _report_dns_summary(host_ascii)
-                    first_ip = (dns_part.get("ips") or [None])[0]
-                    return {
-                        "input": query,
-                        "domain": host_ascii,
-                        "dns": dns_part,
-                        "whois": _report_whois_summary(host_ascii),
-                        "geo": _report_geo_summary(first_ip),
-                        "reverse": _report_reverse_summary(first_ip),
-                    }
-
-                report = cache_json(cache_key, 180, _compute_report)
-                hid = save_history("report", host_ascii, report)
-                report["permalink"] = url_for("history_view", kind="report", hid=hid, _external=True)
+                job_id = uuid.uuid4().hex
+                _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query})
+                _REPORT_ASYNC_POOL.submit(_execute_report_job, job_id, normalized, query)
+                return redirect(url_for("domain_report", job=job_id, q=query))
             except ValueError as ve:
                 error = str(ve)
             except Exception:
-                app.logger.exception("Domain report error")
-                error = _("Failed to build domain report.")
+                app.logger.exception("Domain report queue error")
+                error = _("Failed to queue domain report.")
 
-    return render_template("report.html", query=query, report=report, error=error)
+    return render_template(
+        "report.html",
+        query=query,
+        report=report,
+        reports=reports,
+        error=error,
+        job_status=job_status,
+        job_id=job_id,
+        batch_max=REPORT_MAX_BATCH,
+    )
 
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])

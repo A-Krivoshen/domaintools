@@ -5,30 +5,53 @@
 {% block content %}
 <section class="card-soft p-4 mb-3">
   <h1 class="h3 mb-3">{{ tr('Сводный отчёт по домену', 'Domain report') }}</h1>
-  <p class="text-muted mb-3">{{ tr('Один запуск: DNS, WHOIS, GeoIP и Reverse (по первому IP).', 'Single run: DNS, WHOIS, GeoIP, and Reverse (by first IP).') }}</p>
+  <p class="text-muted mb-3">{{ tr('Один запуск: DNS, WHOIS, GeoIP и Reverse (по первому IP). Поддерживается пакетная проверка через пробел/запятую.', 'Single run: DNS, WHOIS, GeoIP, and Reverse (by first IP). Batch mode is supported via space/comma.') }}</p>
 
   <form method="post" class="row g-2 align-items-center">
     <div class="col-12 col-md-9">
-      <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com" aria-label="{{ tr('Домен', 'Domain') }}">
+      <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com пример.рф site.ru" aria-label="{{ tr('Домен', 'Domain') }}">
     </div>
     <div class="col-12 col-md-3 d-grid">
       <button class="btn btn-primary btn-lg" type="submit">{{ tr('Собрать отчёт', 'Build report') }}</button>
+    </div>
+    <div class="col-12">
+      <div class="form-text">{{ tr('Максимум доменов за раз:', 'Max domains per batch:') }} {{ batch_max }}</div>
     </div>
   </form>
 
   {% if error %}
     <div class="alert alert-danger mt-3 mb-0">{{ error }}</div>
   {% endif %}
+
+  {% if job_status in ['queued', 'running'] %}
+    <div class="alert alert-info mt-3 mb-0">
+      {{ tr('Задача отчёта выполняется, страница обновится автоматически.', 'Report job is running, this page will refresh automatically.') }}
+    </div>
+    <script>
+      setTimeout(function () {
+        const url = new URL(window.location.href);
+        url.searchParams.set('job', {{ (job_id or '')|tojson }});
+        if (!url.searchParams.get('q') && {{ (query or '')|tojson }}) {
+          url.searchParams.set('q', {{ (query or '')|tojson }});
+        }
+        window.location.href = url.toString();
+      }, 1800);
+    </script>
+  {% endif %}
 </section>
 
-{% if report %}
+{% if reports %}
+  {% for one in reports %}
 <section class="card-soft p-3 p-md-4 mb-3">
   <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-3">
     <h2 class="h5 mb-0">
-      <i class="fa-solid fa-globe me-2 text-primary" aria-hidden="true"></i>{{ report.domain }}
+      <i class="fa-solid fa-globe me-2 text-primary" aria-hidden="true"></i>{{ one.domain_display or one.domain }}
+      {% if one.domain_display and one.domain_display != one.domain %}
+        <span class="text-muted small">({{ one.domain }})</span>
+      {% endif %}
     </h2>
-    {% if report.permalink %}
-      <a class="btn btn-sm btn-outline-secondary" href="{{ report.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
+    {% if one.permalink %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
     {% endif %}
   </div>
 
@@ -37,9 +60,9 @@
       <div class="card feature-card h-100">
         <div class="card-body">
           <h3 class="h6">DNS</h3>
-          {% if report.dns.has_records %}
+          {% if one.dns.has_records %}
             <ul class="mb-0 small">
-              {% for rtype, vals in report.dns.records.items() %}
+              {% for rtype, vals in one.dns.records.items() %}
                 <li><strong>{{ rtype }}</strong>: {{ vals|length }}</li>
               {% endfor %}
             </ul>
@@ -55,9 +78,10 @@
         <div class="card-body">
           <h3 class="h6">WHOIS</h3>
           <ul class="mb-0 small">
-            <li><strong>{{ tr('Регистратор', 'Registrar') }}:</strong> {{ report.whois.registrar or '—' }}</li>
-            <li><strong>{{ tr('Создан', 'Created') }}:</strong> {{ report.whois.creation_date or '—' }}</li>
-            <li><strong>{{ tr('Истекает', 'Expires') }}:</strong> {{ report.whois.expiration_date or '—' }}</li>
+            <li><strong>{{ tr('Домен', 'Domain') }}:</strong> {{ one.whois.domain_unicode or one.domain_display or one.domain }}</li>
+            <li><strong>{{ tr('Регистратор', 'Registrar') }}:</strong> {{ one.whois.registrar or '—' }}</li>
+            <li><strong>{{ tr('Создан', 'Created') }}:</strong> {{ one.whois.creation_date or '—' }}</li>
+            <li><strong>{{ tr('Истекает', 'Expires') }}:</strong> {{ one.whois.expiration_date or '—' }}</li>
           </ul>
         </div>
       </div>
@@ -67,13 +91,13 @@
       <div class="card feature-card h-100">
         <div class="card-body">
           <h3 class="h6">GeoIP</h3>
-          {% if report.geo.error %}
-            <div class="text-muted small">{{ report.geo.error }}</div>
+          {% if one.geo.error %}
+            <div class="text-muted small">{{ one.geo.error }}</div>
           {% else %}
             <ul class="mb-0 small">
-              <li><strong>IP:</strong> {{ report.geo.ip or '—' }}</li>
-              <li><strong>ASN:</strong> {{ report.geo.asn or '—' }}</li>
-              <li><strong>{{ tr('Страна', 'Country') }}:</strong> {{ report.geo.country_name or report.geo.country_code or '—' }}</li>
+              <li><strong>IP:</strong> {{ one.geo.ip or '—' }}</li>
+              <li><strong>ASN:</strong> {{ one.geo.asn or '—' }}</li>
+              <li><strong>{{ tr('Страна', 'Country') }}:</strong> {{ one.geo.country_name or one.geo.country_code or '—' }}</li>
             </ul>
           {% endif %}
         </div>
@@ -84,13 +108,13 @@
       <div class="card feature-card h-100">
         <div class="card-body">
           <h3 class="h6">Reverse</h3>
-          {% if report.reverse.error %}
+          {% if one.reverse.error %}
             <div class="text-muted small">{{ tr('PTR-запись не найдена или DNS-ответ недоступен.', 'PTR record not found or DNS response unavailable.') }}</div>
           {% else %}
             <ul class="mb-0 small">
-              <li><strong>IP:</strong> {{ report.reverse.ip or '—' }}</li>
-              <li><strong>PTR:</strong> {{ (report.reverse.ptr or [])|join(', ') if report.reverse.ptr else '—' }}</li>
-              <li><strong>FCrDNS:</strong> {{ tr('да', 'yes') if report.reverse.fcrdns_ok else tr('нет', 'no') }}</li>
+              <li><strong>IP:</strong> {{ one.reverse.ip or '—' }}</li>
+              <li><strong>PTR:</strong> {{ (one.reverse.ptr or [])|join(', ') if one.reverse.ptr else '—' }}</li>
+              <li><strong>FCrDNS:</strong> {{ tr('да', 'yes') if one.reverse.fcrdns_ok else tr('нет', 'no') }}</li>
             </ul>
           {% endif %}
         </div>
@@ -98,5 +122,6 @@
     </div>
   </div>
 </section>
+  {% endfor %}
 {% endif %}
 {% endblock %}
