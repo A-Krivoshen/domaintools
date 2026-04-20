@@ -1,24 +1,5 @@
 <!-- templates/_ad_rsy.html -->
-<div class="before-footer-ad container my-4 d-flex justify-content-center" aria-label="{{ tr('Реферальный баннер', 'Referral banner') }}">
-  <div id="fvds-partner-banner" style="width: 600px; height: 90px;"></div>
-  <noscript>
-    <a class="ref-banner-link mx-auto" href="https://firstvds.ru/?from=1168822" target="_blank" rel="noopener noreferrer sponsored">
-      {{ tr('Перейти на FirstVDS', 'Open FirstVDS') }}
-    </a>
-  </noscript>
+<div class="before-footer-ad container my-4 d-flex justify-content-center" aria-label="{{ tr('Рекламный баннер', 'Ad banner') }}">
+  <script src="//wpwidget.ru/js/wps-widget-entry.min.js" async></script>
+  <div class="wps-widget" data-w="//wpwidget.ru/greetings?orientation=3&pid=11291"></div>
 </div>
-<script type="text/javascript">
-(function(d,w){
-  var n = d.getElementsByTagName('script')[0],
-      s = d.createElement('script'),
-      f = function(){ n.parentNode.insertBefore(s,n); };
-  s.type = 'text/javascript';
-  s.async = true;
-  s.src = 'https://morp.firstvds.ru/v2019/get-wrapper?divID=fvds-partner-banner&clientID=1168822&width=600&height=90';
-  if (w.opera === '[object Opera]') {
-    d.addEventListener('DOMContentLoaded', f, false);
-  } else {
-    f();
-  }
-})(document, window);
-</script>
