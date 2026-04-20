@@ -677,6 +677,7 @@ def robots():
 def sitemap():
     base_urls = [
         url_for("index", _external=True),
+        url_for("domain_report", _external=True),
         url_for("dns_lookup", _external=True),
         url_for("whois_lookup", _external=True),
         url_for("geo_lookup", _external=True),
@@ -706,6 +707,130 @@ def sitemap():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+# ---------- DOMAIN REPORT ----------
+def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
+    wanted = ("A", "AAAA", "NS", "MX", "TXT")
+    records: Dict[str, List[str]] = {}
+    for rtype in wanted:
+        try:
+            answers = dns.resolver.resolve(host_ascii, rtype)
+            vals: List[str] = []
+            for r in answers:
+                if rtype == "MX":
+                    vals.append(f"{getattr(r, 'preference', '')} {str(getattr(r, 'exchange', '')).rstrip('.')}".strip())
+                elif rtype == "TXT":
+                    chunks = getattr(r, "strings", None)
+                    if chunks:
+                        vals.append("".join(ch.decode("utf-8", errors="ignore") if isinstance(ch, bytes) else str(ch) for ch in chunks))
+                    else:
+                        vals.append(str(r).rstrip("."))
+                else:
+                    vals.append(str(r).rstrip("."))
+            if vals:
+                records[rtype] = vals
+        except Exception:
+            continue
+    ips = (records.get("A") or []) + (records.get("AAAA") or [])
+    return {"records": records, "has_records": bool(records), "ips": ips}
+
+
+def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
+    data: Dict[str, object] = {}
+    try:
+        w = whois.whois(host_ascii)
+        for key in ("registrar", "creation_date", "expiration_date", "updated_date", "status", "name_servers"):
+            val = getattr(w, key, None)
+            if val:
+                data[key] = val
+    except Exception:
+        pass
+    data["domain_name"] = host_ascii
+    return data
+
+
+def _report_geo_summary(ip: str | None) -> Dict[str, object]:
+    if not ip:
+        return {"ip": None, "error": _("No IP available for GeoIP lookup.")}
+    try:
+        who = IPWhois(ip).lookup_rdap()
+        country_code = (who.get("asn_country_code") or "").upper()
+        return {
+            "ip": ip,
+            "asn": who.get("asn"),
+            "country_code": country_code,
+            "country_name": who.get("network", {}).get("country", "") or country_code,
+        }
+    except Exception:
+        return {"ip": ip, "error": _("GeoIP lookup failed.")}
+
+
+def _report_reverse_summary(ip: str | None) -> Dict[str, object]:
+    if not ip:
+        return {"ip": None, "ptr": [], "fcrdns_ok": False, "error": _("No IP available for reverse lookup.")}
+    row = {"ip": ip, "ptr": [], "fcrdns_ok": False, "forward_of_ptr": {}}
+    try:
+        rev = dns.reversename.from_address(ip)
+        answers = dns.resolver.resolve(rev, "PTR")
+        ptrs = [str(r).rstrip(".") for r in answers]
+        row["ptr"] = ptrs
+        forward_addrs = set()
+        for hn in ptrs:
+            row["forward_of_ptr"][hn] = {}
+            for t in ("A", "AAAA"):
+                try:
+                    a = dns.resolver.resolve(hn, t)
+                    vals = [str(v).rstrip(".") for v in a]
+                    row["forward_of_ptr"][hn][t] = vals
+                    forward_addrs.update(vals)
+                except Exception:
+                    continue
+        row["fcrdns_ok"] = ip in forward_addrs
+    except Exception as e:
+        row["error"] = str(e)
+    return row
+
+
+@app.route("/report", methods=["GET", "POST"])
+def domain_report():
+    query = (request.args.get("q") or request.form.get("q") or "").strip()
+    report = None
+    error = None
+
+    if query:
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            error = captcha_error
+        else:
+            try:
+                host_ascii, err = _normalize_domain_query(query)
+                if err:
+                    raise ValueError(err)
+
+                cache_key = f"cache:report:{host_ascii}"
+
+                def _compute_report():
+                    dns_part = _report_dns_summary(host_ascii)
+                    first_ip = (dns_part.get("ips") or [None])[0]
+                    return {
+                        "input": query,
+                        "domain": host_ascii,
+                        "dns": dns_part,
+                        "whois": _report_whois_summary(host_ascii),
+                        "geo": _report_geo_summary(first_ip),
+                        "reverse": _report_reverse_summary(first_ip),
+                    }
+
+                report = cache_json(cache_key, 180, _compute_report)
+                hid = save_history("report", host_ascii, report)
+                report["permalink"] = url_for("history_view", kind="report", hid=hid, _external=True)
+            except ValueError as ve:
+                error = str(ve)
+            except Exception:
+                app.logger.exception("Domain report error")
+                error = _("Failed to build domain report.")
+
+    return render_template("report.html", query=query, report=report, error=error)
 
 # ---------- DNS ----------
 @app.route("/dns", methods=["GET", "POST"])
