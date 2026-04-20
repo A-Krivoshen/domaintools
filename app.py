@@ -845,7 +845,6 @@ def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
 def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     data: Dict[str, object] = {}
     maybe_text = _whois_call(["whois", "-H", host_ascii], timeout=12)
-    important = False
     try:
         w = whois.whois(host_ascii)
         for k, v in w.__dict__.items():
@@ -853,12 +852,40 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
                 continue
             if v:
                 data[k] = v
-        important = True
     except Exception:
         pass
-    if maybe_text and not important:
+
+    # Дополняем данными из сырого whois-текста даже если python-whois вернул частичный объект.
+    if maybe_text:
         parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(host_ascii, maybe_text)
-        data.update(parsed)
+        if parsed:
+            for key, val in parsed.items():
+                if not data.get(key) and val:
+                    data[key] = val
+
+    # Нормализуем частые алиасы полей (у разных whois-источников они отличаются).
+    alias_map = {
+        "registrar": ("registrar", "sponsoring_registrar", "registrar_name"),
+        "creation_date": ("creation_date", "created", "created_date", "registered"),
+        "expiration_date": ("expiration_date", "paid_till", "expires", "expiry_date", "registry_expiry_date"),
+    }
+    for target, aliases in alias_map.items():
+        if data.get(target):
+            continue
+        for a in aliases:
+            val = data.get(a)
+            if val:
+                data[target] = val
+                break
+
+    # Удобнее для UI: если пришел список дат/значений, берём первый осмысленный.
+    for field in ("registrar", "creation_date", "expiration_date"):
+        val = data.get(field)
+        if isinstance(val, (list, tuple)):
+            cleaned = [x for x in val if x not in (None, "", [])]
+            if cleaned:
+                data[field] = cleaned[0]
+
     data["domain_name"] = host_ascii
     du = _to_unicode(host_ascii)
     if du and du != host_ascii:
