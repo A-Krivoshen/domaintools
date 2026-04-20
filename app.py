@@ -798,7 +798,8 @@ def domain_report():
     error = None
 
     if query:
-        captcha_error = _verify_form_recaptcha_if_needed()
+        recaptcha_token = (request.values.get("recaptcha_token") or "").strip()
+        captcha_error = _verify_form_recaptcha_if_needed() if recaptcha_token else None
         if captcha_error:
             error = captcha_error
         else:
