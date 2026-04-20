@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('Сводный отчёт по домену — DomainTools', 'Domain report — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Единый отчёт по домену: DNS, WHOIS, GeoIP и Reverse в одном месте.', 'Single domain report: DNS, WHOIS, GeoIP, and Reverse in one place.') }}{% endblock %}
+
+{% block content %}
+<section class="card-soft p-4 mb-3">
+  <h1 class="h3 mb-3">{{ tr('Сводный отчёт по домену', 'Domain report') }}</h1>
+  <p class="text-muted mb-3">{{ tr('Один запуск: DNS, WHOIS, GeoIP и Reverse (по первому IP).', 'Single run: DNS, WHOIS, GeoIP, and Reverse (by first IP).') }}</p>
+
+  <form method="post" class="row g-2 align-items-center">
+    <div class="col-12 col-md-9">
+      <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com" aria-label="{{ tr('Домен', 'Domain') }}">
+    </div>
+    <div class="col-12 col-md-3 d-grid">
+      <button class="btn btn-primary btn-lg" type="submit">{{ tr('Собрать отчёт', 'Build report') }}</button>
+    </div>
+  </form>
+
+  {% if error %}
+    <div class="alert alert-danger mt-3 mb-0">{{ error }}</div>
+  {% endif %}
+</section>
+
+{% if report %}
+<section class="card-soft p-3 p-md-4 mb-3">
+  <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-3">
+    <h2 class="h5 mb-0">
+      <i class="fa-solid fa-globe me-2 text-primary" aria-hidden="true"></i>{{ report.domain }}
+    </h2>
+    {% if report.permalink %}
+      <a class="btn btn-sm btn-outline-secondary" href="{{ report.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-lg-6">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <h3 class="h6">DNS</h3>
+          {% if report.dns.has_records %}
+            <ul class="mb-0 small">
+              {% for rtype, vals in report.dns.records.items() %}
+                <li><strong>{{ rtype }}</strong>: {{ vals|length }}</li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <div class="text-muted small">{{ tr('Записи не найдены.', 'No records found.') }}</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <h3 class="h6">WHOIS</h3>
+          <ul class="mb-0 small">
+            <li><strong>{{ tr('Регистратор', 'Registrar') }}:</strong> {{ report.whois.registrar or '—' }}</li>
+            <li><strong>{{ tr('Создан', 'Created') }}:</strong> {{ report.whois.creation_date or '—' }}</li>
+            <li><strong>{{ tr('Истекает', 'Expires') }}:</strong> {{ report.whois.expiration_date or '—' }}</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <h3 class="h6">GeoIP</h3>
+          {% if report.geo.error %}
+            <div class="text-muted small">{{ report.geo.error }}</div>
+          {% else %}
+            <ul class="mb-0 small">
+              <li><strong>IP:</strong> {{ report.geo.ip or '—' }}</li>
+              <li><strong>ASN:</strong> {{ report.geo.asn or '—' }}</li>
+              <li><strong>{{ tr('Страна', 'Country') }}:</strong> {{ report.geo.country_name or report.geo.country_code or '—' }}</li>
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-lg-6">
+      <div class="card feature-card h-100">
+        <div class="card-body">
+          <h3 class="h6">Reverse</h3>
+          {% if report.reverse.error %}
+            <div class="text-muted small">{{ tr('PTR-запись не найдена или DNS-ответ недоступен.', 'PTR record not found or DNS response unavailable.') }}</div>
+          {% else %}
+            <ul class="mb-0 small">
+              <li><strong>IP:</strong> {{ report.reverse.ip or '—' }}</li>
+              <li><strong>PTR:</strong> {{ (report.reverse.ptr or [])|join(', ') if report.reverse.ptr else '—' }}</li>
+              <li><strong>FCrDNS:</strong> {{ tr('да', 'yes') if report.reverse.fcrdns_ok else tr('нет', 'no') }}</li>
+            </ul>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endif %}
+{% endblock %}
