@@ -938,6 +938,10 @@ def _report_reverse_summary(ip: str | None) -> Dict[str, object]:
 def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object]:
     dns_part = cache_json(f"cache:report:dns:{host_ascii}", REPORT_DNS_TTL_S, lambda: _report_dns_summary(host_ascii))
     whois_part = cache_json(f"cache:report:whois:{host_ascii}", REPORT_WHOIS_TTL_S, lambda: _report_whois_summary(host_ascii))
+    if not (whois_part or {}).get("registrar"):
+        fresh_whois = _report_whois_summary(host_ascii)
+        if (fresh_whois or {}).get("registrar"):
+            whois_part = fresh_whois
     first_ip = (dns_part.get("ips") or [None])[0]
     geo_part = cache_json(
         f"cache:report:geo:{first_ip or 'none'}",
@@ -967,8 +971,12 @@ def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> N
         reports = []
         for d in domains:
             report = cache_json(f"cache:report:full:{d}", REPORT_FULL_TTL_S, lambda d=d: _build_domain_report(d, source_input))
+            whois_block = (report or {}).get("whois") if isinstance(report, dict) else {}
+            if not (whois_block or {}).get("registrar"):
+                report = _build_domain_report(d, source_input)
             hid = save_history("report", d, report)
-            report["permalink"] = f"/history/report/{hid}"
+            if hid:
+                report["permalink"] = f"/history/report/{hid}"
             reports.append(report)
         _save_report_job(job_id, {"status": "done", "domains": domains, "source_input": source_input, "reports": reports})
     except Exception as e:
@@ -987,7 +995,6 @@ def domain_report():
     # Poll existing async job
     if job_id:
         if not _is_valid_report_job_id(job_id):
-            error = _("Invalid report job id.")
             job_id = ""
         else:
             job = _load_report_job(job_id)
@@ -2331,11 +2338,14 @@ def history_view(kind: str, hid: str):
             common_ports=COMMON_SAFE_PORTS[:20],
         )
     if kind == "report":
+        report_obj = dict(res) if isinstance(res, dict) else None
+        if report_obj:
+            report_obj["permalink"] = permalink
         return render_template(
             "report.html",
             query=q,
-            report=res if isinstance(res, dict) else None,
-            reports=[res] if isinstance(res, dict) else [],
+            report=report_obj,
+            reports=[report_obj] if report_obj else [],
             error=None,
             job_status=None,
             job_id="",
