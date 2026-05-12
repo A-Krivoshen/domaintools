@@ -887,57 +887,6 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
             if cleaned:
                 data[field] = cleaned[0]
 
-    # Дополнительный fallback: прямой парсинг key:value из сырых WHOIS-строк
-    # (полезно, когда python-whois положил всё в text без нормализации полей).
-    def _extract_whois_line_value(text: str, keys: List[str]) -> Optional[str]:
-        if not text:
-            return None
-        key_set = {k.strip().lower() for k in keys if k}
-        for raw_line in text.splitlines():
-            line = (raw_line or "").strip()
-            if ":" not in line:
-                continue
-            key, val = line.split(":", 1)
-            key_norm = re.sub(r"[\s_\-]+", "", key.strip().lower())
-            if key_norm in key_set:
-                value = val.strip()
-                if value:
-                    return value
-        return None
-
-    fallback_text = maybe_text or ""
-    text_from_data = data.get("text")
-    if isinstance(text_from_data, str) and text_from_data.strip():
-        fallback_text = f"{fallback_text}\n{text_from_data}".strip()
-    elif isinstance(text_from_data, (list, tuple)):
-        joined_text = "\n".join(str(x) for x in text_from_data if x)
-        if joined_text.strip():
-            fallback_text = f"{fallback_text}\n{joined_text}".strip()
-
-    if not data.get("registrar"):
-        data["registrar"] = _extract_whois_line_value(
-            fallback_text,
-            ["registrar", "sponsoringregistrar", "registrarname", "регистратор"],
-        )
-    if not data.get("creation_date"):
-        data["creation_date"] = _extract_whois_line_value(
-            fallback_text,
-            ["creationdate", "created", "createddate", "registered", "создан", "датарегистрации"],
-        )
-    if not data.get("expiration_date"):
-        data["expiration_date"] = _extract_whois_line_value(
-            fallback_text,
-            [
-                "expirationdate",
-                "registryexpirydate",
-                "paidtill",
-                "expires",
-                "expirydate",
-                "истекает",
-                "оплачендо",
-            ],
-        )
-
     data["domain_name"] = host_ascii
     du = _to_unicode(host_ascii)
     if du and du != host_ascii:
