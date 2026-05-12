@@ -50,7 +50,7 @@
       <div class="row g-2 align-items-end">
         <div class="col-12 col-lg-4">
           <label class="form-label">{{ tr('Хост или IP', 'Host or IP') }}</label>
-          <input type="text" class="form-control" name="host" value="{{ host or '' }}" placeholder="example.com">
+          <input type="text" class="form-control" name="host" value="{{ host or '' }}" placeholder="example.com" required>
         </div>
         <div class="col-12 col-lg-6">
           <label class="form-label">{{ tr('Порты (через запятую или диапазон)', 'Ports (comma-separated or range)') }}</label>
@@ -123,7 +123,7 @@
       <div class="row g-2 align-items-end">
         <div class="col-12 col-lg-10">
           <label class="form-label">{{ tr('URL сайта', 'Site URL') }}</label>
-          <input type="text" class="form-control" name="wp_url" value="{{ wp_url_raw or '' }}" placeholder="https://example.com">
+          <input type="text" class="form-control" name="wp_url" value="{{ wp_url_raw or '' }}" placeholder="https://example.com" required>
         </div>
         <div class="col-12 col-lg-2 d-grid">
           <button class="btn btn-outline-primary">{{ tr('Проверить', 'Scan') }}</button>

@@ -2225,8 +2225,12 @@ def security_tools():
             job_id = ''
 
     # Submit new async job
-    if request.method == 'POST' and not job_id and (host or wp_url_raw):
-        if len(host) > SECURITY_MAX_HOST_LEN:
+    if request.method == 'POST' and not job_id:
+        if active_scan == 'ports' and not host:
+            port_error = _('Please enter a host or IP.')
+        elif active_scan == 'wp' and not wp_url_raw:
+            wp_error = _('Please enter a site URL.')
+        elif len(host) > SECURITY_MAX_HOST_LEN:
             security_error = _('Host is too long.')
         elif len(ports_raw) > SECURITY_MAX_PORTS_RAW_LEN:
             security_error = _('Ports list is too long.')

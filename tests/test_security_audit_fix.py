@@ -194,6 +194,20 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertIn('Invalid scan job id.', body)
 
 
+    def test_security_empty_port_target_shows_validation_error(self):
+        r = self.client.post('/security', data={'scan': 'ports', 'host': '', 'ports': ''})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Please enter a host or IP.', body)
+        self.assertEqual(r.request.path, '/security')
+
+    def test_security_empty_wp_target_shows_validation_error(self):
+        r = self.client.post('/security', data={'scan': 'wp', 'wp_url': ''})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Please enter a site URL.', body)
+        self.assertEqual(r.request.path, '/security')
+
     def test_security_rejects_oversized_host_input(self):
         big_host = 'a' * 300
         r = self.client.post('/security', data={'scan': 'ports', 'host': big_host, 'ports': '80'})
