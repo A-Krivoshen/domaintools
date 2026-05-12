@@ -138,6 +138,49 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertEqual(data.get('error'), 'Internal scan error. Please retry later.')
         self.assertNotIn('secret backend stacktrace marker', data.get('error') or '')
 
+
+    def test_security_port_scanner_accepts_full_url_input(self):
+        calls = []
+
+        def _fake_getaddrinfo(host, *_args, **_kwargs):
+            calls.append(host)
+            return [(None, None, None, None, ('93.184.216.34', 0))]
+
+        original_getaddrinfo = app_module.socket.getaddrinfo
+        app_module.socket.getaddrinfo = _fake_getaddrinfo
+        try:
+            ip, err = app_module._resolve_public_target_ip('https://Example.COM:8443/some/path?x=1')
+        finally:
+            app_module.socket.getaddrinfo = original_getaddrinfo
+
+        self.assertIsNone(err)
+        self.assertEqual(ip, '93.184.216.34')
+        self.assertEqual(calls, ['example.com'])
+
+    def test_security_port_scanner_accepts_host_port_input(self):
+        calls = []
+
+        def _fake_getaddrinfo(host, *_args, **_kwargs):
+            calls.append(host)
+            return [(None, None, None, None, ('93.184.216.34', 0))]
+
+        original_getaddrinfo = app_module.socket.getaddrinfo
+        app_module.socket.getaddrinfo = _fake_getaddrinfo
+        try:
+            ip, err = app_module._resolve_public_target_ip('Example.COM:443')
+        finally:
+            app_module.socket.getaddrinfo = original_getaddrinfo
+
+        self.assertIsNone(err)
+        self.assertEqual(ip, '93.184.216.34')
+        self.assertEqual(calls, ['example.com'])
+
+    def test_security_page_shows_error_for_missing_job_id(self):
+        r = self.client.get('/security?job=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Scan job was not found. Please start the check again.', body)
+
     def test_security_jobs_endpoint_rejects_invalid_job_id(self):
         r = self.client.get('/security/jobs/not-a-valid-id')
         self.assertEqual(r.status_code, 400)

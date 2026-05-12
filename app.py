@@ -1432,10 +1432,43 @@ def _tr_no_req(msg: str, **kwargs) -> str:
         return msg
 
 
-def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
-    host = (host or '').strip()
-    if not host:
+def _normalize_security_host_input(host: str) -> Tuple[str | None, str | None]:
+    """Accept either a hostname/IP or a full URL and return a scanner-safe host."""
+    raw = (host or '').strip()
+    if not raw:
         return None, _tr_no_req('Empty host')
+
+    # Operators often paste a URL from the address bar into the port scanner.
+    # Keep the actual target host and ignore scheme, path, query, and URL port.
+    candidate = raw
+    looks_like_url = re.match(r'^[a-z][a-z0-9+.-]*://', raw, re.I)
+    has_single_host_port = raw.count(':') == 1 and not raw.startswith('[')
+    if looks_like_url or has_single_host_port or any(ch in raw for ch in '/?#'):
+        parsed_text = raw if looks_like_url else f'//{raw}'
+        try:
+            parsed = urlparse(parsed_text)
+            candidate = parsed.hostname or raw
+        except Exception:
+            return None, _tr_no_req('Invalid URL')
+
+    candidate = (candidate or '').strip().strip('[]').rstrip('.')
+    if not candidate:
+        return None, _tr_no_req('Empty host')
+
+    # Normalize IDN domains to ASCII before validation/resolution.
+    if not re.fullmatch(r'[0-9A-Fa-f:.]+', candidate):
+        try:
+            candidate = idna.encode(candidate).decode('ascii')
+        except Exception:
+            return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
+
+    return candidate.lower(), None
+
+
+def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
+    host, host_err = _normalize_security_host_input(host)
+    if host_err:
+        return None, host_err
 
     # Simple hostname format pre-check to avoid noisy resolver errors
     if not re.match(r'^[A-Za-z0-9.-]+$', host):
@@ -2161,6 +2194,9 @@ def security_tools():
                     port_error = job.get('error') or _('Scan failed.')
                 else:
                     wp_error = job.get('error') or _('Scan failed.')
+        elif job_id:
+            security_error = _('Scan job was not found. Please start the check again.')
+            job_id = ''
 
     # Submit new async job
     if request.method == 'POST' and not job_id and (host or wp_url_raw):
