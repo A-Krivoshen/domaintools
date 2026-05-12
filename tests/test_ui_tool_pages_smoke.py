@@ -24,6 +24,10 @@ class UIToolPagesSmokeTests(unittest.TestCase):
                 resp = self.client.get(path)
                 self.assertEqual(resp.status_code, 200)
 
+    def test_security_forms_post_to_clean_security_endpoint(self):
+        html = self.client.get('/security?scan=ports&host=&ports=').get_data(as_text=True)
+        self.assertIn('action="/security"', html)
+
     def test_unified_tool_pattern_markers_present(self):
         checks = {
             '/dns': ['tool-form', 'tool-intro'],

@@ -10,7 +10,7 @@ import io
 import csv
 import subprocess
 import uuid
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode, urlparse, urljoin
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime, timezone
@@ -103,6 +103,9 @@ app.config.update(
     FORM_RECAPTCHA_ENABLED=(os.environ.get("FORM_RECAPTCHA_ENABLED", os.environ.get("SECURITY_RECAPTCHA_ENABLED", "0")).strip().lower() in {"1", "true", "yes", "on"}),
     FORM_RECAPTCHA_ACTION=os.environ.get("FORM_RECAPTCHA_ACTION", "form_submit").strip() or "form_submit",
     SECURITY_METRICS_PUBLIC=(os.environ.get("SECURITY_METRICS_PUBLIC", "0").strip().lower() in {"1", "true", "yes", "on"}),
+    JOB_STORAGE_ALLOW_LOCAL_FALLBACK=(os.environ.get("JOB_STORAGE_ALLOW_LOCAL_FALLBACK", "0").strip().lower() in {"1", "true", "yes", "on"}),
+    SAFE_HTTP_MAX_BYTES=int(os.environ.get("SAFE_HTTP_MAX_BYTES", "1048576")),
+    SAFE_HTTP_MAX_REDIRECTS=int(os.environ.get("SAFE_HTTP_MAX_REDIRECTS", "5")),
 )
 
 # Регистрируем блюпринт (он обслуживает /site-checker)
@@ -202,6 +205,15 @@ r = redis.from_url(app.config["REDIS_URL"], decode_responses=True)
 HIST_NS = "dt:history"
 HIST_ZSET = "dt:history:index"
 HIST_LIMIT = 5000
+
+
+def _redis_health() -> Dict[str, object]:
+    try:
+        ok = bool(r.ping())
+        return {"ok": ok, "url": app.config.get("REDIS_URL", "")}
+    except Exception as e:
+        app.logger.warning("Redis health check failed: %s", e)
+        return {"ok": False, "url": app.config.get("REDIS_URL", ""), "error": type(e).__name__}
 
 # -------------------------------------------------
 # Babel (Flask-Babel v3+)
@@ -390,25 +402,43 @@ def _report_job_key(job_id: str) -> str:
     return f"dt:report:job:{job_id}"
 
 
-def _save_report_job(job_id: str, payload: Dict, ttl_s: int = REPORT_JOB_TTL_S) -> None:
+def _job_storage_allows_local_fallback() -> bool:
+    return bool(app.config.get("TESTING") or app.config.get("JOB_STORAGE_ALLOW_LOCAL_FALLBACK"))
+
+
+def _save_job_payload(local_store: Dict[str, Dict], redis_key: str, job_id: str, payload: Dict, ttl_s: int, kind: str) -> bool:
     payload = dict(payload or {})
     payload["id"] = job_id
     payload["updated_ts"] = int(time.time())
-    _REPORT_JOB_LOCAL[job_id] = payload
     try:
-        r.setex(_report_job_key(job_id), max(60, int(ttl_s)), json.dumps(payload, ensure_ascii=False))
+        r.setex(redis_key, max(60, int(ttl_s)), json.dumps(payload, ensure_ascii=False))
     except Exception:
-        pass
+        app.logger.exception("%s job storage Redis write failed: job_id=%s", kind, job_id)
+        if not _job_storage_allows_local_fallback():
+            return False
+        app.logger.warning("%s job storage using local in-process fallback: job_id=%s", kind, job_id)
+    local_store[job_id] = payload
+    return True
 
 
-def _load_report_job(job_id: str) -> Optional[Dict]:
+def _load_job_payload(local_store: Dict[str, Dict], redis_key: str, job_id: str, kind: str) -> Optional[Dict]:
     try:
-        raw = r.get(_report_job_key(job_id))
+        raw = r.get(redis_key)
         if raw:
             return json.loads(raw)
     except Exception:
-        pass
-    return _REPORT_JOB_LOCAL.get(job_id)
+        app.logger.exception("%s job storage Redis read failed: job_id=%s", kind, job_id)
+    if _job_storage_allows_local_fallback():
+        return local_store.get(job_id)
+    return None
+
+
+def _save_report_job(job_id: str, payload: Dict, ttl_s: int = REPORT_JOB_TTL_S) -> bool:
+    return _save_job_payload(_REPORT_JOB_LOCAL, _report_job_key(job_id), job_id, payload, ttl_s, "report")
+
+
+def _load_report_job(job_id: str) -> Optional[Dict]:
+    return _load_job_payload(_REPORT_JOB_LOCAL, _report_job_key(job_id), job_id, "report")
 
 
 def _is_valid_report_job_id(job_id: str) -> bool:
@@ -468,15 +498,8 @@ def _security_job_key(job_id: str) -> str:
     return f"dt:security:job:{job_id}"
 
 
-def _save_security_job(job_id: str, payload: Dict, ttl_s: int = SECURITY_JOB_TTL_S) -> None:
-    payload = dict(payload or {})
-    payload["id"] = job_id
-    payload["updated_ts"] = int(time.time())
-    _SECURITY_JOB_LOCAL[job_id] = payload
-    try:
-        r.setex(_security_job_key(job_id), max(60, int(ttl_s)), json.dumps(payload, ensure_ascii=False))
-    except Exception:
-        pass
+def _save_security_job(job_id: str, payload: Dict, ttl_s: int = SECURITY_JOB_TTL_S) -> bool:
+    return _save_job_payload(_SECURITY_JOB_LOCAL, _security_job_key(job_id), job_id, payload, ttl_s, "security")
 
 
 def _is_valid_security_job_id(job_id: str) -> bool:
@@ -485,13 +508,7 @@ def _is_valid_security_job_id(job_id: str) -> bool:
 
 
 def _load_security_job(job_id: str) -> Optional[Dict]:
-    try:
-        raw = r.get(_security_job_key(job_id))
-        if raw:
-            return json.loads(raw)
-    except Exception:
-        pass
-    return _SECURITY_JOB_LOCAL.get(job_id)
+    return _load_job_payload(_SECURITY_JOB_LOCAL, _security_job_key(job_id), job_id, "security")
 
 
 def _normalize_security_hints(hints: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -722,14 +739,20 @@ def dt_filter(ts):
 @app.get("/health")
 def health():
     recaptcha_ready, recaptcha_setup_error = _recaptcha_setup_status()
+    redis_health = _redis_health()
     security_metrics_minute = {}
     try:
         minute = datetime.now(timezone.utc).strftime('%Y%m%d%H%M')
         security_metrics_minute = r.hgetall(f"dt:metrics:security_rate:min:{minute}") or {}
     except Exception:
-        pass
+        app.logger.warning("Security metrics read failed", exc_info=True)
     return jsonify(
-        status="ok",
+        status="ok" if redis_health.get("ok") else "degraded",
+        redis=redis_health,
+        job_storage={
+            "redis_required": not _job_storage_allows_local_fallback(),
+            "local_fallback_enabled": _job_storage_allows_local_fallback(),
+        },
         security={
             "recaptcha_enabled": bool(app.config.get("SECURITY_RECAPTCHA_ENABLED")),
             "recaptcha_provider": (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard"),
@@ -1019,7 +1042,9 @@ def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object
 
 def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> None:
     try:
-        _save_report_job(job_id, {"status": "running", "domains": domains, "source_input": source_input})
+        if not _save_report_job(job_id, {"status": "running", "domains": domains, "source_input": source_input}):
+            app.logger.error("Report job aborted because storage is unavailable: job_id=%s", job_id)
+            return
         reports = []
         for d in domains:
             report = cache_json(f"cache:report:full:{d}", REPORT_FULL_TTL_S, lambda d=d: _build_domain_report(d, source_input))
@@ -1060,8 +1085,7 @@ def domain_report():
                     error = str(job.get("error") or _("Failed to build domain report."))
 
     if request.method == "POST" and query and not job_id:
-        recaptcha_token = (request.values.get("recaptcha_token") or "").strip()
-        captcha_error = _verify_form_recaptcha_if_needed() if recaptcha_token else None
+        captcha_error = _verify_form_recaptcha_if_needed()
         if captcha_error:
             error = captcha_error
         else:
@@ -1085,7 +1109,8 @@ def domain_report():
                     raise ValueError(_("Too many report requests. Please try again later."))
 
                 job_id = uuid.uuid4().hex
-                _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query})
+                if not _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query}):
+                    raise RuntimeError("report job storage unavailable")
                 _REPORT_ASYNC_POOL.submit(_execute_report_job, job_id, normalized, query)
                 return redirect(url_for("domain_report", job=job_id, q=query))
             except ValueError as ve:
@@ -1432,10 +1457,43 @@ def _tr_no_req(msg: str, **kwargs) -> str:
         return msg
 
 
-def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
-    host = (host or '').strip()
-    if not host:
+def _normalize_security_host_input(host: str) -> Tuple[str | None, str | None]:
+    """Accept either a hostname/IP or a full URL and return a scanner-safe host."""
+    raw = (host or '').strip()
+    if not raw:
         return None, _tr_no_req('Empty host')
+
+    # Operators often paste a URL from the address bar into the port scanner.
+    # Keep the actual target host and ignore scheme, path, query, and URL port.
+    candidate = raw
+    looks_like_url = re.match(r'^[a-z][a-z0-9+.-]*://', raw, re.I)
+    has_single_host_port = raw.count(':') == 1 and not raw.startswith('[')
+    if looks_like_url or has_single_host_port or any(ch in raw for ch in '/?#'):
+        parsed_text = raw if looks_like_url else f'//{raw}'
+        try:
+            parsed = urlparse(parsed_text)
+            candidate = parsed.hostname or raw
+        except Exception:
+            return None, _tr_no_req('Invalid URL')
+
+    candidate = (candidate or '').strip().strip('[]').rstrip('.')
+    if not candidate:
+        return None, _tr_no_req('Empty host')
+
+    # Normalize IDN domains to ASCII before validation/resolution.
+    if not re.fullmatch(r'[0-9A-Fa-f:.]+', candidate):
+        try:
+            candidate = idna.encode(candidate).decode('ascii')
+        except Exception:
+            return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
+
+    return candidate.lower(), None
+
+
+def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
+    host, host_err = _normalize_security_host_input(host)
+    if host_err:
+        return None, host_err
 
     # Simple hostname format pre-check to avoid noisy resolver errors
     if not re.match(r'^[A-Za-z0-9.-]+$', host):
@@ -1569,10 +1627,56 @@ def _normalize_wp_target(raw: str) -> Tuple[str | None, str | None, str | None]:
     return txt, host, None
 
 
-def _safe_get_text(url: str, timeout_s: float = 4.0) -> Tuple[int, str, Dict[str, str], str | None]:
+def _safe_http_url_host(url: str) -> Tuple[str | None, str | None]:
     try:
-        r = requests.get(url, timeout=timeout_s, allow_redirects=True, headers={"User-Agent": "DomainTools-SecurityScanner/1.0"})
-        return r.status_code, (r.text or ""), dict(r.headers), None
+        parsed = urlparse(url)
+    except Exception:
+        return None, _tr_no_req('Invalid URL')
+    if parsed.scheme.lower() not in {'http', 'https'}:
+        return None, _tr_no_req('Only HTTP and HTTPS URLs are allowed.')
+    host = (parsed.hostname or '').strip()
+    if not host:
+        return None, _tr_no_req('Invalid URL')
+    _, err = _resolve_public_target_ip(host)
+    if err:
+        return None, err
+    return host, None
+
+
+def _safe_get_text(url: str, timeout_s: float = 4.0) -> Tuple[int, str, Dict[str, str], str | None]:
+    headers = {"User-Agent": "DomainTools-SecurityScanner/1.0"}
+    max_redirects = max(0, int(app.config.get('SAFE_HTTP_MAX_REDIRECTS', 5)))
+    max_bytes = max(1024, int(app.config.get('SAFE_HTTP_MAX_BYTES', 1048576)))
+    current_url = url
+
+    try:
+        for _ in range(max_redirects + 1):
+            _, url_err = _safe_http_url_host(current_url)
+            if url_err:
+                return 0, "", {}, url_err
+
+            resp = requests.get(current_url, timeout=timeout_s, allow_redirects=False, headers=headers, stream=True)
+            if resp.is_redirect or resp.is_permanent_redirect:
+                location = resp.headers.get('Location')
+                if not location:
+                    return resp.status_code, "", dict(resp.headers), None
+                current_url = urljoin(current_url, location)
+                continue
+
+            chunks: List[bytes] = []
+            total = 0
+            for chunk in resp.iter_content(chunk_size=16384):
+                if not chunk:
+                    continue
+                remaining = max_bytes - total
+                if remaining <= 0:
+                    break
+                chunks.append(chunk[:remaining])
+                total += len(chunk[:remaining])
+            encoding = resp.encoding or 'utf-8'
+            text = b''.join(chunks).decode(encoding, errors='replace')
+            return resp.status_code, text, dict(resp.headers), None
+        return 0, "", {}, _tr_no_req('Too many redirects.')
     except Exception as e:
         return 0, "", {}, str(e)
 
@@ -1642,7 +1746,10 @@ def _wordpress_safe_scan(target_url: str) -> Dict[str, object]:
 
 
 def _run_port_scan_result(host: str, ports_raw: str) -> Tuple[Dict[str, object] | None, str | None]:
-    target_ip, err = _resolve_public_target_ip(host)
+    normalized_host, host_err = _normalize_security_host_input(host)
+    if host_err:
+        return None, host_err
+    target_ip, err = _resolve_public_target_ip(normalized_host or host)
     if err:
         return None, err
 
@@ -1662,7 +1769,8 @@ def _run_port_scan_result(host: str, ports_raw: str) -> Tuple[Dict[str, object] 
 
     hints = _build_port_hints(rows)
     return {
-        'host': host,
+        'host': normalized_host or host,
+        'input_host': host,
         'ip': target_ip,
         'ports': ports,
         'rows': rows,
@@ -1697,7 +1805,7 @@ def _run_wp_scan_result(wp_url_raw: str) -> Tuple[Dict[str, object] | None, str 
 def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -> None:
     with app.app_context():
         started = int(time.time())
-        _save_security_job(job_id, {
+        if not _save_security_job(job_id, {
             "status": "running",
             "kind": job_kind,
             "created_ts": started,
@@ -1707,7 +1815,9 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
             "error": None,
             "error_code": None,
             "duration_ms": None,
-        })
+        }):
+            app.logger.error("Security scan job aborted because storage is unavailable: job_id=%s kind=%s", job_id, job_kind)
+            return
         try:
             if job_kind == "ports":
                 result, err = _run_port_scan_result(payload.get("host", ""), payload.get("ports_raw", ""))
@@ -2118,11 +2228,20 @@ def reverse_lookup():
 
 @app.route('/security', methods=['GET', 'POST'])
 def security_tools():
-    host = (request.values.get('host') or '').strip()
-    ports_raw = (request.values.get('ports') or '').strip()
-    scan_target = (request.values.get('scan') or '').strip().lower()
-    wp_url_raw = (request.values.get('wp_url') or '').strip()
-    job_id = (request.values.get('job') or '').strip()
+    def _security_value(name: str) -> str:
+        # On POST, prefer submitted form fields over query-string values from
+        # the current URL (for example /security?host=&ports=). Otherwise empty
+        # query params can shadow the user's actual form input and the page just
+        # re-renders, which looks like a blink with no result.
+        if request.method == 'POST' and name in request.form:
+            return (request.form.get(name) or '').strip()
+        return (request.args.get(name) or '').strip()
+
+    host = _security_value('host')
+    ports_raw = _security_value('ports')
+    scan_target = _security_value('scan').lower()
+    wp_url_raw = _security_value('wp_url')
+    job_id = _security_value('job')
 
     active_scan = 'wp' if scan_target == 'wp' else 'ports'
     port_result = None
@@ -2161,10 +2280,17 @@ def security_tools():
                     port_error = job.get('error') or _('Scan failed.')
                 else:
                     wp_error = job.get('error') or _('Scan failed.')
+        elif job_id:
+            security_error = _('Scan job was not found. Please start the check again.')
+            job_id = ''
 
     # Submit new async job
-    if request.method == 'POST' and not job_id and (host or wp_url_raw):
-        if len(host) > SECURITY_MAX_HOST_LEN:
+    if request.method == 'POST' and not job_id:
+        if active_scan == 'ports' and not host:
+            port_error = _('Please enter a host or IP.')
+        elif active_scan == 'wp' and not wp_url_raw:
+            wp_error = _('Please enter a site URL.')
+        elif len(host) > SECURITY_MAX_HOST_LEN:
             security_error = _('Host is too long.')
         elif len(ports_raw) > SECURITY_MAX_PORTS_RAW_LEN:
             security_error = _('Ports list is too long.')
@@ -2191,7 +2317,7 @@ def security_tools():
                         'ports_raw': ports_raw,
                         'wp_url_raw': wp_url_raw,
                     }
-                    _save_security_job(job_id, {
+                    saved = _save_security_job(job_id, {
                         'status': 'queued',
                         'kind': active_scan,
                         'payload': payload,
@@ -2202,26 +2328,30 @@ def security_tools():
                         'duration_ms': None,
                         'permalink': None,
                     })
-                    try:
-                        _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
-                    except Exception:
-                        app.logger.exception('Security scan queue submit failed: kind=%s', active_scan)
-                        _save_security_job(job_id, {
-                            'status': 'failed',
-                            'kind': active_scan,
-                            'payload': payload,
-                            'created_ts': int(time.time()),
-                            'finished_ts': int(time.time()),
-                            'result': None,
-                            'error': _tr_no_req('Internal scan error. Please retry later.'),
-                            'error_code': 'internal_error',
-                            'duration_ms': 0,
-                            'permalink': None,
-                        })
-                        security_error = _('Could not start scan job. Please retry.')
+                    if not saved:
+                        security_error = _('Scan storage is temporarily unavailable. Please retry later.')
                         job_id = ''
                     else:
-                        return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
+                        try:
+                            _SECURITY_ASYNC_POOL.submit(_execute_security_job, job_id, active_scan, payload)
+                        except Exception:
+                            app.logger.exception('Security scan queue submit failed: kind=%s', active_scan)
+                            _save_security_job(job_id, {
+                                'status': 'failed',
+                                'kind': active_scan,
+                                'payload': payload,
+                                'created_ts': int(time.time()),
+                                'finished_ts': int(time.time()),
+                                'result': None,
+                                'error': _tr_no_req('Internal scan error. Please retry later.'),
+                                'error_code': 'internal_error',
+                                'duration_ms': 0,
+                                'permalink': None,
+                            })
+                            security_error = _('Could not start scan job. Please retry.')
+                            job_id = ''
+                        else:
+                            return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
 
     return render_template(
         'security.html',
@@ -2452,6 +2582,25 @@ def export_result(kind: str, hid: str, fmt: str):
                 ptr = ", ".join(row.get("ptr") or [])
                 ok = "OK" if row.get("fcrdns_ok") else "FAIL"
                 writer.writerow([row.get("ip",""), ptr, ok])
+        elif kind == "security":
+            if "rows" in result:
+                writer.writerow(["target","ip","port","state"])
+                for row in (result.get("rows") or []):
+                    writer.writerow([result.get("host", ""), result.get("ip", ""), row.get("port", ""), row.get("state", "")])
+            else:
+                writer.writerow(["target_url","target_ip","check","value"])
+                for key in ("is_wordpress", "homepage_status", "wp_login_status", "xmlrpc_enabled", "readme_exposed", "wp_json_enabled", "uploads_listing"):
+                    writer.writerow([result.get("target_url", ""), result.get("target_ip", ""), key, result.get(key, "")])
+        elif kind == "report":
+            writer.writerow(["domain","section","field","value"])
+            domain = result.get("domain") or result.get("input") or ""
+            for section in ("dns", "whois", "geo", "reverse"):
+                block = result.get(section) or {}
+                if isinstance(block, dict):
+                    for field, value in block.items():
+                        if isinstance(value, (dict, list, tuple)):
+                            value = json.dumps(value, ensure_ascii=False)
+                        writer.writerow([domain, section, field, value])
         data = si.getvalue()
         return Response(data, mimetype="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{fn}"'})
