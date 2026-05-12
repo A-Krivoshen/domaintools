@@ -138,6 +138,49 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertEqual(data.get('error'), 'Internal scan error. Please retry later.')
         self.assertNotIn('secret backend stacktrace marker', data.get('error') or '')
 
+
+    def test_security_port_scanner_accepts_full_url_input(self):
+        calls = []
+
+        def _fake_getaddrinfo(host, *_args, **_kwargs):
+            calls.append(host)
+            return [(None, None, None, None, ('93.184.216.34', 0))]
+
+        original_getaddrinfo = app_module.socket.getaddrinfo
+        app_module.socket.getaddrinfo = _fake_getaddrinfo
+        try:
+            ip, err = app_module._resolve_public_target_ip('https://Example.COM:8443/some/path?x=1')
+        finally:
+            app_module.socket.getaddrinfo = original_getaddrinfo
+
+        self.assertIsNone(err)
+        self.assertEqual(ip, '93.184.216.34')
+        self.assertEqual(calls, ['example.com'])
+
+    def test_security_port_scanner_accepts_host_port_input(self):
+        calls = []
+
+        def _fake_getaddrinfo(host, *_args, **_kwargs):
+            calls.append(host)
+            return [(None, None, None, None, ('93.184.216.34', 0))]
+
+        original_getaddrinfo = app_module.socket.getaddrinfo
+        app_module.socket.getaddrinfo = _fake_getaddrinfo
+        try:
+            ip, err = app_module._resolve_public_target_ip('Example.COM:443')
+        finally:
+            app_module.socket.getaddrinfo = original_getaddrinfo
+
+        self.assertIsNone(err)
+        self.assertEqual(ip, '93.184.216.34')
+        self.assertEqual(calls, ['example.com'])
+
+    def test_security_page_shows_error_for_missing_job_id(self):
+        r = self.client.get('/security?job=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa')
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Scan job was not found. Please start the check again.', body)
+
     def test_security_jobs_endpoint_rejects_invalid_job_id(self):
         r = self.client.get('/security/jobs/not-a-valid-id')
         self.assertEqual(r.status_code, 400)
@@ -176,6 +219,74 @@ class SecurityAuditFixTests(unittest.TestCase):
         self.assertTrue(data.get('ok'))
         self.assertIn('day', data)
         self.assertIn('current_minute', data)
+
+
+class _RedisDown:
+    def setex(self, *_args, **_kwargs):
+        raise RuntimeError('redis down')
+    def get(self, *_args, **_kwargs):
+        raise RuntimeError('redis down')
+    def pipeline(self):
+        raise RuntimeError('redis down')
+
+
+class _FakeRedirectResponse:
+    status_code = 302
+    headers = {'Location': 'http://127.0.0.1/admin'}
+    is_redirect = True
+    is_permanent_redirect = False
+    encoding = 'utf-8'
+    url = 'https://example.com'
+    def iter_content(self, chunk_size=16384):
+        return iter(())
+
+
+class SecurityStorageAndSsrfTests(unittest.TestCase):
+    def setUp(self):
+        self.app = app_module.app
+        self.client = self.app.test_client()
+        self._cfg_snapshot = dict(self.app.config)
+        self._r_snapshot = app_module.r
+        self._pool_snapshot = app_module._SECURITY_ASYNC_POOL
+        self._job_local_snapshot = dict(app_module._SECURITY_JOB_LOCAL)
+        self._getaddrinfo_snapshot = app_module.socket.getaddrinfo
+        self._requests_get_snapshot = app_module.requests.get
+        self.app.config['SECURITY_RECAPTCHA_ENABLED'] = False
+        self.app.config['TESTING'] = False
+        self.app.config['JOB_STORAGE_ALLOW_LOCAL_FALLBACK'] = False
+
+    def tearDown(self):
+        self.app.config.clear()
+        self.app.config.update(self._cfg_snapshot)
+        app_module.r = self._r_snapshot
+        app_module._SECURITY_ASYNC_POOL = self._pool_snapshot
+        app_module._SECURITY_JOB_LOCAL.clear()
+        app_module._SECURITY_JOB_LOCAL.update(self._job_local_snapshot)
+        app_module.socket.getaddrinfo = self._getaddrinfo_snapshot
+        app_module.requests.get = self._requests_get_snapshot
+
+    def test_security_refuses_to_queue_when_required_redis_storage_is_down(self):
+        app_module.r = _RedisDown()
+        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+        self.assertEqual(r.status_code, 200)
+        body = r.get_data(as_text=True)
+        self.assertIn('Scan storage is temporarily unavailable. Please retry later.', body)
+
+    def test_wordpress_safe_get_blocks_redirect_to_private_ip(self):
+        def _fake_getaddrinfo(host, *_args, **_kwargs):
+            self.assertEqual(host, 'example.com')
+            return [(None, None, None, None, ('93.184.216.34', 0))]
+
+        def _fake_get(*_args, **_kwargs):
+            return _FakeRedirectResponse()
+
+        app_module.socket.getaddrinfo = _fake_getaddrinfo
+        app_module.requests.get = _fake_get
+        status, text, headers, err = app_module._safe_get_text('https://example.com')
+        self.assertEqual(status, 0)
+        self.assertEqual(text, '')
+        self.assertEqual(headers, {})
+        self.assertIn('Only public IP targets are allowed.', err)
 
 
 if __name__ == '__main__':
