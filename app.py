@@ -371,9 +371,10 @@ def save_history(kind: str, query: str, result: Dict) -> str:
             to_rem = r.zrange(HIST_ZSET, 0, total - HIST_LIMIT - 1)
             if to_rem:
                 r.zrem(HIST_ZSET, *to_rem)
+        return hid
     except Exception:
         app.logger.exception("History save failed")
-    return hid
+        return ""
 
 def load_history(kind: str, hid: str) -> Optional[Dict]:
     try:
@@ -1380,10 +1381,43 @@ def _tr_no_req(msg: str, **kwargs) -> str:
         return msg
 
 
-def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
-    host = (host or '').strip()
-    if not host:
+def _normalize_security_host_input(host: str) -> Tuple[str | None, str | None]:
+    """Accept either a hostname/IP or a full URL and return a scanner-safe host."""
+    raw = (host or '').strip()
+    if not raw:
         return None, _tr_no_req('Empty host')
+
+    # Operators often paste a URL from the address bar into the port scanner.
+    # Keep the actual target host and ignore scheme, path, query, and URL port.
+    candidate = raw
+    looks_like_url = re.match(r'^[a-z][a-z0-9+.-]*://', raw, re.I)
+    has_single_host_port = raw.count(':') == 1 and not raw.startswith('[')
+    if looks_like_url or has_single_host_port or any(ch in raw for ch in '/?#'):
+        parsed_text = raw if looks_like_url else f'//{raw}'
+        try:
+            parsed = urlparse(parsed_text)
+            candidate = parsed.hostname or raw
+        except Exception:
+            return None, _tr_no_req('Invalid URL')
+
+    candidate = (candidate or '').strip().strip('[]').rstrip('.')
+    if not candidate:
+        return None, _tr_no_req('Empty host')
+
+    # Normalize IDN domains to ASCII before validation/resolution.
+    if not re.fullmatch(r'[0-9A-Fa-f:.]+', candidate):
+        try:
+            candidate = idna.encode(candidate).decode('ascii')
+        except Exception:
+            return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
+
+    return candidate.lower(), None
+
+
+def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
+    host, host_err = _normalize_security_host_input(host)
+    if host_err:
+        return None, host_err
 
     # Simple hostname format pre-check to avoid noisy resolver errors
     if not re.match(r'^[A-Za-z0-9.-]+$', host):
@@ -1662,13 +1696,13 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 if err:
                     raise ValueError(err)
                 hid = save_history("security", f"ports:{payload.get('host', '')}:{payload.get('ports_raw') or 'default'}", result)
-                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+                permalink = f"/history/security/{hid}" if hid and load_history("security", hid) else None
             elif job_kind == "wp":
                 result, err = _run_wp_scan_result(payload.get("wp_url_raw", ""))
                 if err:
                     raise ValueError(err)
                 hid = save_history("security", f"wp:{payload.get('wp_url_raw', '')}", result)
-                permalink = f"/history/security/{hid}" if load_history("security", hid) else None
+                permalink = f"/history/security/{hid}" if hid and load_history("security", hid) else None
             else:
                 raise ValueError(_tr_no_req("Unsupported scan type."))
 
@@ -1905,7 +1939,7 @@ def whois_lookup():
         data = cache_json(cache_key, ttl, _compute_whois)
 
         hid = save_history("whois", q, data)
-        permalink = url_for("history_view", kind="whois", hid=hid, _external=True)
+        permalink = url_for("history_view", kind="whois", hid=hid, _external=True) if hid else None
 
     except ValueError as ve:
         error = str(ve)
@@ -1970,7 +2004,7 @@ def geo_lookup():
             cache_key = f"cache:geo:{ip}"
             result = cache_json(cache_key, 300, _compute_geo)
             hid = save_history("geo", query, result)
-            permalink = url_for("history_view", kind="geo", hid=hid, _external=True)
+            permalink = url_for("history_view", kind="geo", hid=hid, _external=True) if hid else None
 
         except Exception:
             app.logger.exception("GeoIP error")
@@ -2053,7 +2087,7 @@ def reverse_lookup():
                 result = cache_json(cache_key, 300, _compute_reverse_host)
 
             hid = save_history("reverse", query, result)
-            permalink = url_for("history_view", kind="reverse", hid=hid, _external=True)
+            permalink = url_for("history_view", kind="reverse", hid=hid, _external=True) if hid else None
 
         except ValueError as ve:
             error = str(ve)
@@ -2109,6 +2143,9 @@ def security_tools():
                     port_error = job.get('error') or _('Scan failed.')
                 else:
                     wp_error = job.get('error') or _('Scan failed.')
+        elif job_id:
+            security_error = _('Scan job was not found. Please start the check again.')
+            job_id = ''
 
     # Submit new async job
     if request.method == 'POST' and not job_id and (host or wp_url_raw):
