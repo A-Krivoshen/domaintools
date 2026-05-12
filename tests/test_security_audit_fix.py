@@ -88,6 +88,39 @@ class SecurityAuditFixTests(unittest.TestCase):
             app_module._execute_security_job = original_execute
 
 
+    def test_security_post_prefers_form_fields_over_empty_query_params(self):
+        app_module._SECURITY_ASYNC_POOL = _ImmediatePool()
+        captured = {}
+
+        def _fake_execute(job_id, job_kind, payload):
+            captured['kind'] = job_kind
+            captured['payload'] = dict(payload)
+            app_module._save_security_job(job_id, {
+                'status': 'done',
+                'kind': job_kind,
+                'payload': payload,
+                'result': {'ok': True},
+                'error': None,
+                'error_code': None,
+                'duration_ms': 1,
+                'permalink': None,
+            })
+
+        original_execute = app_module._execute_security_job
+        app_module._execute_security_job = _fake_execute
+        try:
+            r = self.client.post(
+                '/security?scan=ports&host=&ports=',
+                data={'scan': 'ports', 'host': 'example.com', 'ports': '80'},
+            )
+        finally:
+            app_module._execute_security_job = original_execute
+
+        self.assertIn(r.status_code, (301, 302))
+        self.assertEqual(captured.get('kind'), 'ports')
+        self.assertEqual(captured.get('payload', {}).get('host'), 'example.com')
+        self.assertEqual(captured.get('payload', {}).get('ports_raw'), '80')
+
     def test_security_invalid_host_returns_validation_error_without_request_context_failure(self):
         app_module._SECURITY_ASYNC_POOL = _ImmediatePool()
 

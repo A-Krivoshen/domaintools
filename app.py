@@ -2177,11 +2177,20 @@ def reverse_lookup():
 
 @app.route('/security', methods=['GET', 'POST'])
 def security_tools():
-    host = (request.values.get('host') or '').strip()
-    ports_raw = (request.values.get('ports') or '').strip()
-    scan_target = (request.values.get('scan') or '').strip().lower()
-    wp_url_raw = (request.values.get('wp_url') or '').strip()
-    job_id = (request.values.get('job') or '').strip()
+    def _security_value(name: str) -> str:
+        # On POST, prefer submitted form fields over query-string values from
+        # the current URL (for example /security?host=&ports=). Otherwise empty
+        # query params can shadow the user's actual form input and the page just
+        # re-renders, which looks like a blink with no result.
+        if request.method == 'POST' and name in request.form:
+            return (request.form.get(name) or '').strip()
+        return (request.args.get(name) or '').strip()
+
+    host = _security_value('host')
+    ports_raw = _security_value('ports')
+    scan_target = _security_value('scan').lower()
+    wp_url_raw = _security_value('wp_url')
+    job_id = _security_value('job')
 
     active_scan = 'wp' if scan_target == 'wp' else 'ports'
     port_result = None
