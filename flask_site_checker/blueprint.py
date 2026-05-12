@@ -276,12 +276,14 @@ def site_checker():
     if is_invalid and not error:
         error = "Проверьте корректность домена. Пример: example.com"
 
+    should_check = bool(domain) and not is_invalid and not error
+
     # вычисления
-    dns_list = resolve_dns(domain) if (domain and not is_invalid) else []
+    dns_list = resolve_dns(domain) if should_check else []
     dns_map = _group_dns(dns_list)
-    http_res = http_check(domain) if (domain and not is_invalid) else {"http_code": 0, "url": None, "error": None}
-    ip_info = ip_info_for_domain(domain) if (domain and not is_invalid) else {"ip": None, "org": None, "country": None, "city": None, "error": None}
-    if domain and not is_invalid:
+    http_res = http_check(domain) if should_check else {"http_code": 0, "url": None, "error": None}
+    ip_info = ip_info_for_domain(domain) if should_check else {"ip": None, "org": None, "country": None, "city": None, "error": None}
+    if should_check:
         _get_rkn_cached()
         rkn_flag = is_in_rkn(domain, _RKN_CACHE.get("data_set"))
     else:
