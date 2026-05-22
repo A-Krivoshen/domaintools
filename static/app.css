@@ -314,7 +314,8 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
 
 .before-footer-ad .wps-widget,
 .before-footer-ad [id^="yandex_rtb_"] {
-  width: min(100%, 728px);
+  width: 100%;
+  max-width: 100%;
   margin-inline: auto;
 }
 
