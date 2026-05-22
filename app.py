@@ -872,6 +872,24 @@ def lookup_domain(domain: str):
         q=quote(clean, safe=""),
     )
 
+
+@app.get("/lookup/whois/<path:domain>")
+def lookup_whois_domain(domain: str):
+    clean = (domain or "").strip().lower().rstrip(".")
+    clean = re.sub(r"[^a-zа-яё0-9.-]", "", clean)
+    if not clean or len(clean) > 253 or "." not in clean:
+        abort(404)
+    try:
+        ascii_domain = idna.encode(clean).decode("ascii")
+    except Exception:
+        ascii_domain = clean
+    return render_template(
+        "whois_landing.html",
+        domain=clean,
+        domain_ascii=ascii_domain,
+        q=quote(clean, safe=""),
+    )
+
 # ---------- DOMAIN REPORT ----------
 def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
     wanted = ("A", "AAAA", "NS", "MX", "TXT")
