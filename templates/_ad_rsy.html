@@ -1,5 +1,15 @@
 <!-- templates/_ad_rsy.html -->
 <div class="before-footer-ad container my-4 d-flex justify-content-center" aria-label="{{ tr('Рекламный баннер', 'Ad banner') }}">
-  <script src="//wpwidget.ru/js/wps-widget-entry.min.js" async></script>
-  <div class="wps-widget" data-w="//wpwidget.ru/greetings?orientation=3&pid=11291"></div>
+  <!-- Yandex.RTB -->
+  <script>window.yaContextCb=window.yaContextCb||[]</script>
+  <script src="https://yandex.ru/ads/system/context.js" async></script>
+
+  <!-- Yandex.RTB C-A-2086160-2 -->
+  <div id="yandex_rtb_C-A-2086160-2"></div>
+  <script>window.yaContextCb.push(()=>{
+    Ya.Context.AdvManager.renderWidget({
+      renderTo: 'yandex_rtb_C-A-2086160-2',
+      blockId: 'C-A-2086160-2'
+    })
+  })</script>
 </div>
