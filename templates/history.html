@@ -26,22 +26,26 @@
 
           <a href="{{ it.view_url }}" class="stretched-link" aria-label="{{ tr('Открыть сохранённый результат', 'Open saved result') }}"></a>
 
-          <div class="mt-2 d-flex flex-wrap gap-2 position-relative" style="z-index:2;">
+          <div class="mt-2 d-flex flex-wrap gap-2 position-relative align-items-center" style="z-index:2;">
             {% if it.repeat_url %}
-              <a class="btn btn-sm btn-outline-primary" href="{{ it.repeat_url }}">{{ tr('Повторить', 'Repeat') }}</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ it.repeat_url }}">
+                <i class="fa-solid fa-rotate-right me-1" aria-hidden="true"></i>{{ tr('Повторить', 'Repeat') }}
+              </a>
             {% endif %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">{{ tr('Сохранённый результат', 'Saved result') }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">
+              <i class="fa-solid fa-bookmark me-1" aria-hidden="true"></i>{{ tr('Сохранённый результат', 'Saved result') }}
+            </a>
             {% if it.landing_url or it.whois_landing_url %}
-              <div class="dropdown">
-                <button class="btn btn-sm btn-outline-dark dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                  {{ tr('Ещё', 'More') }}
+              <div class="dropdown ms-auto ms-sm-0">
+                <button class="btn btn-sm btn-outline-dark dropdown-toggle text-nowrap" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  <i class="fa-solid fa-ellipsis me-1" aria-hidden="true"></i>{{ tr('Ещё', 'More') }}
                 </button>
-                <ul class="dropdown-menu">
+                <ul class="dropdown-menu dropdown-menu-end dropdown-menu-sm-start">
                   {% if it.landing_url %}
-                    <li><a class="dropdown-item" href="{{ it.landing_url }}">{{ tr('Обзор домена', 'Domain overview') }}</a></li>
+                    <li><a class="dropdown-item text-truncate" href="{{ it.landing_url }}"><i class="fa-solid fa-compass me-2" aria-hidden="true"></i>{{ tr('Обзор домена', 'Domain overview') }}</a></li>
                   {% endif %}
                   {% if it.whois_landing_url %}
-                    <li><a class="dropdown-item" href="{{ it.whois_landing_url }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a></li>
+                    <li><a class="dropdown-item text-truncate" href="{{ it.whois_landing_url }}"><i class="fa-solid fa-id-card me-2" aria-hidden="true"></i>{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a></li>
                   {% endif %}
                 </ul>
               </div>
