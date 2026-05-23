@@ -1934,6 +1934,11 @@ def _verify_form_recaptcha_if_needed() -> str | None:
     if not app.config.get("FORM_RECAPTCHA_ENABLED"):
         return None
 
+    # Report flow must remain linkable and tolerant to clients where
+    # captcha JS is blocked or race-conditions on submit.
+    if request.endpoint == "domain_report":
+        return None
+
     token = (request.values.get("recaptcha_token") or "").strip()
     if request.method != "POST" and not token:
         # keep GET permalink/repeat links working when no captcha token is present
