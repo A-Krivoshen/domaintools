@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('Проверка домена ' ~ domain ~ ' — DomainTools', 'Domain lookup for ' ~ domain ~ ' — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Быстрые проверки для домена ' ~ domain ~ ': WHOIS, DNS, сводный отчёт и проверка доступности зон.', 'Quick checks for ' ~ domain ~ ': WHOIS, DNS, domain report, and availability across TLDs.') }}{% endblock %}
+
+{% block content %}
+<section class="card-soft p-4 p-md-5 mb-3" style="background:linear-gradient(135deg,#f9f8ff,#eff5ff);border:1px solid #e2defe;">
+  <div class="small text-uppercase fw-semibold text-primary mb-2">Domain Landing</div>
+  <h1 class="h3 mb-2">{{ tr('Проверка домена: ', 'Domain lookup: ') }}<span class="text-primary">{{ domain }}</span></h1>
+  <p class="text-muted mb-3">{{ tr('Выберите инструмент для быстрого анализа домена.', 'Choose a tool for instant domain analysis.') }}</p>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{{ url_for('domain_report') }}?query={{ q }}">{{ tr('Сводный отчёт', 'Domain report') }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ q }}">WHOIS</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ q }}">DNS</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('domain_search') }}?query={{ q }}">{{ tr('Доступность домена', 'Domain availability') }}</a>
+    <a class="btn btn-outline-dark" href="{{ url_for('lookup_whois_domain', domain=domain) }}">{{ tr('WHOIS лендинг', 'WHOIS landing') }}</a>
+  </div>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": {{ (tr('Проверка домена ', 'Domain lookup ') ~ domain)|tojson }},
+  "inLanguage": {{ ('ru' if get_locale() == 'ru' else 'en')|tojson }},
+  "url": {{ request.url|tojson }},
+  "mainEntity": {
+    "@type": "Thing",
+    "name": {{ domain|tojson }},
+    "alternateName": {{ domain_ascii|tojson }}
+  }
+}
+</script>
+{% endblock %}
