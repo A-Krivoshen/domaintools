@@ -24,8 +24,6 @@
             {% endif %}
           </div>
 
-          <a href="{{ it.view_url }}" class="stretched-link" aria-label="{{ tr('Открыть сохранённый результат', 'Open saved result') }}"></a>
-
           <div class="mt-2 d-flex flex-wrap gap-2 position-relative align-items-center" style="z-index:2;">
             {% if it.repeat_url %}
               <a class="btn btn-sm btn-outline-primary" href="{{ it.repeat_url }}">
@@ -42,10 +40,22 @@
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end dropdown-menu-sm-start">
                   {% if it.landing_url %}
-                    <li><a class="dropdown-item text-truncate" href="{{ it.landing_url }}"><i class="fa-solid fa-compass me-2" aria-hidden="true"></i>{{ tr('Обзор домена', 'Domain overview') }}</a></li>
+                    <li>
+                      <a class="dropdown-item text-truncate" href="{{ it.landing_url }}">
+                        <i class="fa-solid fa-compass me-2" aria-hidden="true"></i>
+                        <span class="d-inline d-sm-none">{{ tr('Обзор', 'Overview') }}</span>
+                        <span class="d-none d-sm-inline">{{ tr('Обзор домена', 'Domain overview') }}</span>
+                      </a>
+                    </li>
                   {% endif %}
                   {% if it.whois_landing_url %}
-                    <li><a class="dropdown-item text-truncate" href="{{ it.whois_landing_url }}"><i class="fa-solid fa-id-card me-2" aria-hidden="true"></i>{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a></li>
+                    <li>
+                      <a class="dropdown-item text-truncate" href="{{ it.whois_landing_url }}">
+                        <i class="fa-solid fa-id-card me-2" aria-hidden="true"></i>
+                        <span class="d-inline d-sm-none">WHOIS</span>
+                        <span class="d-none d-sm-inline">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</span>
+                      </a>
+                    </li>
                   {% endif %}
                 </ul>
               </div>
