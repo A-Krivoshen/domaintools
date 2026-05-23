@@ -1084,11 +1084,14 @@ def domain_report():
                 elif job_status == "failed":
                     error = str(job.get("error") or _("Failed to build domain report."))
 
-    if request.method == "POST" and query and not job_id:
-        captcha_error = _verify_form_recaptcha_if_needed()
-        if captcha_error:
-            error = captcha_error
-        else:
+    should_run = query and not job_id and request.method in {"GET", "POST"}
+    if should_run:
+        if request.method == "POST":
+            captcha_error = _verify_form_recaptcha_if_needed()
+            if captcha_error:
+                error = captcha_error
+
+        if not error:
             try:
                 raw_items = re.split(r"[\s,;]+", query)
                 uniq_items = [x for x in dict.fromkeys(i.strip() for i in raw_items if i.strip())]
@@ -2469,6 +2472,12 @@ def history_list():
         else:
             repeat_url = None
 
+        landing_url = None
+        whois_landing_url = None
+        if q and "." in q and kind in {"dns", "whois", "report", "geo", "reverse"}:
+            landing_url = url_for("lookup_domain", domain=q)
+            whois_landing_url = url_for("lookup_whois_domain", domain=q)
+
         items.append({
             "id": hid,
             "kind": kind,
@@ -2476,6 +2485,8 @@ def history_list():
             "ts": doc.get("ts"),
             "view_url": view_url,
             "repeat_url": repeat_url,
+            "landing_url": landing_url,
+            "whois_landing_url": whois_landing_url,
         })
 
     return render_template("history.html", items=items, history_error=history_error)

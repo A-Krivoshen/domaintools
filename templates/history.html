@@ -30,7 +30,13 @@
             {% if it.repeat_url %}
               <a class="btn btn-sm btn-outline-primary me-2" href="{{ it.repeat_url }}">{{ tr('Повторить', 'Repeat') }}</a>
             {% endif %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">{{ tr('Сохранённый результат', 'Saved result') }}</a>
+            <a class="btn btn-sm btn-outline-secondary me-2" href="{{ it.view_url }}">{{ tr('Сохранённый результат', 'Saved result') }}</a>
+            {% if it.landing_url %}
+              <a class="btn btn-sm btn-outline-dark me-2" href="{{ it.landing_url }}">{{ tr('Лендинг домена', 'Domain landing') }}</a>
+            {% endif %}
+            {% if it.whois_landing_url %}
+              <a class="btn btn-sm btn-outline-dark" href="{{ it.whois_landing_url }}">{{ tr('WHOIS лендинг', 'WHOIS landing') }}</a>
+            {% endif %}
           </div>
         </div>
       {% endfor %}
