@@ -49,6 +49,7 @@
         {% if query %}<a href="{{ url_for('domain_search') }}?query={{ query }}">{{ tr('Подобрать домен', 'Find domains') }}</a>{% endif %}
         {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
+      {% include "_action_bar_hint.html" %}
     {% endif %}
     <p class="small text-muted">{{ tr('Выбрано типов:', 'Selected types:') }} {{ selected_types|length }} ({{ selected_types|join(', ') }})</p>
 

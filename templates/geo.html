@@ -34,6 +34,7 @@
     {% if permalink %}<a href="/export/geo/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
     {% if permalink %}<a href="/export/geo/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
   </div>
+  {% include "_action_bar_hint.html" %}
   <div class="table-responsive">
     <table class="table table-sm align-middle">
       <tbody>
