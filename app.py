@@ -1084,14 +1084,12 @@ def domain_report():
                 elif job_status == "failed":
                     error = str(job.get("error") or _("Failed to build domain report."))
 
-    should_run = query and not job_id and request.method in {"GET", "POST"}
+    should_run = bool(query and not job_id and request.method == "POST")
     if should_run:
-        if request.method == "POST":
-            captcha_error = _verify_form_recaptcha_if_needed()
-            if captcha_error:
-                error = captcha_error
-
-        if not error:
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            error = captcha_error
+        else:
             try:
                 raw_items = re.split(r"[\s,;]+", query)
                 uniq_items = [x for x in dict.fromkeys(i.strip() for i in raw_items if i.strip())]
