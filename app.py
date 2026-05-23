@@ -931,12 +931,33 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
         pass
 
     # Дополняем данными из сырого whois-текста даже если python-whois вернул частичный объект.
+    # Для RU/SU/РФ это часто единственный стабильный источник registrar/created/paid-till.
     if maybe_text:
-        parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(host_ascii, maybe_text)
-        if parsed:
+        parsed_ru = _parse_ru_whois_text(maybe_text)
+        parsed_generic = parse_whois_text(host_ascii, maybe_text)
+        for parsed in (parsed_ru, parsed_generic):
+            if not parsed:
+                continue
             for key, val in parsed.items():
                 if not data.get(key) and val:
                     data[key] = val
+
+    # При необходимости извлекаем ключевые поля прямо из сырого текста.
+    # Часто встречается при tcinet/whois.su выдачах.
+    if maybe_text:
+        txt = maybe_text
+        if not data.get("registrar"):
+            m = re.search(r"(?im)^\s*registrar\s*:\s*(.+?)\s*$", txt)
+            if m:
+                data["registrar"] = m.group(1).strip()
+        if not data.get("creation_date"):
+            m = re.search(r"(?im)^\s*created\s*:\s*(.+?)\s*$", txt)
+            if m:
+                data["creation_date"] = m.group(1).strip()
+        if not data.get("expiration_date"):
+            m = re.search(r"(?im)^\s*paid-till\s*:\s*(.+?)\s*$", txt)
+            if m:
+                data["expiration_date"] = m.group(1).strip()
 
     # Нормализуем частые алиасы полей (у разных whois-источников они отличаются).
     alias_map = {
