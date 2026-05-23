@@ -51,9 +51,13 @@
         <span class="text-muted small">({{ one.domain }})</span>
       {% endif %}
     </h2>
-    {% if one.permalink %}
-      <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
-    {% endif %}
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ one.domain }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('DNS-записи', 'DNS records') }}</a>
+      {% if one.permalink %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
+      {% endif %}
+    </div>
   </div>
 
   <div class="row g-3">
