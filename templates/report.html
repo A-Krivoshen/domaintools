@@ -7,7 +7,7 @@
   <h1 class="h3 mb-3">{{ tr('Сводный отчёт по домену', 'Domain report') }}</h1>
   <p class="text-muted mb-3">{{ tr('Один запуск: DNS, WHOIS, GeoIP и Reverse (по первому IP). Поддерживается пакетная проверка через пробел/запятую.', 'Single run: DNS, WHOIS, GeoIP, and Reverse (by first IP). Batch mode is supported via space/comma.') }}</p>
 
-  <form method="post" action="{{ url_for('domain_report') }}" class="row g-2 align-items-center">
+  <form method="post" action="{{ url_for('domain_report') }}" class="row g-2 align-items-center" data-report-form>
     <div class="col-12 col-md-9">
       <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com пример.рф site.ru" aria-label="{{ tr('Домен', 'Domain') }}">
     </div>
@@ -17,6 +17,7 @@
     <div class="col-12">
       <div class="form-text">{{ tr('Максимум доменов за раз:', 'Max domains per batch:') }} {{ batch_max }}</div>
     </div>
+    <input type="hidden" name="recaptcha_token" value="">
   </form>
 
   {% if error %}
@@ -50,9 +51,16 @@
         <span class="text-muted small">({{ one.domain }})</span>
       {% endif %}
     </h2>
-    {% if one.permalink %}
-      <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
-    {% endif %}
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ one.domain }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('DNS-записи', 'DNS records') }}</a>
+      {% if one.permalink %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
+      {% endif %}
+    </div>
+  </div>
+  <div class="small text-muted mb-2">
+    {{ tr('Порядок действий: связанные инструменты → постоянная ссылка.', 'Action order: related tools → permalink.') }}
   </div>
 
   <div class="row g-3">
@@ -123,5 +131,38 @@
   </div>
 </section>
   {% endfor %}
+{% endif %}
+{% if config.get('FORM_RECAPTCHA_ENABLED') and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
+<script>
+  (function () {
+    const form = document.querySelector('form[data-report-form]');
+    if (!form) return;
+    const siteKey = {{ (config.get('SECURITY_RECAPTCHA_SITE_KEY') or '')|tojson }};
+    const actionName = {{ (config.get('FORM_RECAPTCHA_ACTION') or 'form_submit')|tojson }};
+    const isEnterprise = {{ ((config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise')|tojson }};
+    const tokenInput = form.querySelector('input[name="recaptcha_token"]');
+
+    form.addEventListener('submit', function (ev) {
+      if (form.dataset.recaptchaReady === '1') return;
+      ev.preventDefault();
+      const recaptchaApi = isEnterprise ? (window.grecaptcha && window.grecaptcha.enterprise) : window.grecaptcha;
+      if (!recaptchaApi || !window.grecaptcha || !siteKey) {
+        form.dataset.recaptchaReady = '1';
+        form.submit();
+        return;
+      }
+      recaptchaApi.ready(function () {
+        recaptchaApi.execute(siteKey, {action: actionName}).then(function (token) {
+          tokenInput.value = token || '';
+          form.dataset.recaptchaReady = '1';
+          form.submit();
+        }).catch(function () {
+          form.dataset.recaptchaReady = '1';
+          form.submit();
+        });
+      });
+    });
+  })();
+</script>
 {% endif %}
 {% endblock %}
