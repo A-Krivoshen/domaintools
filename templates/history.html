@@ -26,12 +26,32 @@
 
           <a href="{{ it.view_url }}" class="stretched-link" aria-label="{{ tr('Открыть сохранённый результат', 'Open saved result') }}"></a>
 
-          <div class="mt-2">
+          <div class="mt-2 d-flex flex-wrap gap-2 position-relative" style="z-index:2;">
             {% if it.repeat_url %}
-              <a class="btn btn-sm btn-outline-primary me-2" href="{{ it.repeat_url }}">{{ tr('Повторить', 'Repeat') }}</a>
+              <a class="btn btn-sm btn-outline-primary" href="{{ it.repeat_url }}">{{ tr('Повторить', 'Repeat') }}</a>
             {% endif %}
             <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">{{ tr('Сохранённый результат', 'Saved result') }}</a>
+            {% if it.landing_url or it.whois_landing_url %}
+              <div class="dropdown">
+                <button class="btn btn-sm btn-outline-dark dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                  {{ tr('Ещё', 'More') }}
+                </button>
+                <ul class="dropdown-menu">
+                  {% if it.landing_url %}
+                    <li><a class="dropdown-item" href="{{ it.landing_url }}">{{ tr('Обзор домена', 'Domain overview') }}</a></li>
+                  {% endif %}
+                  {% if it.whois_landing_url %}
+                    <li><a class="dropdown-item" href="{{ it.whois_landing_url }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a></li>
+                  {% endif %}
+                </ul>
+              </div>
+            {% endif %}
           </div>
+          {% if it.landing_url or it.whois_landing_url %}
+            <div class="small text-muted mt-2">
+              {{ tr('Обзор домена: общий хаб (отчёт, DNS, WHOIS). Регистрация (WHOIS): фокус на данных о владельце и статусах.', 'Domain overview: general hub (report, DNS, WHOIS). Registration (WHOIS): focused on ownership and status details.') }}
+            </div>
+          {% endif %}
         </div>
       {% endfor %}
     </div>

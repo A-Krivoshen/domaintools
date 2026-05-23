@@ -45,9 +45,9 @@
     <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ query }}</code></h2>
     {% if permalink or query %}
       <div class="tool-actions d-flex flex-wrap gap-3 small mb-2">
-        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
         {% if query %}<a href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
         {% if query %}<a href="{{ url_for('domain_search') }}?query={{ query }}">{{ tr('Подобрать домен', 'Find domains') }}</a>{% endif %}
+        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
     {% endif %}
     <p class="small text-muted">{{ tr('Выбрано типов:', 'Selected types:') }} {{ selected_types|length }} ({{ selected_types|join(', ') }})</p>
