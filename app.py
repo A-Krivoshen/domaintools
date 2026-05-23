@@ -930,6 +930,17 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     except Exception:
         pass
 
+    # Некоторые провайдеры/окружения не отдают полезный stdout в whois CLI,
+    # но python-whois может вернуть сырой текст в поле `text`.
+    if not maybe_text:
+        txt = data.get("text")
+        if isinstance(txt, str) and txt.strip():
+            maybe_text = txt
+        elif isinstance(txt, (list, tuple)):
+            joined = "\n".join(str(x) for x in txt if x)
+            if joined.strip():
+                maybe_text = joined
+
     # Дополняем данными из сырого whois-текста даже если python-whois вернул частичный объект.
     # Для RU/SU/РФ это часто единственный стабильный источник registrar/created/paid-till.
     if maybe_text:
