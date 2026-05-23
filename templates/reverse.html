@@ -29,9 +29,9 @@
     {% endif %}
     {% if permalink or query %}
       <div class="tool-actions d-flex flex-wrap gap-3 small mb-3">
-        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
         {% if query %}<a href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
         {% if query %}<a href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
+        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
     {% endif %}
 
