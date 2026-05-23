@@ -107,7 +107,7 @@
           {% if it.error %}<div class="small text-muted">{{ it.error }}</div>{% endif %}
         </td>
         <td class="text-end">
-          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('lookup_domain', domain=it.fqdn) }}">{{ tr('Лендинг', 'Landing') }}</a>
+          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('lookup_domain', domain=it.fqdn) }}">{{ tr('Обзор домена', 'Domain overview') }}</a>
           {% if it.available %}
             <a class="btn btn-sm btn-success"
                href="{{ buy_base.format(domain=it.fqdn) }}"

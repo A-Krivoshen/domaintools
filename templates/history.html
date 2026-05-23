@@ -32,12 +32,17 @@
             {% endif %}
             <a class="btn btn-sm btn-outline-secondary me-2" href="{{ it.view_url }}">{{ tr('Сохранённый результат', 'Saved result') }}</a>
             {% if it.landing_url %}
-              <a class="btn btn-sm btn-outline-dark me-2" href="{{ it.landing_url }}">{{ tr('Лендинг домена', 'Domain landing') }}</a>
+              <a class="btn btn-sm btn-outline-dark me-2" href="{{ it.landing_url }}">{{ tr('Обзор домена', 'Domain overview') }}</a>
             {% endif %}
             {% if it.whois_landing_url %}
-              <a class="btn btn-sm btn-outline-dark" href="{{ it.whois_landing_url }}">{{ tr('WHOIS лендинг', 'WHOIS landing') }}</a>
+              <a class="btn btn-sm btn-outline-dark" href="{{ it.whois_landing_url }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>
             {% endif %}
           </div>
+          {% if it.landing_url or it.whois_landing_url %}
+            <div class="small text-muted mt-2">
+              {{ tr('Обзор домена: общий хаб (отчёт, DNS, WHOIS). Регистрация (WHOIS): фокус на данных о владельце и статусах.', 'Domain overview: general hub (report, DNS, WHOIS). Registration (WHOIS): focused on ownership and status details.') }}
+            </div>
+          {% endif %}
         </div>
       {% endfor %}
     </div>
