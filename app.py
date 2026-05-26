@@ -10,7 +10,8 @@ import io
 import csv
 import subprocess
 import uuid
-from urllib.parse import urlencode, urlparse, urljoin
+import random
+from urllib.parse import urlencode, urlparse, urljoin, quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime, timezone
@@ -806,38 +807,97 @@ def robots():
 
 @app.get("/sitemap.xml")
 def sitemap():
-    base_urls = [
-        url_for("index", _external=True),
-        url_for("domain_report", _external=True),
-        url_for("dns_lookup", _external=True),
-        url_for("whois_lookup", _external=True),
-        url_for("geo_lookup", _external=True),
-        url_for("domain_search", _external=True),
-        url_for("reverse_lookup", _external=True),
-        url_for("history_list", _external=True),
-        url_for("security_tools", _external=True),
+    base_paths = [
+        url_for("index"),
+        url_for("domain_report"),
+        url_for("dns_lookup"),
+        url_for("whois_lookup"),
+        url_for("geo_lookup"),
+        url_for("domain_search"),
+        url_for("reverse_lookup"),
+        url_for("history_list"),
+        url_for("security_tools"),
         # ссылка на маршрут блюпринта
-        url_for("site_checker.site_checker", _external=True),
+        url_for("site_checker.site_checker"),
     ]
     keys = r.zrevrange(HIST_ZSET, 0, 199)
-    hist_urls = []
+    hist_paths = []
     for s in keys:
         pair = _split_kind_id(s)
         if not pair:
             continue
         kind, hid = pair
-        hist_urls.append(url_for("history_view", kind=kind, hid=hid, _external=True))
+        hist_paths.append(url_for("history_view", kind=kind, hid=hid))
 
-    xml = ['<?xml version="1.0" encoding="UTF-8"?>',
-           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-    for u in base_urls + hist_urls:
-        xml.append(f"<url><loc>{u}</loc></url>")
+    xml = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
+    ]
+    root = request.url_root.rstrip("/")
+    now_iso = datetime.now(timezone.utc).date().isoformat()
+    for path in base_paths + hist_paths:
+        loc = f"{root}{path}"
+        loc_ru = f"{loc}?lang=ru"
+        loc_en = f"{loc}?lang=en"
+        xml.append("<url>")
+        xml.append(f"<loc>{loc}</loc>")
+        xml.append(f"<lastmod>{now_iso}</lastmod>")
+        xml.append("<changefreq>daily</changefreq>")
+        xml.append("<priority>0.8</priority>")
+        xml.append(f'<xhtml:link rel="alternate" hreflang="ru" href="{loc_ru}" />')
+        xml.append(f'<xhtml:link rel="alternate" hreflang="en" href="{loc_en}" />')
+        xml.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{loc}" />')
+        xml.append("</url>")
     xml.append("</urlset>")
     return Response("\n".join(xml), mimetype="application/xml")
 
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/lookup/<path:domain>")
+def lookup_domain(domain: str):
+    clean = (domain or "").strip().lower().rstrip(".")
+    clean = re.sub(r"[^a-zа-яё0-9.-]", "", clean)
+    if not clean or len(clean) > 253 or "." not in clean:
+        abort(404)
+    try:
+        ascii_domain = idna.encode(clean).decode("ascii")
+    except Exception:
+        ascii_domain = clean
+    try:
+        return render_template(
+            "lookup_landing.html",
+            domain=clean,
+            domain_ascii=ascii_domain,
+            q=quote(clean, safe=""),
+        )
+    except Exception:
+        app.logger.exception("Lookup landing render failed for %s", clean)
+        return redirect(url_for("domain_report", q=clean), code=302)
+
+
+@app.get("/lookup/whois/<path:domain>")
+def lookup_whois_domain(domain: str):
+    clean = (domain or "").strip().lower().rstrip(".")
+    clean = re.sub(r"[^a-zа-яё0-9.-]", "", clean)
+    if not clean or len(clean) > 253 or "." not in clean:
+        abort(404)
+    try:
+        ascii_domain = idna.encode(clean).decode("ascii")
+    except Exception:
+        ascii_domain = clean
+    try:
+        return render_template(
+            "whois_landing.html",
+            domain=clean,
+            domain_ascii=ascii_domain,
+            q=quote(clean, safe=""),
+        )
+    except Exception:
+        app.logger.exception("WHOIS lookup landing render failed for %s", clean)
+        return redirect(url_for("whois_lookup", query=clean), code=302)
 
 # ---------- DOMAIN REPORT ----------
 def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
@@ -869,6 +929,15 @@ def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
 def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     data: Dict[str, object] = {}
     maybe_text = _whois_call(["whois", "-H", host_ascii], timeout=12)
+    source_flags = {
+        "cli_text": bool((maybe_text or "").strip()),
+        "pywhois_text": False,
+        "ru_parser": False,
+        "generic_parser": False,
+        "regex_registrar": False,
+        "regex_created": False,
+        "regex_paid_till": False,
+    }
     try:
         w = whois.whois(host_ascii)
         for k, v in w.__dict__.items():
@@ -879,13 +948,52 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     except Exception:
         pass
 
+    # Некоторые провайдеры/окружения не отдают полезный stdout в whois CLI,
+    # но python-whois может вернуть сырой текст в поле `text`.
+    if not maybe_text:
+        txt = data.get("text")
+        if isinstance(txt, str) and txt.strip():
+            maybe_text = txt
+            source_flags["pywhois_text"] = True
+        elif isinstance(txt, (list, tuple)):
+            joined = "\n".join(str(x) for x in txt if x)
+            if joined.strip():
+                maybe_text = joined
+                source_flags["pywhois_text"] = True
+
     # Дополняем данными из сырого whois-текста даже если python-whois вернул частичный объект.
+    # Для RU/SU/РФ это часто единственный стабильный источник registrar/created/paid-till.
     if maybe_text:
-        parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(host_ascii, maybe_text)
-        if parsed:
+        parsed_ru = _parse_ru_whois_text(maybe_text)
+        parsed_generic = parse_whois_text(host_ascii, maybe_text)
+        source_flags["ru_parser"] = bool(parsed_ru)
+        source_flags["generic_parser"] = bool(parsed_generic)
+        for parsed in (parsed_ru, parsed_generic):
+            if not parsed:
+                continue
             for key, val in parsed.items():
                 if not data.get(key) and val:
                     data[key] = val
+
+    # При необходимости извлекаем ключевые поля прямо из сырого текста.
+    # Часто встречается при tcinet/whois.su выдачах.
+    if maybe_text:
+        txt = maybe_text
+        if not data.get("registrar"):
+            m = re.search(r"(?im)^\s*registrar\s*:\s*(.+?)\s*$", txt)
+            if m:
+                data["registrar"] = m.group(1).strip()
+                source_flags["regex_registrar"] = True
+        if not data.get("creation_date"):
+            m = re.search(r"(?im)^\s*created\s*:\s*(.+?)\s*$", txt)
+            if m:
+                data["creation_date"] = m.group(1).strip()
+                source_flags["regex_created"] = True
+        if not data.get("expiration_date"):
+            m = re.search(r"(?im)^\s*paid-till\s*:\s*(.+?)\s*$", txt)
+            if m:
+                data["expiration_date"] = m.group(1).strip()
+                source_flags["regex_paid_till"] = True
 
     # Нормализуем частые алиасы полей (у разных whois-источников они отличаются).
     alias_map = {
@@ -914,6 +1022,15 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     du = _to_unicode(host_ascii)
     if du and du != host_ascii:
         data["domain_unicode"] = du
+
+    app.logger.info(
+        "WHOIS report summary for %s: registrar=%s creation=%s expiration=%s sources=%s",
+        host_ascii,
+        bool(data.get("registrar")),
+        bool(data.get("creation_date")),
+        bool(data.get("expiration_date")),
+        source_flags,
+    )
     return data
 
 
@@ -962,10 +1079,18 @@ def _report_reverse_summary(ip: str | None) -> Dict[str, object]:
 def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object]:
     dns_part = cache_json(f"cache:report:dns:{host_ascii}", REPORT_DNS_TTL_S, lambda: _report_dns_summary(host_ascii))
     whois_part = cache_json(f"cache:report:whois:{host_ascii}", REPORT_WHOIS_TTL_S, lambda: _report_whois_summary(host_ascii))
-    if not (whois_part or {}).get("registrar"):
+    whois_missing_core = any(
+        not (whois_part or {}).get(k)
+        for k in ("registrar", "creation_date", "expiration_date")
+    )
+    if whois_missing_core:
         fresh_whois = _report_whois_summary(host_ascii)
-        if (fresh_whois or {}).get("registrar"):
-            whois_part = fresh_whois
+        if fresh_whois:
+            merged = dict(whois_part or {})
+            for k, v in fresh_whois.items():
+                if v and not merged.get(k):
+                    merged[k] = v
+            whois_part = merged
     first_ip = (dns_part.get("ips") or [None])[0]
     geo_part = cache_json(
         f"cache:report:geo:{first_ip or 'none'}",
@@ -998,7 +1123,11 @@ def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> N
         for d in domains:
             report = cache_json(f"cache:report:full:{d}", REPORT_FULL_TTL_S, lambda d=d: _build_domain_report(d, source_input))
             whois_block = (report or {}).get("whois") if isinstance(report, dict) else {}
-            if not (whois_block or {}).get("registrar"):
+            whois_missing_core = any(
+                not (whois_block or {}).get(k)
+                for k in ("registrar", "creation_date", "expiration_date")
+            )
+            if whois_missing_core:
                 report = _build_domain_report(d, source_input)
             hid = save_history("report", d, report)
             if hid:
@@ -1033,7 +1162,8 @@ def domain_report():
                 elif job_status == "failed":
                     error = str(job.get("error") or _("Failed to build domain report."))
 
-    if request.method == "POST" and query and not job_id:
+    should_run = bool(query and not job_id and request.method == "POST")
+    if should_run:
         captcha_error = _verify_form_recaptcha_if_needed()
         if captcha_error:
             error = captcha_error
@@ -2418,6 +2548,12 @@ def history_list():
         else:
             repeat_url = None
 
+        landing_url = None
+        whois_landing_url = None
+        if q and "." in q and kind in {"dns", "whois", "report", "geo", "reverse"}:
+            landing_url = url_for("lookup_domain", domain=q)
+            whois_landing_url = url_for("lookup_whois_domain", domain=q)
+
         items.append({
             "id": hid,
             "kind": kind,
@@ -2425,6 +2561,8 @@ def history_list():
             "ts": doc.get("ts"),
             "view_url": view_url,
             "repeat_url": repeat_url,
+            "landing_url": landing_url,
+            "whois_landing_url": whois_landing_url,
         })
 
     return render_template("history.html", items=items, history_error=history_error)

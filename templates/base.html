@@ -255,6 +255,7 @@
       const isEnterprise = {{ ((config.get('SECURITY_RECAPTCHA_PROVIDER') or 'standard') == 'enterprise')|tojson }};
 
       forms.forEach((form) => {
+        if (form.hasAttribute('data-no-global-recaptcha')) return;
         const method = (form.getAttribute('method') || 'get').toLowerCase();
         if (method !== 'get' && method !== 'post') return;
         if (!form.querySelector('input[type="text"], input[type="search"], input[type="url"], textarea')) return;
