@@ -307,10 +307,28 @@ def inject_babel_helpers():
     def _tr(ru_text: str, en_text: str) -> str:
         return en_text if str(babel_get_locale() or "ru") == "en" else ru_text
 
+    beget_banner_sources = [
+        "https://cp.beget.com/promo_data/static/970x90-14.png",
+        "https://cp.beget.com/promo_data/static/970x90-13.png",
+        "https://cp.beget.com/promo_data/static/970x90-12.png",
+        "https://cp.beget.com/promo_data/static/970x90-11.png",
+        "https://cp.beget.com/promo_data/static/970x90-10.png",
+        "https://cp.beget.com/promo_data/static/970x90-9.png",
+        "https://cp.beget.com/promo_data/static/970x90-8.png",
+        "https://cp.beget.com/promo_data/static/970x90-6.png",
+        "https://cp.beget.com/promo_data/static/970x90-5.png",
+        "https://cp.beget.com/promo_data/static/970x90-4.png",
+        "https://cp.beget.com/promo_data/static/970x90-3.png",
+        "https://cp.beget.com/promo_data/static/970x90-2.png",
+        "https://cp.beget.com/promo_data/static/970x90-1.png",
+        "https://cp.beget.com/promo_data/static/970x90.png",
+    ]
+
     return {
         "get_locale": (lambda: str(babel_get_locale() or "ru")),
         "lang_url": _lang_url,
         "tr": _tr,
+        "beget_banner_src": random.choice(beget_banner_sources),
     }
 
 
@@ -2007,6 +2025,11 @@ def _recaptcha_setup_status() -> Tuple[bool, str | None]:
 def _verify_form_recaptcha_if_needed() -> str | None:
     """Validate captcha for generic data-entry forms when enabled."""
     if not app.config.get("FORM_RECAPTCHA_ENABLED"):
+        return None
+
+    # Report flow must remain linkable and tolerant to clients where
+    # captcha JS is blocked or race-conditions on submit.
+    if request.endpoint == "domain_report":
         return None
 
     token = (request.values.get("recaptcha_token") or "").strip()
