@@ -312,17 +312,6 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   width: 100%;
 }
 
-.before-footer-ad .wps-widget {
-  width: 100%;
-  max-width: 390px; /* mobile-like baseline */
-}
-
-@media (min-width: 992px) {
-  .before-footer-ad .wps-widget {
-    max-width: 728px; /* wider desktop slot */
-  }
-}
-
 .ref-banner-link {
   display: flex;
   justify-content: center;
