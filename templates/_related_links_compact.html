@@ -1,0 +1,8 @@
+<div class="tool-actions d-flex flex-wrap gap-2 small mt-3">
+  <span class="text-muted me-1">{{ tr('Смотрите также:', 'See also:') }}</span>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}">DNS</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}">WHOIS</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('geo_lookup') }}">GeoIP</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('reverse_lookup') }}">Reverse</a>
+  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
+</div>

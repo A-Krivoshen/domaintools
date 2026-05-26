@@ -1,0 +1,32 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('WHOIS для ' ~ domain ~ ' — DomainTools', 'WHOIS for ' ~ domain ~ ' — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Проверка WHOIS для домена ' ~ domain ~ ': регистратор, даты и статус + быстрый переход в DNS и отчёт.', 'WHOIS lookup for ' ~ domain ~ ': registrar, dates, status, plus quick jump to DNS and full report.') }}{% endblock %}
+
+{% block content %}
+<section class="card-soft p-4 p-md-5 mb-3" style="background:linear-gradient(135deg,#f7fbff,#eef6ff);border:1px solid #dcecff;">
+  <div class="small text-uppercase fw-semibold text-primary mb-2">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</div>
+  <h1 class="h3 mb-2">{{ tr('WHOIS-проверка домена', 'WHOIS lookup for domain') }} <span class="text-primary">{{ domain }}</span></h1>
+  <p class="text-muted mb-3">{{ tr('Получите сведения о регистраторе, датах регистрации и статусе домена за один клик.', 'Get registrar data, registration dates, and domain status in one click.') }}</p>
+  <div class="d-flex flex-wrap gap-2">
+    <a class="btn btn-primary" href="{{ url_for('whois_lookup') }}?query={{ q }}">{{ tr('Открыть WHOIS', 'Open WHOIS') }}</a>
+    <a class="btn btn-outline-primary" href="{{ url_for('domain_report') }}?q={{ q }}">{{ tr('Сводный отчёт', 'Domain report') }}</a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ q }}">DNS</a>
+    <a class="btn btn-outline-dark" href="{{ url_for('lookup_domain', domain=domain) }}">{{ tr('Обзор домена', 'Domain overview') }}</a>
+  </div>
+  <div class="small text-muted mt-3">
+    {{ tr('Эта страница сфокусирована на регистрационных данных домена: владелец, регистратор, даты и статусы.', 'This page focuses on domain registration data: owner, registrar, dates, and statuses.') }}
+  </div>
+</section>
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebPage",
+  "name": {{ (tr('WHOIS для ', 'WHOIS for ') ~ domain)|tojson }},
+  "inLanguage": {{ ('ru' if get_locale() == 'ru' else 'en')|tojson }},
+  "url": {{ request.url|tojson }},
+  "about": {"@type":"Thing","name":{{ domain|tojson }},"alternateName":{{ domain_ascii|tojson }}},
+  "mainEntity": {"@type":"Service","name":"WHOIS"}
+}
+</script>
+{% endblock %}
