@@ -426,6 +426,11 @@ pre.code{background:#0b0f14;color:#e6edf3;border-radius:.5rem;padding:1rem;overf
   border-bottom: 1px dashed var(--bs-border-color);
 }
 
+/* Keep footer pinned without creating extra page-height overflow on short pages */
+.site-footer {
+  margin-top: auto !important;
+}
+
 .site-footer .footer-note,
 .site-footer .footer-analytics-label {
   color: var(--bs-secondary-color);
