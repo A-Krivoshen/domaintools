@@ -28,10 +28,10 @@
       <p class="text-muted small mb-1">ASCII: <code>{{ result.input_ascii }}</code></p>
     {% endif %}
     {% if permalink or query %}
-      <div class="tool-actions d-flex flex-wrap gap-2 small mb-3">
-        {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
-        {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
-        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      <div class="tool-actions d-flex flex-wrap gap-3 small mb-3">
+        {% if query %}<a href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+        {% if query %}<a href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
+        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
       {% include "_action_bar_hint.html" %}
     {% endif %}

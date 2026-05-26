@@ -44,10 +44,10 @@
   {% if result %}
     <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ query }}</code></h2>
     {% if permalink or query %}
-      <div class="tool-actions d-flex flex-wrap gap-2 small mb-2">
-        {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
-        {% if query %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('domain_search') }}?query={{ query }}">{{ tr('Подобрать домен', 'Find domains') }}</a>{% endif %}
-        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      <div class="tool-actions d-flex flex-wrap gap-3 small mb-2">
+        {% if query %}<a href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+        {% if query %}<a href="{{ url_for('domain_search') }}?query={{ query }}">{{ tr('Подобрать домен', 'Find domains') }}</a>{% endif %}
+        {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
       {% include "_action_bar_hint.html" %}
     {% endif %}
