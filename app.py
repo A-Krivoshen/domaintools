@@ -307,10 +307,28 @@ def inject_babel_helpers():
     def _tr(ru_text: str, en_text: str) -> str:
         return en_text if str(babel_get_locale() or "ru") == "en" else ru_text
 
+    beget_banner_sources = [
+        "https://cp.beget.com/promo_data/static/970x90-14.png",
+        "https://cp.beget.com/promo_data/static/970x90-13.png",
+        "https://cp.beget.com/promo_data/static/970x90-12.png",
+        "https://cp.beget.com/promo_data/static/970x90-11.png",
+        "https://cp.beget.com/promo_data/static/970x90-10.png",
+        "https://cp.beget.com/promo_data/static/970x90-9.png",
+        "https://cp.beget.com/promo_data/static/970x90-8.png",
+        "https://cp.beget.com/promo_data/static/970x90-6.png",
+        "https://cp.beget.com/promo_data/static/970x90-5.png",
+        "https://cp.beget.com/promo_data/static/970x90-4.png",
+        "https://cp.beget.com/promo_data/static/970x90-3.png",
+        "https://cp.beget.com/promo_data/static/970x90-2.png",
+        "https://cp.beget.com/promo_data/static/970x90-1.png",
+        "https://cp.beget.com/promo_data/static/970x90.png",
+    ]
+
     return {
         "get_locale": (lambda: str(babel_get_locale() or "ru")),
         "lang_url": _lang_url,
         "tr": _tr,
+        "beget_banner_src": random.choice(beget_banner_sources),
     }
 
 
@@ -865,12 +883,16 @@ def lookup_domain(domain: str):
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
-    return render_template(
-        "lookup_landing.html",
-        domain=clean,
-        domain_ascii=ascii_domain,
-        q=quote(clean, safe=""),
-    )
+    try:
+        return render_template(
+            "lookup_landing.html",
+            domain=clean,
+            domain_ascii=ascii_domain,
+            q=quote(clean, safe=""),
+        )
+    except Exception:
+        app.logger.exception("Lookup landing render failed for %s", clean)
+        return redirect(url_for("domain_report", q=clean), code=302)
 
 
 @app.get("/lookup/whois/<path:domain>")
@@ -883,12 +905,16 @@ def lookup_whois_domain(domain: str):
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
-    return render_template(
-        "whois_landing.html",
-        domain=clean,
-        domain_ascii=ascii_domain,
-        q=quote(clean, safe=""),
-    )
+    try:
+        return render_template(
+            "whois_landing.html",
+            domain=clean,
+            domain_ascii=ascii_domain,
+            q=quote(clean, safe=""),
+        )
+    except Exception:
+        app.logger.exception("WHOIS lookup landing render failed for %s", clean)
+        return redirect(url_for("whois_lookup", query=clean), code=302)
 
 # ---------- DOMAIN REPORT ----------
 def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
@@ -920,6 +946,15 @@ def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
 def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     data: Dict[str, object] = {}
     maybe_text = _whois_call(["whois", "-H", host_ascii], timeout=12)
+    source_flags = {
+        "cli_text": bool((maybe_text or "").strip()),
+        "pywhois_text": False,
+        "ru_parser": False,
+        "generic_parser": False,
+        "regex_registrar": False,
+        "regex_created": False,
+        "regex_paid_till": False,
+    }
     try:
         w = whois.whois(host_ascii)
         for k, v in w.__dict__.items():
@@ -936,16 +971,20 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
         txt = data.get("text")
         if isinstance(txt, str) and txt.strip():
             maybe_text = txt
+            source_flags["pywhois_text"] = True
         elif isinstance(txt, (list, tuple)):
             joined = "\n".join(str(x) for x in txt if x)
             if joined.strip():
                 maybe_text = joined
+                source_flags["pywhois_text"] = True
 
     # Дополняем данными из сырого whois-текста даже если python-whois вернул частичный объект.
     # Для RU/SU/РФ это часто единственный стабильный источник registrar/created/paid-till.
     if maybe_text:
         parsed_ru = _parse_ru_whois_text(maybe_text)
         parsed_generic = parse_whois_text(host_ascii, maybe_text)
+        source_flags["ru_parser"] = bool(parsed_ru)
+        source_flags["generic_parser"] = bool(parsed_generic)
         for parsed in (parsed_ru, parsed_generic):
             if not parsed:
                 continue
@@ -961,14 +1000,17 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
             m = re.search(r"(?im)^\s*registrar\s*:\s*(.+?)\s*$", txt)
             if m:
                 data["registrar"] = m.group(1).strip()
+                source_flags["regex_registrar"] = True
         if not data.get("creation_date"):
             m = re.search(r"(?im)^\s*created\s*:\s*(.+?)\s*$", txt)
             if m:
                 data["creation_date"] = m.group(1).strip()
+                source_flags["regex_created"] = True
         if not data.get("expiration_date"):
             m = re.search(r"(?im)^\s*paid-till\s*:\s*(.+?)\s*$", txt)
             if m:
                 data["expiration_date"] = m.group(1).strip()
+                source_flags["regex_paid_till"] = True
 
     # Нормализуем частые алиасы полей (у разных whois-источников они отличаются).
     alias_map = {
@@ -997,6 +1039,15 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     du = _to_unicode(host_ascii)
     if du and du != host_ascii:
         data["domain_unicode"] = du
+
+    app.logger.info(
+        "WHOIS report summary for %s: registrar=%s creation=%s expiration=%s sources=%s",
+        host_ascii,
+        bool(data.get("registrar")),
+        bool(data.get("creation_date")),
+        bool(data.get("expiration_date")),
+        source_flags,
+    )
     return data
 
 
@@ -1089,7 +1140,11 @@ def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> N
         for d in domains:
             report = cache_json(f"cache:report:full:{d}", REPORT_FULL_TTL_S, lambda d=d: _build_domain_report(d, source_input))
             whois_block = (report or {}).get("whois") if isinstance(report, dict) else {}
-            if not (whois_block or {}).get("registrar"):
+            whois_missing_core = any(
+                not (whois_block or {}).get(k)
+                for k in ("registrar", "creation_date", "expiration_date")
+            )
+            if whois_missing_core:
                 report = _build_domain_report(d, source_input)
             hid = save_history("report", d, report)
             if hid:

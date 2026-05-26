@@ -7,7 +7,7 @@
   <h1 class="h3 mb-3">{{ tr('Сводный отчёт по домену', 'Domain report') }}</h1>
   <p class="text-muted mb-3">{{ tr('Один запуск: DNS, WHOIS, GeoIP и Reverse (по первому IP). Поддерживается пакетная проверка через пробел/запятую.', 'Single run: DNS, WHOIS, GeoIP, and Reverse (by first IP). Batch mode is supported via space/comma.') }}</p>
 
-  <form method="post" action="{{ url_for('domain_report') }}" class="row g-2 align-items-center" data-report-form>
+  <form method="post" action="{{ url_for('domain_report') }}" class="row g-2 align-items-center" data-report-form data-no-global-recaptcha="1">
     <div class="col-12 col-md-9">
       <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com пример.рф site.ru" aria-label="{{ tr('Домен', 'Domain') }}">
     </div>

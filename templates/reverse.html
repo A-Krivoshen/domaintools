@@ -33,6 +33,7 @@
         {% if query %}<a href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
         {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
+      {% include "_action_bar_hint.html" %}
     {% endif %}
 
     {% if result.type == 'host' and result.forward %}
