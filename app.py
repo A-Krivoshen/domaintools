@@ -206,6 +206,11 @@ r = redis.from_url(app.config["REDIS_URL"], decode_responses=True)
 HIST_NS = "dt:history"
 HIST_ZSET = "dt:history:index"
 HIST_LIMIT = 5000
+SEO_DOMAIN_ZSET = "dt:seo:domains"
+SEO_DOMAIN_META_NS = "dt:seo:domainmeta"
+SITEMAP_DYNAMIC_DOMAIN_LIMIT = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_LIMIT", "1000"))
+SITEMAP_DYNAMIC_DOMAIN_MIN_HITS = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_MIN_HITS", "2"))
+SITEMAP_DYNAMIC_DOMAIN_TTL_S = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_TTL_S", str(90 * 24 * 3600)))
 
 
 def _redis_health() -> Dict[str, object]:
@@ -415,6 +420,26 @@ def load_history(kind: str, hid: str) -> Optional[Dict]:
         return json.loads(s)
     except Exception:
         return None
+
+
+def _track_domain_for_seo(domain: str) -> None:
+    """Track validated domains to build dynamic SEO sitemap entries."""
+    q = (domain or "").strip().lower()
+    if not q:
+        return
+    host_ascii, err = _normalize_domain_query(q)
+    if err or not host_ascii:
+        return
+    now = int(time.time())
+    meta_key = f"{SEO_DOMAIN_META_NS}:{host_ascii}"
+    try:
+        p = r.pipeline()
+        p.zincrby(SEO_DOMAIN_ZSET, 1, host_ascii)
+        p.hset(meta_key, mapping={"last_seen": now})
+        p.expire(meta_key, max(3600, SITEMAP_DYNAMIC_DOMAIN_TTL_S))
+        p.execute()
+    except Exception:
+        app.logger.debug("SEO domain tracking failed for %s", host_ascii)
 
 
 def _report_job_key(job_id: str) -> str:
@@ -847,13 +872,38 @@ def sitemap():
         kind, hid = pair
         hist_paths.append(url_for("history_view", kind=kind, hid=hid))
 
+    dynamic_domain_paths: List[str] = []
+    try:
+        top_domains = r.zrevrange(SEO_DOMAIN_ZSET, 0, max(0, SITEMAP_DYNAMIC_DOMAIN_LIMIT - 1), withscores=True)
+        now = int(time.time())
+        for d, score in top_domains:
+            try:
+                if float(score) < float(SITEMAP_DYNAMIC_DOMAIN_MIN_HITS):
+                    continue
+            except Exception:
+                continue
+            meta_key = f"{SEO_DOMAIN_META_NS}:{d}"
+            last_seen_raw = r.hget(meta_key, "last_seen")
+            if not last_seen_raw:
+                continue
+            try:
+                last_seen = int(last_seen_raw)
+            except Exception:
+                continue
+            if now - last_seen > SITEMAP_DYNAMIC_DOMAIN_TTL_S:
+                continue
+            dynamic_domain_paths.append(url_for("lookup_domain", domain=d))
+            dynamic_domain_paths.append(url_for("lookup_whois_domain", domain=d))
+    except Exception:
+        app.logger.debug("Dynamic SEO sitemap domain load failed")
+
     xml = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
     ]
     root = request.url_root.rstrip("/")
     now_iso = datetime.now(timezone.utc).date().isoformat()
-    for path in base_paths + hist_paths:
+    for path in base_paths + hist_paths + dynamic_domain_paths:
         loc = f"{root}{path}"
         loc_ru = f"{loc}?lang=ru"
         loc_en = f"{loc}?lang=en"
@@ -884,6 +934,7 @@ def lookup_domain(domain: str):
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
+    _track_domain_for_seo(ascii_domain)
     try:
         return render_template(
             "lookup_landing.html",
@@ -906,6 +957,7 @@ def lookup_whois_domain(domain: str):
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
+    _track_domain_for_seo(ascii_domain)
     try:
         return render_template(
             "whois_landing.html",
@@ -1205,6 +1257,8 @@ def domain_report():
                     if err or not host_ascii:
                         raise ValueError(err or _("Invalid domain name."))
                     normalized.append(host_ascii)
+                for d in normalized:
+                    _track_domain_for_seo(d)
 
                 client_ip = _client_ip()
                 limit = _report_limit_for_ip(client_ip)
@@ -1343,6 +1397,7 @@ def dns_lookup():
         fetch(rt)
 
     result = {"domain": query, "has_records": bool(records), "records": records}
+    _track_domain_for_seo(query)
     permalink = url_for("dns_lookup", q=query, types=selected_types, _external=False)
 
     return render_template(
@@ -2175,6 +2230,7 @@ def whois_lookup():
         data = cache_json(cache_key, ttl, _compute_whois)
 
         hid = save_history("whois", q, data)
+        _track_domain_for_seo(q)
         permalink = url_for("history_view", kind="whois", hid=hid, _external=True) if hid else None
 
     except ValueError as ve:
@@ -2240,6 +2296,7 @@ def geo_lookup():
             cache_key = f"cache:geo:{ip}"
             result = cache_json(cache_key, 300, _compute_geo)
             hid = save_history("geo", query, result)
+            _track_domain_for_seo(query)
             permalink = url_for("history_view", kind="geo", hid=hid, _external=True) if hid else None
 
         except Exception:
@@ -2321,6 +2378,7 @@ def reverse_lookup():
 
                 cache_key = f"cache:reverse:{host_ascii}"
                 result = cache_json(cache_key, 300, _compute_reverse_host)
+                _track_domain_for_seo(host_ascii)
 
             hid = save_history("reverse", query, result)
             permalink = url_for("history_view", kind="reverse", hid=hid, _external=True) if hid else None
