@@ -10,8 +10,7 @@ import io
 import csv
 import subprocess
 import uuid
-import random
-from urllib.parse import urlencode, urlparse, urljoin
+from urllib.parse import urlencode, urlparse, urljoin, quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
 from datetime import datetime, timezone
@@ -884,12 +883,16 @@ def lookup_domain(domain: str):
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
-    return render_template(
-        "lookup_landing.html",
-        domain=clean,
-        domain_ascii=ascii_domain,
-        q=quote(clean, safe=""),
-    )
+    try:
+        return render_template(
+            "lookup_landing.html",
+            domain=clean,
+            domain_ascii=ascii_domain,
+            q=quote(clean, safe=""),
+        )
+    except Exception:
+        app.logger.exception("Lookup landing render failed for %s", clean)
+        return redirect(url_for("domain_report", q=clean), code=302)
 
 
 @app.get("/lookup/whois/<path:domain>")
@@ -902,12 +905,16 @@ def lookup_whois_domain(domain: str):
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
-    return render_template(
-        "whois_landing.html",
-        domain=clean,
-        domain_ascii=ascii_domain,
-        q=quote(clean, safe=""),
-    )
+    try:
+        return render_template(
+            "whois_landing.html",
+            domain=clean,
+            domain_ascii=ascii_domain,
+            q=quote(clean, safe=""),
+        )
+    except Exception:
+        app.logger.exception("WHOIS lookup landing render failed for %s", clean)
+        return redirect(url_for("whois_lookup", query=clean), code=302)
 
 # ---------- DOMAIN REPORT ----------
 def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
