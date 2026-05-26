@@ -33,6 +33,7 @@
         {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
         {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
       </div>
+      {% include "_action_bar_hint.html" %}
     {% endif %}
 
     {% if result.type == 'host' and result.forward %}
