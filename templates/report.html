@@ -55,9 +55,12 @@
       <a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ one.domain }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>
       <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('DNS-записи', 'DNS records') }}</a>
       {% if one.permalink %}
-        <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Пермалинк в истории', 'History permalink') }}</a>
+        <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
       {% endif %}
     </div>
+  </div>
+  <div class="small text-muted mb-2">
+    {{ tr('Порядок действий: связанные инструменты → постоянная ссылка.', 'Action order: related tools → permalink.') }}
   </div>
 
   <div class="row g-3">

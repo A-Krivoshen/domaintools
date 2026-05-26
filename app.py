@@ -10,6 +10,7 @@ import io
 import csv
 import subprocess
 import uuid
+import random
 from urllib.parse import urlencode, urlparse, urljoin, quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
