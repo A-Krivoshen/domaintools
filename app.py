@@ -1158,7 +1158,13 @@ def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> N
 
 @app.route("/report", methods=["GET", "POST"])
 def domain_report():
-    query = (request.args.get("q") or request.form.get("q") or "").strip()
+    query = (
+        request.args.get("q")
+        or request.form.get("q")
+        or request.args.get("query")
+        or request.form.get("query")
+        or ""
+    ).strip()
     job_id = (request.args.get("job") or request.form.get("job") or "").strip()
     report = None
     reports = []
