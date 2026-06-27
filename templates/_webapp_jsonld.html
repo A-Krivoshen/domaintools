@@ -4,6 +4,7 @@
   "@type": "WebApplication",
   "name": {{ webapp_name|tojson }},
   "url": {{ (site_root ~ webapp_path ~ '?lang=' ~ get_locale())|tojson }},
+  {% if webapp_description is defined and webapp_description %}"description": {{ webapp_description|tojson }},{% endif %}
   "applicationCategory": "UtilitiesApplication",
   "operatingSystem": "Web",
   "browserRequirements": "Requires JavaScript",

@@ -154,5 +154,19 @@
 </div>
 
   {% endif %}
+
+{% if not query %}
+{% set faq_id = 'dns-tool-faq' %}
+{% set faq_items = [
+  {'q': tr('Какие DNS-записи можно проверить?', 'Which DNS record types are supported?'),
+   'a': tr('A, AAAA, CNAME, MX, NS, TXT, SOA, SRV, CAA, DS, DNSKEY и другие — выберите типы в форме.', 'A, AAAA, CNAME, MX, NS, TXT, SOA, SRV, CAA, DS, DNSKEY and more — pick types in the form.')},
+  {'q': tr('Зачем смотреть MX-записи?', 'Why check MX records?'),
+   'a': tr('MX показывает почтовые серверы домена — важно для доставки e-mail.', 'MX records show mail servers for the domain — important for email delivery.')},
+  {'q': tr('DNS не найден — что дальше?', 'No DNS records — what next?'),
+   'a': tr('Проверьте WHOIS и срок домена: возможно, домен не делегирован или истёк.', 'Check WHOIS and expiry — the domain may be undelegated or expired.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
 {% include '_domain_sticky_cta.html' %}
 {% endblock %}

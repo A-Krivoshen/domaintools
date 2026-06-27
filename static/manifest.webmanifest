@@ -1,0 +1,23 @@
+{
+  "name": "DomainTools — DNS, WHOIS, domain checks",
+  "short_name": "DomainTools",
+  "description": "Free online DNS, WHOIS, GeoIP, and full domain checks.",
+  "start_url": "/?lang=ru",
+  "display": "standalone",
+  "background_color": "#f8f9fa",
+  "theme_color": "#0d6efd",
+  "lang": "ru",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

@@ -51,4 +51,16 @@
 </section>
 
 {% include '_domain_name_generator.html' %}
+
+{% set faq_id = 'zone-faq' %}
+{% set faq_items = [
+  {'q': tr('Как проверить, свободен ли домен .', 'How to check if a .') ~ zone_display ~ tr('?', '?'),
+   'a': tr('Введите имя в форму — поиск только по зоне .', 'Enter a label in the form to search only .') ~ zone_display},
+  {'q': tr('Нужна ли проверка перед регистрацией?', 'Should I check before registering?'),
+   'a': tr('Да: WHOIS покажет занятость, DNS — настроен ли домен.', 'Yes — WHOIS shows if taken; DNS shows if configured.')},
+  {'q': tr('Чем зона .', 'What is .') ~ zone_display ~ tr(' отличается?', ' special?'),
+   'a': tr('У каждой зоны свои правила регистратора и аудитории — сравните несколько зон в подборе доменов.', 'Each zone has its own registrar rules and audience — compare zones in domain search.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
 {% endblock %}

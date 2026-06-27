@@ -83,6 +83,20 @@
   {% endif %}
 </section>
 
+{% if not query and not job_id %}
+{% set faq_id = 'report-faq' %}
+{% set faq_items = [
+  {'q': tr('Что входит в полную проверку?', 'What is included in the full check?'),
+   'a': tr('WHOIS, DNS, GeoIP и reverse DNS в одном отчёте.', 'WHOIS, DNS, GeoIP, and reverse DNS in one report.')},
+  {'q': tr('Можно ли проверить несколько доменов?', 'Can I check multiple domains?'),
+   'a': tr('Да — введите через пробел или запятую (лимит указан под формой).', 'Yes — separate with space or comma (limit shown under the form).')},
+  {'q': tr('Чем отличается от отдельного WHOIS или DNS?', 'How is this different from WHOIS or DNS alone?'),
+   'a': tr('Отчёт объединяет все проверки и даёт сводный дашборд /check/.', 'The report combines all checks into one /check/ dashboard.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
+
 {% if reports %}
   {% for one in reports %}
   <div data-banner-priority="60">

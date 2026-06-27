@@ -11,6 +11,11 @@
   <title>{% block title %}DomainTools{% endblock %}</title>
   {% set _meta_snippet %}{% block meta_snippet %}{{ tr('DNS / WHOIS / GeoIP утилиты с историей запросов (Domaintools.site)', 'DNS / WHOIS / GeoIP tools with query history (Domaintools.site)') }}{% endblock %}{% endset %}
   <meta name="description" content="{% block meta_description %}{{ _meta_snippet|striptags|trim }}{% endblock %}">
+  {% block meta_keywords %}{% endblock %}
+  <meta name="author" content="DomainTools — {{ tr('ИП Кривошеин А.С.', 'Krivoshein A.S.') }}">
+  <meta name="application-name" content="DomainTools">
+  <meta name="theme-color" content="#0d6efd" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1a1d21" media="(prefers-color-scheme: dark)">
   {% if seo_noindex or seo_noindex_auto %}<meta name="robots" content="noindex, follow">{% endif %}
   {% block head_extra %}{% endblock %}
 
@@ -18,6 +23,8 @@
   <link rel="shortcut icon" href="/favicon.ico" />
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', _external=True) }}" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
+  <link rel="alternate" type="text/plain" href="{{ url_for('llms_txt', _external=True) }}" title="llms.txt">
 
   <!-- Open Graph -->
   <meta property="og:title" content="{% block og_title %}{% block og_title_text %}{{ self.title()|striptags }}{% endblock %}{% endblock %}">
@@ -39,9 +46,9 @@
   <meta property="og:locale:alternate" content="{{ 'en_US' if get_locale() == 'ru' else 'ru_RU' }}">
 
   <link rel="canonical" href="{{ seo_canonical_url }}">
-  <link rel="alternate" hreflang="ru" href="{{ site_root }}{{ request.path }}?lang=ru">
-  <link rel="alternate" hreflang="en" href="{{ site_root }}{{ request.path }}?lang=en">
-  <link rel="alternate" hreflang="x-default" href="{{ site_root }}{{ request.path }}?lang=ru">
+  <link rel="alternate" hreflang="ru" href="{{ seo_url_ru }}">
+  <link rel="alternate" hreflang="en" href="{{ seo_url_en }}">
+  <link rel="alternate" hreflang="x-default" href="{{ seo_url_ru }}">
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
   <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
   <link rel="dns-prefetch" href="https://mc.yandex.ru">
@@ -108,7 +115,15 @@
     "@type": "Organization",
     "name": "DomainTools",
     "url": "{{ site_root }}/",
-    "logo": "{{ url_for('static', filename='og.png', _external=True) }}"
+    "logo": "{{ url_for('static', filename='og.png', _external=True) }}",
+    "description": {{ tr('Бесплатные проверки доменов: WHOIS, DNS, GeoIP и сводные отчёты.', 'Free domain checks: WHOIS, DNS, GeoIP, and combined reports.')|tojson }},
+    "sameAs": ["https://krivoshein.site"],
+    "contactPoint": {
+      "@type": "ContactPoint",
+      "contactType": "customer support",
+      "url": "{{ site_root }}{{ url_for('about_page') }}",
+      "availableLanguage": ["ru", "en"]
+    }
   }
   </script>
   <script type="application/ld+json">
@@ -119,7 +134,7 @@
     "url": "{{ site_root }}/",
     "potentialAction": {
       "@type": "SearchAction",
-      "target": "{{ site_root }}{{ url_for('domain_report') }}?q={search_term_string}",
+      "target": "{{ site_root }}/?lang={{ get_locale() }}",
       "query-input": "required name=search_term_string"
     }
   }

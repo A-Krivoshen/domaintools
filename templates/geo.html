@@ -9,6 +9,16 @@
 {% set webapp_name = tr('GeoIP-проверка', 'GeoIP lookup') %}
 {% set webapp_path = url_for('geo_lookup') %}
 {% include '_webapp_jsonld.html' %}
+{% if not query %}
+{% set faq_id = 'geo-faq' %}
+{% set faq_items = [
+  {'q': tr('Что такое GeoIP?', 'What is GeoIP?'),
+   'a': tr('Определение страны, ASN и провайдера по IP домена или IP-адресу.', 'Country, ASN, and provider for a domain or IP.')},
+  {'q': tr('Насколько точна геолокация?', 'How accurate is geolocation?'),
+   'a': tr('Показывает расположение сети провайдера, не физический адрес сервера.', 'Shows network/provider location, not exact server street address.')},
+] %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -75,5 +85,6 @@
     {% include "_related_links_compact.html" %}
   {% else %}
     {% include "_cards_under_tools.html" %}
+    {% include '_faq_section.html' %}
   {% endif %}
 {% endblock %}

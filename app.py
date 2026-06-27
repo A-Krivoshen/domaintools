@@ -537,6 +537,13 @@ def _seo_canonical_url() -> str:
     return f"{root}{path}?lang={lang}"
 
 
+def _seo_page_url(lang: str) -> str:
+    canon = _seo_canonical_url()
+    if "?lang=" in canon:
+        return canon.rsplit("?lang=", 1)[0] + f"?lang={lang}"
+    return f"{canon}?lang={lang}"
+
+
 def _seo_noindex_auto() -> bool:
     try:
         path = request.path.rstrip("/") or "/"
@@ -548,6 +555,13 @@ def _seo_noindex_auto() -> bool:
         return True
     q = (request.args.get("q") or request.args.get("query") or "").strip()
     if q and path in {"/dns", "/whois", "/geo", "/reverse", "/report", "/domains"}:
+        return True
+    if path.endswith("/site-checker") and (request.args.get("domain") or "").strip():
+        return True
+    if path == "/security" and any(
+        (request.args.get(k) or "").strip()
+        for k in ("host", "wp_url", "ports", "job")
+    ):
         return True
     return False
 
@@ -1676,6 +1690,8 @@ def jinja_more_globals():
         "country_flag": country_flag,
         "site_root": _canonical_site_root(),
         "seo_canonical_url": _seo_canonical_url(),
+        "seo_url_ru": _seo_page_url("ru"),
+        "seo_url_en": _seo_page_url("en"),
         "seo_noindex_auto": _seo_noindex_auto(),
     }
 
@@ -1801,17 +1817,90 @@ def llms_txt():
     return Response(body, mimetype="text/plain; charset=utf-8")
 
 
+@app.get("/ai.txt")
+def ai_txt():
+    path = os.path.join(app.root_path, "static", "ai.txt")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            body = fh.read()
+    except OSError:
+        abort(404)
+    return Response(body, mimetype="text/plain; charset=utf-8")
+
+
+@app.get("/humans.txt")
+def humans_txt():
+    root = _canonical_site_root()
+    body = "\n".join([
+        "/* TEAM */",
+        "Developer: ИП Кривошеин А.С.",
+        "Site: https://krivoshein.site",
+        f"Product: {root}/",
+        "",
+        "/* SITE */",
+        "Standards: HTML5, Schema.org, hreflang, IndexNow",
+        "Languages: ru, en",
+        f"LLMs: {root}/llms.txt",
+        f"AI: {root}/ai.txt",
+        f"OpenAPI: {root}/openapi.json",
+        "",
+        "/* THANKS */",
+        "Flask, Bootstrap, Redis, Font Awesome",
+        "",
+    ])
+    return Response(body, mimetype="text/plain; charset=utf-8")
+
+
+def _security_txt_body() -> str:
+    root = _canonical_site_root()
+    return "\n".join([
+        "Contact: mailto:security@domaintools.site",
+        "Preferred-Languages: ru, en",
+        f"Canonical: {root}/.well-known/security.txt",
+        f"Policy: {root}/security",
+        f"Acknowledgments: {root}/about",
+    ])
+
+
+@app.get("/.well-known/security.txt")
+@app.get("/security.txt")
+def security_txt():
+    return Response(_security_txt_body(), mimetype="text/plain; charset=utf-8")
+
+
+@app.get("/openapi.json")
+def public_openapi():
+    from agent_api.openapi import build_openapi_spec
+    return jsonify(build_openapi_spec())
+
+
+@app.get("/developers")
+def developers_hub():
+    return render_template("developers.html")
+
+
+@app.get("/about")
+def about_page():
+    return render_template("about.html")
+
+
 @app.get("/robots.txt")
 def robots():
     lines = [
         "User-agent: *",
         "Allow: /",
         "Allow: /llms.txt",
+        "Allow: /ai.txt",
+        "Allow: /humans.txt",
+        "Allow: /openapi.json",
+        "Allow: /developers",
+        "Allow: /.well-known/security.txt",
         "Disallow: /history",
         "Disallow: /history/",
         "Disallow: /export/",
         "Disallow: /track/",
         "Disallow: /api/v1/",
+        "Allow: /api/v1/openapi.json",
         "Disallow: /health",
         "Disallow: /security/metrics",
         "",
@@ -1839,6 +1928,9 @@ def sitemap():
         (url_for("site_checker.site_checker"), "0.8", "weekly"),
         (url_for("security_tools"), "0.7", "monthly"),
         (url_for("llms_txt"), "0.5", "monthly"),
+        (url_for("developers_hub"), "0.75", "weekly"),
+        (url_for("about_page"), "0.6", "monthly"),
+        (url_for("ai_txt"), "0.5", "monthly"),
     ]
 
     dynamic_domain_entries: List[Tuple[str, str]] = []

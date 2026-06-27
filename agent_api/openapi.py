@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from flask import url_for
+from flask import current_app, url_for
 
 
 def build_openapi_spec() -> dict:
+    root = (current_app.config.get("SITE_CANONICAL_ROOT") or "https://domaintools.site").strip().rstrip("/")
+    public_openapi = f"{root}/openapi.json"
     return {
         "openapi": "3.1.0",
         "info": {
@@ -11,10 +13,18 @@ def build_openapi_spec() -> dict:
             "version": "1.0.0",
             "description": (
                 "Machine-readable API for AI agents and automation. "
-                "Provides DNS, WHOIS, GeoIP, reverse DNS, and domain report lookups."
+                "Provides DNS, WHOIS, GeoIP, reverse DNS, and domain report lookups. "
+                f"Human docs: {root}/developers — agent index: {root}/llms.txt"
             ),
         },
-        "servers": [{"url": "/api/v1"}],
+        "servers": [
+            {"url": f"{root}/api/v1", "description": "Production"},
+            {"url": "/api/v1", "description": "Relative (same host)"},
+        ],
+        "externalDocs": {
+            "description": "llms.txt agent guide",
+            "url": url_for("llms_txt", _external=True),
+        },
         "paths": {
             "/": {
                 "get": {

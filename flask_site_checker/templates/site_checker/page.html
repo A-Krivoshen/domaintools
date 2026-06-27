@@ -2,6 +2,27 @@
 {% block title %}{{ tr('Проверка сайта — DomainTools', 'Site Checker — DomainTools') }}{% endblock %}
 {% block meta_snippet %}{{ tr('Проверка сайта по DNS, HTTP, IP и реестру РКН с единым выводом результата.', 'Check a site by DNS, HTTP, IP and RKN registry with unified result output.') }}{% endblock %}
 
+{% block jsonld_extra %}
+{% set breadcrumb_name = tr('Проверка сайта', 'Site Checker') %}
+{% set breadcrumb_path = url_for('site_checker.site_checker') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Проверка сайта', 'Site Checker') %}
+{% set webapp_path = url_for('site_checker.site_checker') %}
+{% include '_webapp_jsonld.html' %}
+{% if not domain %}
+{% set faq_id = 'site-checker-faq' %}
+{% set faq_items = [
+  {'q': tr('Что проверяет Site Checker?', 'What does Site Checker test?'),
+   'a': tr('DNS, HTTP-код ответа, IP/Geo и наличие в реестре РКН.', 'DNS, HTTP status, IP/geo, and RKN registry list.')},
+  {'q': tr('Что значит блокировка РКН?', 'What does RKN block mean?'),
+   'a': tr('Домен найден в списке reestr.rublacklist.net — для официального статуса см. reestr.digital.gov.ru.', 'Listed on reestr.rublacklist.net — for official status see reestr.digital.gov.ru.')},
+  {'q': tr('Чем отличается от полной проверки домена?', 'How is this different from full domain check?'),
+   'a': tr('Site Checker — доступность HTTP и РКН; /check/ — WHOIS, DNS, GeoIP в одном отчёте.', 'Site Checker focuses on HTTP + RKN; /check/ is full WHOIS/DNS/GeoIP report.')},
+] %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
+{% endblock %}
+
 {% block content %}
 {% set page_title = tr('Проверка сайта', 'Site Checker') %}
 {% set page_intro = tr('Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.', 'Check domain by DNS, HTTP, IP information and RKN registry status.') %}
@@ -42,6 +63,14 @@
     {% endif %}
   {% endif %}
 
+  {% if not domain %}
+  <section class="card-soft p-4 mb-3">
+    <h2 class="page-section-title">{{ tr('Что проверяет инструмент', 'What this tool checks') }}</h2>
+    <p class="text-muted small mb-0">{{ tr('DNS-записи, HTTP-доступность, IP-информация и сверка с реестром РКН.', 'DNS records, HTTP reachability, IP info, and RKN registry cross-check.') }}</p>
+  </section>
+  {% include '_faq_section.html' %}
+  {% include '_related_links_compact.html' %}
+  {% endif %}
   {% include "_cards_under_tools.html" %}
 
 <script>

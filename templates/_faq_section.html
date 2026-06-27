@@ -1,0 +1,27 @@
+{# expects: faq_items = [{'q': ..., 'a': ...}, ...], faq_id = 'page-faq' #}
+{% if faq_items and faq_items|length %}
+<section class="tool-faq card-soft p-4 mb-3" aria-labelledby="{{ faq_id }}">
+  <h2 id="{{ faq_id }}" class="page-section-title mb-3">{{ tr('Частые вопросы', 'FAQ') }}</h2>
+  <div class="accordion" id="{{ faq_id }}-acc">
+    {% for item in faq_items %}
+    <div class="accordion-item">
+      <h3 class="accordion-header">
+        <button class="accordion-button {% if not loop.first %}collapsed{% endif %}"
+                type="button"
+                data-bs-toggle="collapse"
+                data-bs-target="#{{ faq_id }}-{{ loop.index }}"
+                aria-expanded="{{ 'true' if loop.first else 'false' }}"
+                aria-controls="{{ faq_id }}-{{ loop.index }}">
+          {{ item.q }}
+        </button>
+      </h3>
+      <div id="{{ faq_id }}-{{ loop.index }}"
+           class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+           data-bs-parent="#{{ faq_id }}-acc">
+        <div class="accordion-body text-muted">{{ item.a }}</div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

@@ -105,5 +105,19 @@
   {% else %}
     {% include "_cards_under_tools.html" %}
   {% endif %}
+
+{% if not query %}
+{% set faq_id = 'whois-tool-faq' %}
+{% set faq_items = [
+  {'q': tr('Что такое WHOIS?', 'What is WHOIS?'),
+   'a': tr('Публичная база регистрации доменов: регистратор, даты, статусы, иногда владелец.', 'Public registration database: registrar, dates, statuses, sometimes owner.')},
+  {'q': tr('Почему данные владельца скрыты?', 'Why is owner data redacted?'),
+   'a': tr('Многие регистраторы включают privacy/WHOIS Guard — это нормально.', 'Many registrars enable privacy/WHOIS Guard — this is normal.')},
+  {'q': tr('Как узнать срок действия домена?', 'How do I see domain expiry?'),
+   'a': tr('В результатах ищите поле «Истекает» / Expiration date.', 'In results, look for Expiration date / «Истекает».')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
 {% include '_domain_sticky_cta.html' %}
 {% endblock %}

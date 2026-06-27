@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('О сервисе — DomainTools', 'About — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('DomainTools — бесплатные онлайн-проверки доменов: WHOIS, DNS, GeoIP. Оператор и методология.', 'DomainTools — free online domain checks: WHOIS, DNS, GeoIP. Operator and methodology.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = tr('О сервисе', 'About') %}
+{% set breadcrumb_path = url_for('about_page') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% endblock %}
+
+{% block content %}
+{% set page_title = tr('О DomainTools', 'About DomainTools') %}
+{% set page_intro = tr('Независимый набор инструментов для проверки доменов и инфраструктуры.', 'Independent tools for domain and infrastructure checks.') %}
+{% set page_icon = 'fa-circle-info' %}
+{% set breadcrumb_name = tr('О сервисе', 'About') %}
+{% set breadcrumb_path = url_for('about_page') %}
+{% include '_tool_page_header.html' %}
+
+<section class="card-soft p-4 mb-3">
+  <h2 class="page-section-title">{{ tr('Оператор', 'Operator') }}</h2>
+  <p>{{ tr('Сервис развивается ', 'The service is operated by ') }}<a href="https://krivoshein.site" rel="noopener noreferrer" target="_blank">{{ tr('ИП Кривошеин А.С.', 'Sole Proprietor Krivoshein A.S.') }}</a>.</p>
+  <p class="text-muted small mb-0">{{ tr('Контакт по безопасности: security@domaintools.site (см. security.txt).', 'Security contact: security@domaintools.site (see security.txt).') }}</p>
+</section>
+
+<section class="card-soft p-4 mb-3">
+  <h2 class="page-section-title">{{ tr('Методология', 'Methodology') }}</h2>
+  <ul class="text-muted">
+    <li>{{ tr('WHOIS — CLI whois и парсинг публичных реестров (включая .ru).', 'WHOIS — CLI whois and public registry parsing (including .ru).') }}</li>
+    <li>{{ tr('DNS — прямые запросы к резолверам (A, MX, NS, TXT и др.).', 'DNS — direct resolver queries (A, MX, NS, TXT, etc.).') }}</li>
+    <li>{{ tr('GeoIP — RDAP/ASN через IPWhois.', 'GeoIP — RDAP/ASN via IPWhois.') }}</li>
+    <li>{{ tr('Кэширование результатов в Redis для снижения нагрузки (TTL 5–30 мин).', 'Results cached in Redis to reduce load (TTL 5–30 min).') }}</li>
+  </ul>
+</section>
+
+<section class="card-soft p-4 mb-3">
+  <h2 class="page-section-title">{{ tr('Конфиденциальность', 'Privacy') }}</h2>
+  <p class="text-muted mb-2">{{ tr('История запросов хранится локально на сервере и не индексируется поисковиками. Не передавайте персональные данные в полях поиска.', 'Query history is stored on the server and is not indexed by search engines. Do not submit personal data in search fields.') }}</p>
+  <p class="small text-muted mb-0">{{ tr('При включённой reCAPTCHA применяются политики Google.', 'When reCAPTCHA is enabled, Google policies apply.') }}</p>
+</section>
+
+{% set faq_id = 'about-faq' %}
+{% set faq_items = [
+  {'q': tr('Бесплатно ли пользоваться?', 'Is it free?'),
+   'a': tr('Да, базовые проверки бесплатны. Действуют лимиты запросов в минуту.', 'Yes, basic checks are free. Per-minute rate limits apply.')},
+  {'q': tr('Откуда берутся данные WHOIS?', 'Where does WHOIS data come from?'),
+   'a': tr('Из публичных WHOIS/RDAP источников. Часть полей может быть скрыта privacy-сервисом регистратора.', 'From public WHOIS/RDAP sources. Some fields may be redacted by registrar privacy.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endblock %}

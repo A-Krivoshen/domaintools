@@ -98,4 +98,25 @@
   </section>
   {% endif %}
 {% endif %}
+
+<section class="card-soft p-3 mb-3">
+  <h2 class="h6 mb-2">{{ tr('Что входит в проверку', 'What this check includes') }}</h2>
+  <ul class="small text-muted mb-0">
+    <li>{{ tr('WHOIS — регистратор, даты, статусы', 'WHOIS — registrar, dates, statuses') }}</li>
+    <li>{{ tr('DNS — A, MX, NS, TXT', 'DNS — A, MX, NS, TXT') }}</li>
+    <li>{{ tr('GeoIP — страна и ASN сервера', 'GeoIP — server country and ASN') }}</li>
+    <li>{{ tr('Reverse DNS — PTR и FCrDNS', 'Reverse DNS — PTR and FCrDNS') }}</li>
+  </ul>
+</section>
+
+{% set faq_id = 'check-faq' %}
+{% set faq_items = [
+  {'q': tr('Что показывает полная проверка ', 'What does the full check show for ') ~ domain ~ '?',
+   'a': tr('Сводка WHOIS, DNS, GeoIP и reverse в одном дашборде.', 'WHOIS, DNS, GeoIP, and reverse summary in one dashboard.')},
+  {'q': tr('Свободен ли домен ', 'Is ') ~ domain ~ tr('?', ' available?'),
+   'a': tr('Смотрите баннер доступности и WHOIS — если домен занят, будет регистратор и даты.', 'See availability banner and WHOIS — if taken, registrar and dates appear.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% include '_related_links_compact.html' %}
 {% endblock %}

@@ -23,20 +23,18 @@
 ] %}
 {% include '_lookup_landing_shell.html' %}
 
-<script type="application/ld+json">
-{
-  "@context": "https://schema.org",
-  "@type": "FAQPage",
-  "mainEntity": [
-    {
-      "@type": "Question",
-      "name": {{ tr('Кто владелец домена ', 'Who owns domain ') ~ domain|tojson }},
-      "acceptedAnswer": {
-        "@type": "Answer",
-        "text": {{ tr('Откройте WHOIS-проверку, чтобы увидеть регистратора, даты и статусы.', 'Open WHOIS lookup to see registrar, dates, and statuses.')|tojson }}
-      }
-    }
-  ]
-}
-</script>
+{% set faq_id = 'whois-landing-faq' %}
+{% set faq_items = [
+  {'q': tr('Кто владелец домена ', 'Who owns domain ') ~ domain ~ '?',
+   'a': tr('Откройте WHOIS — увидите регистратора, даты и статусы (владелец может быть скрыт privacy).', 'Open WHOIS for registrar, dates, and statuses (owner may be privacy-redacted).')},
+  {'q': tr('Когда истекает ', 'When does ') ~ domain ~ tr('?', '?'),
+   'a': tr('В WHOIS смотрите поле срока действия / Expiration date.', 'In WHOIS, check Expiration date.')},
+  {'q': tr('Какой регистратор у ', 'Which registrar for ') ~ domain ~ '?',
+   'a': tr('Поле Registrar в результатах WHOIS.', 'See the Registrar field in WHOIS results.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% set webapp_name = tr('WHOIS ', 'WHOIS ') ~ domain %}
+{% set webapp_path = url_for('lookup_whois_domain', domain=domain) %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}

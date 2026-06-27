@@ -101,4 +101,16 @@
     </div>
   </div>
 </section>
+
+{% set faq_id = 'hosting-faq' %}
+{% set faq_items = [
+  {'q': tr('Когда нужен VPS после проверки домена?', 'When do I need VPS after a domain check?'),
+   'a': tr('Когда домен свободен или вы готовы запускать сайт/бот — выберите VPS и привяжите DNS.', 'When the domain is ready to launch — pick VPS and point DNS.')},
+  {'q': tr('Какой VPS для WordPress?', 'Which VPS for WordPress?'),
+   'a': tr('Beget — панель и домен в одном месте; FirstVDS — если нужен root-доступ.', 'Beget for panel + domain; FirstVDS if you need root.')},
+  {'q': tr('Какой VPS для ботов и API?', 'Which VPS for bots and API?'),
+   'a': tr('FirstVDS или SpaceWeb — стабильный uptime и быстрый старт.', 'FirstVDS or SpaceWeb — stable uptime and quick start.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
 {% endblock %}

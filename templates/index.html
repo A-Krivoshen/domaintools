@@ -57,6 +57,32 @@
   {% endwith %}
 </section>
 
+<section class="card-soft p-4 mb-4">
+  <h2 class="page-section-title">{{ tr('Бесплатная проверка домена онлайн', 'Free online domain check') }}</h2>
+  <p class="text-muted mb-3">{{ tr('DomainTools объединяет WHOIS, DNS, GeoIP и reverse DNS в одном интерфейсе. Поддерживаются кириллические домены (.рф, .рус) и популярные зоны .ru, .com, .site.', 'DomainTools combines WHOIS, DNS, GeoIP, and reverse DNS in one interface. Cyrillic domains (.рф) and zones .ru, .com, .site are supported.') }}</p>
+  <div class="d-flex flex-wrap gap-2 small">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('geo_lookup') }}">GeoIP</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('reverse_lookup') }}">Reverse</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Проверка сайта', 'Site Checker') }}</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('zone_landing', tld='ru') }}">.ru</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('developers_hub') }}">{{ tr('API для агентов', 'Agent API') }}</a>
+  </div>
+</section>
+
+{% set faq_id = 'home-faq' %}
+{% set faq_items = [
+  {'q': tr('Как бесплатно проверить домен?', 'How do I check a domain for free?'),
+   'a': tr('Введите домен в форму на главной и нажмите «Полная проверка» — откроется сводка: владелец, DNS, сервер.', 'Enter a domain in the home form and click «Full check» — you get owner, DNS, and server summary.')},
+  {'q': tr('Чем WHOIS отличается от DNS?', 'What is the difference between WHOIS and DNS?'),
+   'a': tr('WHOIS показывает регистрацию и владельца; DNS — куда указывает домен (IP, почта, NS).', 'WHOIS shows registration and owner; DNS shows where the domain points (IP, mail, NS).')},
+  {'q': tr('Можно ли проверить домен .рф?', 'Can I check IDN domains like .рф?'),
+   'a': tr('Да, поддерживаются IDN и кириллические зоны. Введите домен как в браузере.', 'Yes — IDN and Cyrillic zones are supported. Enter the domain as in the browser.')},
+  {'q': tr('Есть ли API для AI-агентов?', 'Is there an API for AI agents?'),
+   'a': tr('Да: страница /developers, llms.txt и OpenAPI /openapi.json.', 'Yes: /developers page, llms.txt, and OpenAPI at /openapi.json.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+
 <section class="security-note mb-3" role="note" aria-label="{{ tr('Безопасность сканеров', 'Scanner security') }}">
   <div class="d-flex flex-wrap align-items-start gap-3">
     <div class="tool-page-header__icon mb-0" aria-hidden="true">

@@ -263,4 +263,16 @@
       }, 2000);
     })();
   </script>
+
+{% if not host and not wp_url_raw and not job_id %}
+{% set faq_id = 'security-faq' %}
+{% set faq_items = [
+  {'q': tr('Законно ли сканировать порты?', 'Is port scanning legal?'),
+   'a': tr('Используйте только для своих хостов. Есть лимиты и captcha — без brute-force.', 'Only for hosts you own. Rate limits and captcha — no brute-force.')},
+  {'q': tr('Какие порты проверяются?', 'Which ports are scanned?'),
+   'a': tr('Список в форме (по умолчанию популярные: 22, 80, 443…), максимум ограничен настройкой.', 'As listed in the form (defaults: 22, 80, 443…), max limited by config.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
 {% endblock %}

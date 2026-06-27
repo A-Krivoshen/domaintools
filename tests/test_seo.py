@@ -81,7 +81,8 @@ class SeoTests(unittest.TestCase):
         self.assertIn("Disallow: /history", body)
         self.assertIn("Disallow: /export/", body)
         self.assertIn("Disallow: /api/v1/", body)
-        self.assertNotIn("Allow: /api/v1/", body)
+        self.assertIn("Disallow: /api/v1/", body)
+        self.assertIn("Allow: /api/v1/openapi.json", body)
 
     def test_dns_result_page_has_noindex_and_canonical_landing(self):
         html = self.client.get("/dns?q=example.com").get_data(as_text=True)

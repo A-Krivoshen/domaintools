@@ -150,5 +150,16 @@
 {% endif %}
 
 {% include "_cards_under_tools.html" %}
+{% if not q %}
+{% set faq_id = 'domains-faq' %}
+{% set faq_items = [
+  {'q': tr('Как работает подбор доменов?', 'How does domain search work?'),
+   'a': tr('Проверяем занятость имени в выбранных зонах через DNS/WHOIS-подобные проверки.', 'We check name availability in selected zones.')},
+  {'q': tr('Поддерживаются ли .рф и кириллица?', 'Are .рф and Cyrillic supported?'),
+   'a': tr('Да — IDN и кириллические зоны в списке TLD.', 'Yes — IDN and Cyrillic zones are in the TLD list.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
 {% include '_domain_sticky_cta.html' %}
 {% endblock %}
