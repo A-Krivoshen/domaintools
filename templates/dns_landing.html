@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('DNS для ' ~ domain ~ ' — DomainTools', 'DNS for ' ~ domain ~ ' — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Проверка DNS-записей домена ' ~ domain ~ ': A, MX, NS, TXT и другие типы.', 'DNS lookup for ' ~ domain ~ ': A, MX, NS, TXT and other record types.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = 'DNS ' ~ domain %}
+{% set breadcrumb_path = url_for('lookup_dns_domain', domain=domain) %}
+{% include '_breadcrumb_jsonld.html' %}
+{% endblock %}
+
+{% block content %}
+{% set landing_badge = 'DNS' %}
+{% set landing_title = tr('DNS-проверка домена ', 'DNS lookup for ') ~ '<span class="text-primary">' ~ domain ~ '</span>' %}
+{% set landing_lead = tr('Проверьте A, MX, NS, TXT и другие записи домена, затем перейдите к WHOIS или регистрации.', 'Check A, MX, NS, TXT and other records, then jump to WHOIS or registration.') %}
+{% set landing_note = tr('Страница помогает быстро открыть DNS-проверку и связанные инструменты для домена.', 'This page helps you open DNS checks and related tools for the domain quickly.') %}
+{% set landing_actions = [
+  {'label': tr('Открыть DNS', 'Open DNS'), 'class': 'btn-primary', 'href': url_for('dns_lookup') ~ '?q=' ~ q},
+  {'label': tr('Сводный отчёт', 'Domain report'), 'class': 'btn-outline-primary', 'href': url_for('domain_report') ~ '?q=' ~ q},
+  {'label': 'WHOIS', 'class': 'btn-outline-secondary', 'href': url_for('whois_lookup') ~ '?query=' ~ q},
+  {'label': tr('Доступность', 'Availability'), 'class': 'btn-outline-secondary', 'href': url_for('domain_search') ~ '?query=' ~ (domain_label or q)},
+] %}
+{% include '_lookup_landing_shell.html' %}
+
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": {{ tr('Как проверить DNS домена ', 'How to check DNS for ') ~ domain|tojson }},
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": {{ tr('Откройте DNS-проверку и посмотрите записи A, MX, NS, TXT для домена.', 'Open DNS lookup and review A, MX, NS, TXT records for the domain.')|tojson }}
+      }
+    }
+  ]
+}
+</script>
+{% endblock %}

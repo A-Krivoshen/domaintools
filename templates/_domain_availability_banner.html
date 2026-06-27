@@ -1,0 +1,110 @@
+{% if domain_availability and domain_availability.status == 'available' and domain_availability.affiliate_buy_url %}
+<section class="domain-available-banner mb-3" role="status" aria-live="polite">
+  <div class="domain-available-banner__icon" aria-hidden="true">
+    <i class="fa-solid fa-circle-check"></i>
+  </div>
+  <div class="domain-available-banner__body">
+    {% if domain_availability.available_count and domain_availability.available_count > 1 %}
+      <h2 class="domain-available-banner__title">
+        {{ tr('Найдено свободных доменов:', 'Available domains found:') }}
+        <strong>{{ domain_availability.available_count }}</strong>
+      </h2>
+      <p class="domain-available-banner__lead mb-2">
+        {{ tr('Нажмите на домен, чтобы перейти к регистрации.', 'Click a domain below to start registration.') }}
+      </p>
+      {% if domain_availability.available_domain_links %}
+      <div class="domain-available-banner__chips mb-2">
+        {% for link in domain_availability.available_domain_links %}
+          {% if link.buy_url %}
+          <a class="domain-available-banner__chip"
+             href="{{ link.buy_url }}"
+             target="_blank"
+             rel="nofollow noopener"
+             title="{{ tr('Зарегистрировать', 'Register') }} {{ link.display or link.fqdn }}"
+             data-buy-track
+             data-buy-domain="{{ link.fqdn }}"
+             data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ link.display or link.fqdn }}</a>
+          {% else %}
+          <span class="domain-available-banner__chip">{{ link.display or link.fqdn }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% elif domain_availability.available_domains %}
+      <div class="domain-available-banner__chips mb-2">
+        {% for name in domain_availability.available_domains %}
+          {% set buy = name|affiliate_buy_url %}
+          {% if buy %}
+          <a class="domain-available-banner__chip"
+             href="{{ buy }}"
+             target="_blank"
+             rel="nofollow noopener"
+             data-buy-track
+             data-buy-domain="{{ name }}"
+             data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ name }}</a>
+          {% else %}
+          <span class="domain-available-banner__chip">{{ name }}</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+    {% else %}
+      <h2 class="domain-available-banner__title">
+        {{ tr('Домен свободен:', 'Domain is available:') }}
+        {% if domain_availability.affiliate_buy_url %}
+        <a class="domain-available-banner__title-link"
+           href="{{ domain_availability.affiliate_buy_url }}"
+           target="_blank"
+           rel="nofollow noopener"
+           data-buy-track
+           data-buy-domain="{{ domain_availability.affiliate_domain }}"
+           data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ domain_availability.display_domain }}</a>
+        {% else %}
+        <strong>{{ domain_availability.display_domain }}</strong>
+        {% endif %}
+      </h2>
+      <p class="domain-available-banner__lead mb-0">
+        {{ tr('Похоже, имя ещё не зарегистрировано — успейте занять его, пока свободно.', 'This name appears unregistered — claim it while it is still available.') }}
+      </p>
+    {% endif %}
+    <div class="domain-available-banner__actions mt-3">
+      <a class="btn btn-light btn-lg domain-available-banner__cta"
+         href="{{ domain_availability.affiliate_buy_url }}"
+         target="_blank"
+         rel="nofollow noopener"
+         data-buy-track
+         data-buy-domain="{{ domain_availability.affiliate_domain }}"
+         data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+        <i class="fa-solid fa-cart-shopping me-2" aria-hidden="true"></i>
+        {{ tr('Зарегистрировать', 'Register') }}
+        {% if not domain_availability.available_count or domain_availability.available_count == 1 %}
+          {{ domain_availability.display_domain }}
+        {% endif %}
+      </a>
+      <a class="btn btn-outline-light"
+         href="{{ domain_availability.affiliate_domain_search_url or domain_availability.zones_search_url }}">
+        {{ tr('Проверить другие зоны', 'Check other zones') }}
+      </a>
+    </div>
+  </div>
+</section>
+{% elif domain_availability and domain_availability.status == 'taken' %}
+<section class="domain-taken-banner mb-3" role="note">
+  <div class="domain-taken-banner__icon" aria-hidden="true">
+    <i class="fa-solid fa-lock"></i>
+  </div>
+  <div class="domain-taken-banner__body">
+    <h2 class="domain-taken-banner__title">
+      {{ tr('Домен занят:', 'Domain is taken:') }}
+      <strong>{{ domain_availability.display_domain }}</strong>
+    </h2>
+    <p class="domain-taken-banner__lead mb-2">
+      {{ tr('Попробуйте альтернативы в других зонах или с похожим написанием.', 'Try alternatives in other zones or with a similar spelling.') }}
+    </p>
+    <a class="btn btn-sm btn-primary"
+       href="{{ domain_availability.zones_search_url }}">
+      <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>
+      {{ tr('Подобрать свободные варианты', 'Find available alternatives') }}
+    </a>
+  </div>
+</section>
+{% endif %}

@@ -1,0 +1,38 @@
+<section class="domain-name-generator tool-form mb-3" aria-labelledby="domainNameGeneratorTitle">
+  <div class="domain-name-generator__head mb-2">
+    <h2 id="domainNameGeneratorTitle" class="h6 mb-1">
+      <i class="fa-solid fa-wand-magic-sparkles me-1 text-primary" aria-hidden="true"></i>
+      {{ tr('Генератор имён', 'Name generator') }}
+    </h2>
+    <p class="small text-muted mb-0">
+      {{ tr('Опишите проект — получите идеи для проверки в выбранных зонах.', 'Describe your project — get name ideas to check across selected zones.') }}
+    </p>
+  </div>
+  <form method="get" action="{{ url_for('domain_search') }}" class="mb-0">
+    <input type="hidden" name="generate" value="1">
+    <div class="input-group search-command">
+      <span class="input-group-text"><i class="fa-solid fa-lightbulb" aria-hidden="true"></i></span>
+      <input type="text"
+             class="form-control"
+             name="idea"
+             value="{{ idea_seed or '' }}"
+             placeholder="{{ tr('например: кофейня москва, coffee shop', 'for example: coffee shop, bakery nyc') }}">
+      <button class="btn btn-outline-primary" type="submit">{{ tr('Сгенерировать', 'Generate') }}</button>
+    </div>
+  </form>
+
+  {% set name_ideas = name_ideas or [] %}
+  {% if name_ideas and name_ideas|length %}
+  <div class="domain-name-generator__results mt-3">
+    <div class="small text-muted mb-2">{{ tr('Идеи для проверки (нажмите, чтобы искать свободные зоны):', 'Ideas to check (click to search availability):') }}</div>
+    <div class="domain-name-generator__chips">
+      {% for idea in name_ideas %}
+      <a class="domain-name-generator__chip"
+         href="{{ url_for('domain_search', query=idea) }}">{{ idea }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% elif idea_seed %}
+  <p class="small text-muted mt-2 mb-0">{{ tr('Не удалось сгенерировать идеи — попробуйте другое описание.', 'Could not generate ideas — try a different description.') }}</p>
+  {% endif %}
+</section>

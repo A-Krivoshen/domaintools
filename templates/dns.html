@@ -59,6 +59,7 @@
         <span class="small text-muted">{{ tr('Типов:', 'Types:') }} {{ selected_types|length }}</span>
       </div>
     </div>
+    {% include '_domain_availability_banner.html' %}
     {% if permalink or query %}
       <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
         <div class="tool-actions__group" aria-label="{{ tr('Связанные инструменты', 'Related tools') }}">
@@ -134,4 +135,5 @@
 </div>
 
   {% endif %}
+{% include '_domain_sticky_cta.html' %}
 {% endblock %}

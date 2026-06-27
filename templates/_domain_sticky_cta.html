@@ -1,0 +1,20 @@
+{% if domain_availability and domain_availability.status == 'available' and domain_availability.affiliate_buy_url %}
+<aside class="domain-sticky-cta d-lg-none"
+       data-domain-sticky-cta
+       aria-label="{{ tr('Быстрая регистрация домена', 'Quick domain registration') }}">
+  <a class="domain-sticky-cta__btn btn btn-success"
+     href="{{ domain_availability.affiliate_buy_url }}"
+     target="_blank"
+     rel="nofollow noopener"
+     data-buy-track
+     data-buy-domain="{{ domain_availability.affiliate_domain }}"
+     data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+    <i class="fa-solid fa-cart-shopping me-1" aria-hidden="true"></i>
+    {% if domain_availability.available_count and domain_availability.available_count > 1 %}
+      {{ tr('Зарегистрировать', 'Register') }} ({{ domain_availability.available_count }})
+    {% else %}
+      {{ tr('Зарегистрировать', 'Register') }} {{ domain_availability.display_domain }}
+    {% endif %}
+  </a>
+</aside>
+{% endif %}
