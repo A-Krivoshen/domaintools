@@ -70,10 +70,20 @@ class UXSimpleModeTests(unittest.TestCase):
         self.assertIn('specialists-hint', hint)
         self.assertIn('Для специалистов', hint)
 
-    def test_onboarding_present(self):
-        html = self.client.get('/').get_data(as_text=True)
-        self.assertIn('data-onboarding', html)
-        self.assertIn('onboarding__panel', html)
+    def test_onboarding_only_on_home(self):
+        home = self.client.get('/?lang=ru').get_data(as_text=True)
+        whois = self.client.get('/whois?lang=ru').get_data(as_text=True)
+        self.assertIn('data-onboarding', home)
+        self.assertIn('data-onboarding-target', home)
+        self.assertIn('onboarding--soft', home)
+        self.assertIn('Пропустить', home)
+        self.assertNotIn('id="onboarding"', whois)
+        self.assertIn('data-onboarding-replay', whois)
+
+    def test_onboarding_replay_in_footer(self):
+        html = self.client.get('/?lang=ru').get_data(as_text=True)
+        self.assertIn('data-onboarding-replay', html)
+        self.assertIn('Подсказка', html)
 
     def test_monetization_slot_attribute(self):
         html = self.client.get('/').get_data(as_text=True)

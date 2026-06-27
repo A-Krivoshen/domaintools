@@ -1,37 +1,38 @@
 <div id="onboarding"
-     class="onboarding"
+     class="onboarding onboarding--soft"
      role="dialog"
      aria-modal="true"
      aria-labelledby="onboardingTitle"
      hidden
      data-onboarding>
-  <div class="onboarding__backdrop" data-onboarding-dismiss tabindex="-1"></div>
-  <div class="onboarding__panel card-soft">
+  <div class="onboarding__backdrop" data-onboarding-dismiss tabindex="-1" aria-hidden="true"></div>
+  <div class="onboarding__panel card-soft" role="document">
     <button type="button" class="onboarding__close btn btn-sm btn-outline-secondary" data-onboarding-dismiss aria-label="{{ tr('Закрыть', 'Close') }}">
       <i class="fa-solid fa-xmark" aria-hidden="true"></i>
     </button>
+
     <div class="onboarding__step" data-onboarding-step="1">
-      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-globe"></i></div>
-      <h2 id="onboardingTitle" class="h5 mb-2">{{ tr('Добро пожаловать в DomainTools', 'Welcome to DomainTools') }}</h2>
-      <p class="text-muted mb-3">{{ tr('Введите домен на главной — получите полную проверку за один клик.', 'Enter a domain on the home page — get a full check in one click.') }}</p>
-      <button type="button" class="btn btn-primary" data-onboarding-next>{{ tr('Далее', 'Next') }}</button>
+      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-arrow-pointer"></i></div>
+      <h2 id="onboardingTitle" class="h6 mb-2">{{ tr('Начните здесь', 'Start here') }}</h2>
+      <p class="text-muted small mb-0">{{ tr('Введите домен в поле выше и нажмите «Полная проверка» — отчёт соберётся за секунды.', 'Enter a domain in the field above and tap «Full check» — your report is ready in seconds.') }}</p>
     </div>
+
     <div class="onboarding__step d-none" data-onboarding-step="2">
-      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-address-card"></i></div>
-      <h2 class="h5 mb-2">{{ tr('Понятные названия', 'Plain-language labels') }}</h2>
-      <p class="text-muted mb-3">{{ tr('«Кто владелец» вместо WHOIS, «Куда ведёт домен» вместо DNS — без технического жаргона.', '"Who owns it" instead of WHOIS, "Where it points" instead of DNS — no tech jargon.') }}</p>
-      <button type="button" class="btn btn-primary" data-onboarding-next>{{ tr('Далее', 'Next') }}</button>
+      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-circle-check"></i></div>
+      <h2 class="h6 mb-2">{{ tr('Всё просто', 'Keep it simple') }}</h2>
+      <p class="text-muted small mb-0">{{ tr('Подсказки «Что это значит?» объяснят результат без технических терминов. Можно закрыть и начать проверку.', '«What does this mean?» hints explain results in plain language. Close this and start your check.') }}</p>
     </div>
-    <div class="onboarding__step d-none" data-onboarding-step="3">
-      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-circle-question"></i></div>
-      <h2 class="h5 mb-2">{{ tr('Подсказки в отчёте', 'Hints in the report') }}</h2>
-      <p class="text-muted mb-3">{{ tr('В сводном отчёте нажмите «Что это значит?» — краткое объяснение простым языком.', 'In the full report, tap "What does this mean?" for a plain-language explanation.') }}</p>
-      <button type="button" class="btn btn-primary" data-onboarding-done>{{ tr('Начать', 'Get started') }}</button>
-    </div>
-    <div class="onboarding__dots" aria-hidden="true">
-      <span class="onboarding__dot is-active" data-onboarding-dot="1"></span>
-      <span class="onboarding__dot" data-onboarding-dot="2"></span>
-      <span class="onboarding__dot" data-onboarding-dot="3"></span>
+
+    <div class="onboarding__footer">
+      <div class="onboarding__dots" aria-hidden="true">
+        <span class="onboarding__dot is-active" data-onboarding-dot="1"></span>
+        <span class="onboarding__dot" data-onboarding-dot="2"></span>
+      </div>
+      <div class="onboarding__buttons">
+        <button type="button" class="btn btn-link btn-sm text-muted px-2" data-onboarding-dismiss>{{ tr('Пропустить', 'Skip') }}</button>
+        <button type="button" class="btn btn-primary btn-sm" data-onboarding-next>{{ tr('Далее', 'Next') }}</button>
+        <button type="button" class="btn btn-primary btn-sm d-none" data-onboarding-done>{{ tr('Начать', 'Get started') }}</button>
+      </div>
     </div>
   </div>
 </div>

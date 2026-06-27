@@ -365,38 +365,163 @@
 
   (function initOnboarding() {
     const root = document.querySelector('[data-onboarding]');
-    if (!root) return;
     const storageKey = 'dt_onboarding_done_v1';
-    try {
-      if (localStorage.getItem(storageKey) === '1') return;
-    } catch (e) {
-      return;
+    const panel = root?.querySelector('.onboarding__panel');
+    const target = document.querySelector('[data-onboarding-target]');
+    const nextBtn = root?.querySelector('[data-onboarding-next]');
+    const doneBtn = root?.querySelector('[data-onboarding-done]');
+    let steps = [];
+    let dots = [];
+    let current = 0;
+    let releaseFocusTrap = null;
+    let positionHandler = null;
+
+    function isDone() {
+      try {
+        return localStorage.getItem(storageKey) === '1';
+      } catch (e) {
+        return true;
+      }
     }
 
-    const steps = Array.from(root.querySelectorAll('[data-onboarding-step]'));
-    const dots = Array.from(root.querySelectorAll('[data-onboarding-dot]'));
-    let current = 0;
+    function markDone() {
+      try {
+        localStorage.setItem(storageKey, '1');
+      } catch (e) {}
+    }
+
+    function positionPanel() {
+      if (!root || !panel || root.hidden) return;
+      if (window.matchMedia('(max-width: 767.98px)').matches) return;
+      if (!target) {
+        panel.style.top = '50%';
+        panel.style.left = '50%';
+        panel.style.transform = 'translate(-50%, -50%)';
+        panel.style.width = 'min(calc(100vw - 2rem), 22rem)';
+        return;
+      }
+      const rect = target.getBoundingClientRect();
+      const panelRect = panel.getBoundingClientRect();
+      const left = Math.min(
+        Math.max(16, rect.left),
+        window.innerWidth - panelRect.width - 16,
+      );
+      const top = Math.min(rect.bottom + 14, window.innerHeight - panelRect.height - 16);
+      panel.style.left = `${left}px`;
+      panel.style.top = `${Math.max(16, top)}px`;
+      panel.style.transform = 'none';
+      panel.style.width = `${Math.min(22 * 16, Math.max(280, rect.width))}px`;
+    }
+
+    function trapFocus(container) {
+      const nodes = container.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      const items = Array.from(nodes).filter((el) => !el.disabled && el.offsetParent !== null);
+      const first = items[0];
+      const last = items[items.length - 1];
+      function onKeydown(ev) {
+        if (ev.key === 'Escape') {
+          ev.preventDefault();
+          dismiss();
+          return;
+        }
+        if (ev.key !== 'Tab' || !items.length) return;
+        if (ev.shiftKey && document.activeElement === first) {
+          ev.preventDefault();
+          last.focus();
+        } else if (!ev.shiftKey && document.activeElement === last) {
+          ev.preventDefault();
+          first.focus();
+        }
+      }
+      container.addEventListener('keydown', onKeydown);
+      (nextBtn || doneBtn || first)?.focus();
+      return () => container.removeEventListener('keydown', onKeydown);
+    }
 
     function showStep(idx) {
+      if (!root) return;
       current = Math.max(0, Math.min(idx, steps.length - 1));
       steps.forEach((step, i) => step.classList.toggle('d-none', i !== current));
       dots.forEach((dot, i) => dot.classList.toggle('is-active', i === current));
+      const onLast = current >= steps.length - 1;
+      nextBtn?.classList.toggle('d-none', onLast);
+      doneBtn?.classList.toggle('d-none', !onLast);
+      target?.classList.toggle('onboarding-highlight', current === 0);
+      requestAnimationFrame(positionPanel);
     }
 
-    function finish() {
-      try { localStorage.setItem(storageKey, '1'); } catch (e) {}
+    function dismiss() {
+      if (!root) return;
       root.hidden = true;
+      document.body.classList.remove('onboarding-open');
+      target?.classList.remove('onboarding-highlight');
+      if (releaseFocusTrap) {
+        releaseFocusTrap();
+        releaseFocusTrap = null;
+      }
+      if (positionHandler) {
+        window.removeEventListener('resize', positionHandler);
+        window.removeEventListener('scroll', positionHandler, true);
+        positionHandler = null;
+      }
     }
 
-    root.hidden = false;
-    showStep(0);
+    function complete() {
+      markDone();
+      dismiss();
+    }
 
-    root.querySelectorAll('[data-onboarding-next]').forEach((btn) => {
-      btn.addEventListener('click', () => showStep(current + 1));
+    function open(force) {
+      if (!root) {
+        const tipUrl = new URL(window.location.href);
+        if (tipUrl.pathname === '/' || tipUrl.pathname === '') {
+          return;
+        }
+        tipUrl.pathname = '/';
+        tipUrl.searchParams.set('tip', '1');
+        window.location.href = tipUrl.toString();
+        return;
+      }
+      if (!force && isDone()) return;
+
+      steps = Array.from(root.querySelectorAll('[data-onboarding-step]'));
+      dots = Array.from(root.querySelectorAll('[data-onboarding-dot]'));
+      root.hidden = false;
+      document.body.classList.add('onboarding-open');
+      showStep(0);
+      releaseFocusTrap = trapFocus(root);
+      positionHandler = () => positionPanel();
+      window.addEventListener('resize', positionHandler, { passive: true });
+      window.addEventListener('scroll', positionHandler, { passive: true, capture: true });
+      positionPanel();
+    }
+
+    document.querySelectorAll('[data-onboarding-replay]').forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.preventDefault();
+        open(true);
+      });
     });
-    root.querySelectorAll('[data-onboarding-done], [data-onboarding-dismiss]').forEach((btn) => {
-      btn.addEventListener('click', finish);
+
+    if (!root) return;
+
+    root.querySelectorAll('[data-onboarding-dismiss]').forEach((btn) => {
+      btn.addEventListener('click', dismiss);
     });
+    nextBtn?.addEventListener('click', () => showStep(current + 1));
+    doneBtn?.addEventListener('click', complete);
+
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('tip') === '1') {
+      open(true);
+      params.delete('tip');
+      const clean = `${window.location.pathname}${params.toString() ? `?${params}` : ''}`;
+      window.history.replaceState({}, '', clean);
+    } else if (!isDone()) {
+      window.setTimeout(() => open(false), 480);
+    }
   })();
 
   function sendAnalyticsBeacon(url, payload) {
