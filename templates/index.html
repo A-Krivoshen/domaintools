@@ -25,6 +25,19 @@
   {% include "_home_cards.html" %}
 </section>
 
+<section class="mb-4">
+  <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+    <div>
+      <h2 class="page-section-title mb-1">{{ tr('Домен + VPS', 'Domain + VPS') }}</h2>
+      <p class="text-muted small mb-0">{{ tr('Проверьте имя и сразу выберите сервер для запуска.', 'Check the name and pick a server to launch.') }}</p>
+    </div>
+    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('hosting_landing') }}">{{ tr('Все VPS', 'All VPS') }}</a>
+  </div>
+  {% with launch_variant='hosting_only', placement='home' %}
+  {% include '_hosting_launch_path.html' %}
+  {% endwith %}
+</section>
+
 <section class="security-note mb-3" role="note" aria-label="{{ tr('Безопасность сканеров', 'Scanner security') }}">
   <div class="d-flex flex-wrap align-items-start gap-3">
     <div class="tool-page-header__icon mb-0" aria-hidden="true">

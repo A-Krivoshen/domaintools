@@ -1,0 +1,20 @@
+{# Grid of VPS offers. Expects: offers (list), compact (bool), placement (str), title/lead optional #}
+{% set _offers = offers or hosting_offers_featured() %}
+{% set _placement = placement or 'grid' %}
+{% set _compact = compact|default(false) %}
+{% if _offers %}
+<section class="hosting-offers-grid{% if _compact %} hosting-offers-grid--compact{% endif %}"
+         aria-label="{{ tr('VPS-провайдеры', 'VPS providers') }}">
+  {% if title %}
+  <header class="hosting-offers-grid__head">
+    <h2 class="hosting-offers-grid__title">{{ title }}</h2>
+    {% if lead %}<p class="hosting-offers-grid__lead">{{ lead }}</p>{% endif %}
+  </header>
+  {% endif %}
+  <div class="hosting-offers-grid__cards">
+    {% for offer in _offers %}
+      {% include '_hosting_offer_card.html' %}
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

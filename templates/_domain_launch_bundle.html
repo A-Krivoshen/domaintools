@@ -1,0 +1,5 @@
+{% if domain_availability and domain_availability.status == 'available' and domain_availability.affiliate_buy_url %}
+{% with launch_variant='bundle', launch_domain=domain_availability.affiliate_domain, launch_buy_url=domain_availability.affiliate_buy_url, launch_display_domain=domain_availability.display_domain, placement=placement or 'domain-available' %}
+{% include '_hosting_launch_path.html' %}
+{% endwith %}
+{% endif %}

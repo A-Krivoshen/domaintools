@@ -378,6 +378,11 @@ def inject_babel_helpers():
         "lang_url": _lang_url,
         "tr": _tr,
         "beget_banner_src": random.choice(beget_banner_sources),
+        "hosting_offers": _hosting_offers,
+        "hosting_offers_featured": (lambda: _hosting_offers(featured_only=True)),
+        "hosting_setup": _hosting_setup_offer(),
+        "hosting_vps_landing_url": HOSTING_VPS_LANDING_URL,
+        "dns_suggests_hosting": _dns_suggests_hosting,
     }
 
 
@@ -866,6 +871,153 @@ def _domain_availability_from_search_items(items: List[Dict]) -> Optional[Dict[s
     return payload
 
 
+# ---------- Hosting / VPS referrals (vps.krivoshein.site) ----------
+HOSTING_VPS_LANDING_URL = os.environ.get("HOSTING_VPS_LANDING_URL", "https://vps.krivoshein.site/").strip()
+HOSTING_SETUP_URL = os.environ.get("HOSTING_SETUP_URL", "https://krivoshein.site/contacts/").strip()
+HOSTING_SETUP_PRICE_RUB = int(os.environ.get("HOSTING_SETUP_PRICE_RUB", "10000"))
+
+_HOSTING_OFFERS_RAW: List[Dict[str, object]] = [
+    {
+        "id": "firstvds",
+        "name": "FirstVDS",
+        "price_rub": 249,
+        "url": "https://krivoshein.site/firstvds",
+        "icon": "fa-server",
+        "badge": "recommended",
+        "accent": "#10b981",
+        "desc_ru": "Самый выгодный вариант: SSD, удобная панель. Отлично для ботов и WordPress.",
+        "desc_en": "Best value: SSD, easy panel. Great for bots and WordPress.",
+        "tags_ru": ["Боты", "WordPress"],
+        "tags_en": ["Bots", "WordPress"],
+    },
+    {
+        "id": "sweb",
+        "name": "SpaceWeb",
+        "price_rub": 277,
+        "url": "https://krivoshein.site/sweb",
+        "icon": "fa-shield-halved",
+        "badge": "ddos",
+        "accent": "#6366f1",
+        "desc_ru": "Российский провайдер с защитой от DDoS и root-доступом.",
+        "desc_en": "Russian provider with DDoS protection and root access.",
+        "tags_ru": ["DDoS", "RU"],
+        "tags_en": ["DDoS", "RU"],
+    },
+    {
+        "id": "beget",
+        "name": "Beget",
+        "price_rub": 329,
+        "url": "https://krivoshein.site/beget",
+        "icon": "fa-cloud",
+        "badge": "ecosystem",
+        "accent": "#0ea5e9",
+        "desc_ru": "Домен и хостинг в одном месте: удобная панель и поддержка.",
+        "desc_en": "Domain and hosting in one place: easy panel and support.",
+        "tags_ru": ["Домен + VPS"],
+        "tags_en": ["Domain + VPS"],
+    },
+    {
+        "id": "clo",
+        "name": "CLO",
+        "price_rub": 500,
+        "url": "https://krivoshein.site/clo",
+        "icon": "fa-gauge-high",
+        "badge": None,
+        "accent": "#8b5cf6",
+        "desc_ru": "Гибкое облако с почасовой оплатой — удобно при плавающей нагрузке.",
+        "desc_en": "Flexible cloud with hourly billing for variable workloads.",
+        "tags_ru": ["Облако"],
+        "tags_en": ["Cloud"],
+    },
+    {
+        "id": "yandexcloud",
+        "name": "Yandex Cloud",
+        "price_rub": 990,
+        "url": "https://krivoshein.site/yandexcloud",
+        "icon": "fa-database",
+        "badge": None,
+        "accent": "#f59e0b",
+        "desc_ru": "Мощное облако с интеграцией в экосистему Яндекса.",
+        "desc_en": "Powerful cloud integrated with the Yandex ecosystem.",
+        "tags_ru": ["Enterprise"],
+        "tags_en": ["Enterprise"],
+    },
+]
+
+HOSTING_FEATURED_IDS = ("firstvds", "beget", "sweb")
+
+
+def _hosting_locale_en() -> bool:
+    try:
+        return str(babel_get_locale() or "ru").startswith("en")
+    except RuntimeError:
+        return False
+
+
+def _localize_hosting_offer(raw: Dict[str, object]) -> Dict[str, object]:
+    en = _hosting_locale_en()
+    badge = raw.get("badge")
+    badge_labels = {
+        "recommended": ("Рекомендую", "Recommended"),
+        "ddos": ("DDoS-защита", "DDoS shield"),
+        "ecosystem": ("Домен + VPS", "Domain + VPS"),
+    }
+    badge_text = ""
+    if badge and badge in badge_labels:
+        badge_text = badge_labels[badge][1 if en else 0]
+    return {
+        "id": raw["id"],
+        "name": raw["name"],
+        "price_rub": raw["price_rub"],
+        "url": raw["url"],
+        "icon": raw.get("icon") or "fa-server",
+        "badge": badge,
+        "badge_text": badge_text,
+        "accent": raw.get("accent") or "#6366f1",
+        "desc": raw["desc_en"] if en else raw["desc_ru"],
+        "tags": list(raw["tags_en"] if en else raw["tags_ru"]),
+    }
+
+
+def _hosting_offers(*, featured_only: bool = False) -> List[Dict[str, object]]:
+    rows = [_localize_hosting_offer(o) for o in _HOSTING_OFFERS_RAW]
+    if featured_only:
+        featured = set(HOSTING_FEATURED_IDS)
+        rows = [o for o in rows if o["id"] in featured]
+        order = {k: i for i, k in enumerate(HOSTING_FEATURED_IDS)}
+        rows.sort(key=lambda x: order.get(x["id"], 99))
+    return rows
+
+
+def _hosting_setup_offer() -> Dict[str, object]:
+    en = _hosting_locale_en()
+    return {
+        "price_rub": HOSTING_SETUP_PRICE_RUB,
+        "url": HOSTING_SETUP_URL,
+        "vps_landing_url": HOSTING_VPS_LANDING_URL,
+        "title": ("Настройка VPS под ключ", "Turnkey VPS setup")[int(en)],
+        "lead": (
+            "ОС, веб-сервер, DNS, Docker, безопасность — и 30 дней поддержки.",
+            "OS, web server, DNS, Docker, security — plus 30 days of support.",
+        )[int(en)],
+    }
+
+
+def _dns_suggests_hosting(
+    records: Optional[dict],
+    domain_availability: Optional[Dict[str, object]],
+) -> bool:
+    if not domain_availability or domain_availability.get("status") != "taken":
+        return False
+    if not records:
+        return True
+    for rtype in ("A", "AAAA", "MX"):
+        vals = records.get(rtype)
+        if vals:
+            return False
+    return True
+
+
 WHOIS_EXPIRY_NOTICE_DAYS = 90
 WHOIS_EXPIRY_WARNING_DAYS = 30
 WHOIS_EXPIRY_CRITICAL_DAYS = 7
@@ -1291,6 +1443,34 @@ def track_buy_click():
 
     return jsonify(ok=True), 200
 
+
+@app.post("/track/ref-click")
+def track_ref_click():
+    payload = request.get_json(silent=True) or {}
+    ref_type = re.sub(r"[^a-z0-9_-]", "", str(payload.get("type") or "").strip().lower())[:24]
+    ref_id = re.sub(r"[^a-z0-9_-]", "", str(payload.get("id") or "").strip().lower())[:32]
+    placement = re.sub(r"[^a-z0-9_-]", "", str(payload.get("placement") or "").strip().lower())[:32]
+    locale = str(payload.get("locale") or "").strip().lower()[:8]
+    if locale not in {"ru", "en"}:
+        locale = "other"
+    if ref_type not in {"hosting", "setup", "vps_landing"} or not ref_id:
+        return jsonify(ok=False, error="bad_ref"), 400
+
+    day_key = datetime.now(timezone.utc).strftime("%Y%m%d")
+    field = f"{ref_type}:{ref_id}"
+    if placement:
+        field = f"{field}:{placement}"
+    redis_key = f"dt:analytics:ref_clicks:{day_key}:{locale}"
+    try:
+        with r.pipeline() as pipe:
+            pipe.hincrby(redis_key, field, 1)
+            pipe.expire(redis_key, 86400 * 45)
+            pipe.execute()
+    except Exception:
+        app.logger.warning("Ref click analytics write failed", exc_info=True)
+
+    return jsonify(ok=True), 200
+
 @app.get("/llms.txt")
 def llms_txt():
     path = os.path.join(app.root_path, "static", "llms.txt")
@@ -1320,6 +1500,7 @@ def sitemap():
     static_pages = [
         (url_for("index"), "1.0", "daily"),
         (url_for("domain_search"), "0.9", "daily"),
+        (url_for("hosting_landing"), "0.88", "weekly"),
         (url_for("domain_report"), "0.85", "weekly"),
         (url_for("dns_lookup"), "0.85", "weekly"),
         (url_for("whois_lookup"), "0.85", "weekly"),
@@ -1393,6 +1574,14 @@ def sitemap():
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.get("/hosting")
+def hosting_landing():
+    return render_template(
+        "hosting.html",
+        hosting_all_offers=_hosting_offers(),
+    )
 
 
 def _sanitize_lookup_domain(domain: str) -> tuple[Optional[str], Optional[str]]:
@@ -1976,6 +2165,7 @@ def dns_lookup():
         selected_types=selected_types,
         dns_type_options=dns_type_options,
         domain_availability=domain_availability,
+        dns_suggests_hosting=_dns_suggests_hosting(records, domain_availability),
         **_affiliate_actions_for_domain(affiliate_domain),
     )
 

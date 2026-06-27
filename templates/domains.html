@@ -86,6 +86,9 @@
 
 {% if items and not error %}
 {% include '_domain_availability_banner.html' %}
+{% with placement='domains-search' %}
+{% include '_domain_launch_bundle.html' %}
+{% endwith %}
 <div class="table-responsive">
   <table class="table align-middle">
     <thead class="table-light">

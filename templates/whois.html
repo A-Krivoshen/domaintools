@@ -34,7 +34,17 @@
       </div>
     </div>
     {% include '_domain_availability_banner.html' %}
+    {% include '_domain_launch_bundle.html' %}
     {% include '_whois_expiry_urgency_banner.html' %}
+    {% if whois_expiry_urgency %}
+    {% with launch_variant='expiry', launch_domain=affiliate_domain, launch_buy_url=affiliate_buy_url, launch_display_domain=whois_expiry_urgency.display_domain, placement='whois-expiry' %}
+    {% include '_hosting_launch_path.html' %}
+    {% endwith %}
+    {% elif domain_availability and domain_availability.status == 'taken' and affiliate_domain %}
+    {% with launch_variant='hosting_only', launch_domain=affiliate_domain, launch_display_domain=domain_availability.display_domain, placement='whois-taken' %}
+    {% include '_hosting_launch_path.html' %}
+    {% endwith %}
+    {% endif %}
     <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
       <div class="tool-actions__group">
         {% if result.domain_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ result.domain_name }}">DNS</a>{% endif %}

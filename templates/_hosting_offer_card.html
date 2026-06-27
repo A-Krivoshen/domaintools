@@ -1,0 +1,42 @@
+{# Single VPS provider card. Expects: offer (dict), compact (bool, optional), placement (str, optional) #}
+{% set _placement = placement or 'grid' %}
+{% set _compact = compact|default(false) %}
+<article class="hosting-offer-card{% if _compact %} hosting-offer-card--compact{% endif %}{% if offer.badge == 'recommended' %} hosting-offer-card--featured{% endif %}"
+         style="--hosting-accent: {{ offer.accent }}">
+  {% if offer.badge_text %}
+  <span class="hosting-offer-card__badge">{{ offer.badge_text }}</span>
+  {% endif %}
+  <div class="hosting-offer-card__head">
+    <span class="hosting-offer-card__icon" aria-hidden="true">
+      <i class="fa-solid {{ offer.icon }}"></i>
+    </span>
+    <div>
+      <h3 class="hosting-offer-card__name">{{ offer.name }}</h3>
+      <p class="hosting-offer-card__price">
+        {{ tr('от', 'from') }} <strong>{{ offer.price_rub }}</strong> ₽<span class="hosting-offer-card__period">/{{ tr('мес', 'mo') }}</span>
+      </p>
+    </div>
+  </div>
+  {% if not _compact %}
+  <p class="hosting-offer-card__desc">{{ offer.desc }}</p>
+  {% if offer.tags %}
+  <div class="hosting-offer-card__tags">
+    {% for tag in offer.tags %}
+    <span class="hosting-offer-card__tag">{{ tag }}</span>
+    {% endfor %}
+  </div>
+  {% endif %}
+  {% endif %}
+  <a class="hosting-offer-card__cta btn {% if offer.badge == 'recommended' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+     href="{{ offer.url }}"
+     target="_blank"
+     rel="nofollow noopener sponsored"
+     data-ref-track
+     data-ref-type="hosting"
+     data-ref-id="{{ offer.id }}"
+     data-ref-placement="{{ _placement }}"
+     data-ref-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+    {{ tr('Выбрать', 'Choose') }} {{ offer.name }}
+    <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i>
+  </a>
+</article>

@@ -248,25 +248,45 @@
     updateZonesCounter();
   });
 
+  function sendAnalyticsBeacon(url, payload) {
+    const body = JSON.stringify(payload);
+    try {
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+      } else {
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body,
+          keepalive: true,
+        }).catch(() => {});
+      }
+    } catch (e) {}
+  }
+
   document.querySelectorAll('[data-buy-track]').forEach((link) => {
     link.addEventListener('click', () => {
       const domain = (link.getAttribute('data-buy-domain') || '').toLowerCase();
       const locale = (link.getAttribute('data-buy-locale') || '').toLowerCase();
       const tld = domain.includes('.') ? domain.split('.').slice(-1)[0] : '';
       if (!tld) return;
-      const payload = JSON.stringify({ tld, locale: (locale === 'en' ? 'en' : 'ru') });
-      try {
-        if (navigator.sendBeacon) {
-          navigator.sendBeacon('/track/buy-click', new Blob([payload], { type: 'application/json' }));
-        } else {
-          fetch('/track/buy-click', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: payload,
-            keepalive: true,
-          }).catch(() => {});
-        }
-      } catch (e) {}
+      sendAnalyticsBeacon('/track/buy-click', { tld, locale: (locale === 'en' ? 'en' : 'ru') });
+    });
+  });
+
+  document.querySelectorAll('[data-ref-track]').forEach((link) => {
+    link.addEventListener('click', () => {
+      const type = (link.getAttribute('data-ref-type') || '').toLowerCase();
+      const id = (link.getAttribute('data-ref-id') || '').toLowerCase();
+      const placement = (link.getAttribute('data-ref-placement') || '').toLowerCase();
+      const locale = (link.getAttribute('data-ref-locale') || '').toLowerCase();
+      if (!type || !id) return;
+      sendAnalyticsBeacon('/track/ref-click', {
+        type,
+        id,
+        placement,
+        locale: (locale === 'en' ? 'en' : 'ru'),
+      });
     });
   });
 

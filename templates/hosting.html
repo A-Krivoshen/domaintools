@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('VPS и хостинг для домена — DomainTools', 'VPS and hosting for your domain — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Сравнение VPS-провайдеров для сайта и ботов: FirstVDS, SpaceWeb, Beget, CLO, Yandex Cloud. Настройка под ключ.', 'Compare VPS providers for sites and bots: FirstVDS, SpaceWeb, Beget, CLO, Yandex Cloud. Turnkey setup available.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = tr('VPS / Хостинг', 'VPS / Hosting') %}
+{% set breadcrumb_path = url_for('hosting_landing') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% endblock %}
+
+{% block content %}
+<section class="hosting-hero card-soft p-4 p-md-5 mb-4">
+  <div class="hosting-hero__badge">
+    <i class="fa-solid fa-server" aria-hidden="true"></i>
+    {{ tr('Инфраструктура', 'Infrastructure') }}
+  </div>
+  <h1 class="hosting-hero__title">{{ tr('VPS и хостинг под ваш домен', 'VPS and hosting for your domain') }}</h1>
+  <p class="hosting-hero__lead">
+    {{ tr('Проверили домен на DomainTools — следующий шаг: сервер. Подборка проверенных VPS с реферальными условиями и опциональной настройкой под ключ.', 'Checked a domain on DomainTools — next step: a server. Curated VPS options with referral terms and optional turnkey setup.') }}
+  </p>
+  <div class="hosting-hero__actions">
+    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">
+      <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>
+      {{ tr('Подобрать домен', 'Find a domain') }}
+    </a>
+    <a class="btn btn-outline-secondary"
+       href="{{ hosting_vps_landing_url }}"
+       target="_blank"
+       rel="noopener noreferrer"
+       data-ref-track
+       data-ref-type="vps_landing"
+       data-ref-id="vps"
+       data-ref-placement="hosting-hero"
+       data-ref-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+      {{ tr('Полное сравнение на vps.krivoshein.site', 'Full comparison on vps.krivoshein.site') }}
+      <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i>
+    </a>
+  </div>
+</section>
+
+{% with launch_variant='hosting_only', placement='hosting-page' %}
+{% include '_hosting_launch_path.html' %}
+{% endwith %}
+
+<section class="mb-4">
+  {% with offers=hosting_all_offers, placement='hosting-page-grid', title=tr('Все провайдеры', 'All providers'), lead=tr('Цены ориентировочные — актуальные тарифы на сайтах провайдеров.', 'Prices are indicative — see provider sites for current plans.') %}
+  {% include '_hosting_offers_grid.html' %}
+  {% endwith %}
+</section>
+
+<section class="hosting-setup-banner card-soft p-4 p-md-5 mb-4">
+  <div class="row g-4 align-items-center">
+    <div class="col-lg-8">
+      <div class="hosting-setup-banner__eyebrow">{{ tr('Премиум-опция', 'Premium option') }}</div>
+      <h2 class="hosting-setup-banner__title">{{ hosting_setup.title }}</h2>
+      <p class="hosting-setup-banner__lead mb-0">{{ hosting_setup.lead }}</p>
+    </div>
+    <div class="col-lg-4 text-lg-end">
+      <p class="hosting-setup-banner__price mb-3">{{ tr('от', 'from') }} <strong>{{ hosting_setup.price_rub|int }}</strong> ₽</p>
+      <a class="btn btn-primary btn-lg"
+         href="{{ hosting_setup.url }}"
+         target="_blank"
+         rel="noopener noreferrer"
+         data-ref-track
+         data-ref-type="setup"
+         data-ref-id="contacts"
+         data-ref-placement="hosting-setup-banner"
+         data-ref-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+        {{ tr('Обсудить задачу', 'Discuss your project') }}
+      </a>
+    </div>
+  </div>
+</section>
+
+<section class="hosting-faq card-soft p-4 mb-3">
+  <h2 class="page-section-title mb-3">{{ tr('Как выбрать VPS', 'How to pick a VPS') }}</h2>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="hosting-faq__item">
+        <div class="hosting-faq__icon" aria-hidden="true"><i class="fa-solid fa-robot"></i></div>
+        <h3 class="h6">{{ tr('Боты и API', 'Bots and API') }}</h3>
+        <p class="small text-muted mb-0">{{ tr('FirstVDS или SpaceWeb — быстрый старт и стабильный uptime.', 'FirstVDS or SpaceWeb — fast start and stable uptime.') }}</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="hosting-faq__item">
+        <div class="hosting-faq__icon" aria-hidden="true"><i class="fa-brands fa-wordpress"></i></div>
+        <h3 class="h6">{{ tr('WordPress / сайт', 'WordPress / website') }}</h3>
+        <p class="small text-muted mb-0">{{ tr('Beget — домен и хостинг в одной панели; FirstVDS — если нужен root.', 'Beget — domain and hosting in one panel; FirstVDS when you need root.') }}</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="hosting-faq__item">
+        <div class="hosting-faq__icon" aria-hidden="true"><i class="fa-solid fa-chart-line"></i></div>
+        <h3 class="h6">{{ tr('Плавающая нагрузка', 'Variable load') }}</h3>
+        <p class="small text-muted mb-0">{{ tr('CLO или Yandex Cloud — масштабирование и почасовая оплата.', 'CLO or Yandex Cloud — scale with hourly billing.') }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}

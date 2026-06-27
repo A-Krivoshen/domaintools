@@ -13,6 +13,7 @@ class UIToolPagesSmokeTests(unittest.TestCase):
             '/dns',
             '/whois',
             '/domains',
+            '/hosting',
             '/geo',
             '/reverse',
             '/security',

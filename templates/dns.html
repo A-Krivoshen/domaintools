@@ -60,6 +60,12 @@
       </div>
     </div>
     {% include '_domain_availability_banner.html' %}
+    {% include '_domain_launch_bundle.html' %}
+    {% if dns_suggests_hosting %}
+    {% with launch_variant='dns_unconfigured', launch_domain=affiliate_domain, launch_display_domain=domain_availability.display_domain if domain_availability else affiliate_domain, placement='dns-unconfigured' %}
+    {% include '_hosting_launch_path.html' %}
+    {% endwith %}
+    {% endif %}
     {% if permalink or query %}
       <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
         <div class="tool-actions__group" aria-label="{{ tr('Связанные инструменты', 'Related tools') }}">

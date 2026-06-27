@@ -1,0 +1,145 @@
+{# Contextual domain → VPS funnel wizard.
+   launch_variant: bundle | dns_unconfigured | hosting_only | expiry
+   launch_domain, launch_buy_url, launch_display_domain (optional)
+   placement (str, optional) #}
+{% set _variant = launch_variant or 'hosting_only' %}
+{% set _placement = placement or _variant %}
+{% set _domain = launch_domain or affiliate_domain or '' %}
+{% set _display = launch_display_domain or domain_availability.display_domain if domain_availability else _domain %}
+{% set _buy = launch_buy_url or affiliate_buy_url or (domain_availability.affiliate_buy_url if domain_availability else '') %}
+{% set _offers = hosting_offers_featured() %}
+{% set _setup = hosting_setup %}
+{% set _locale_tag = 'en' if (get_locale()|string).startswith('en') else 'ru' %}
+
+<section class="launch-path launch-path--{{ _variant }}"
+         aria-label="{{ tr('Путь запуска проекта', 'Project launch path') }}"
+         data-launch-path>
+  <div class="launch-path__glow" aria-hidden="true"></div>
+  <header class="launch-path__header">
+    <div class="launch-path__eyebrow">
+      <i class="fa-solid fa-route" aria-hidden="true"></i>
+      {{ tr('Путь запуска', 'Launch path') }}
+    </div>
+    {% if _variant == 'bundle' %}
+    <h2 class="launch-path__title">{{ tr('Домен свободен — запустите проект за 2 шага', 'Domain is free — launch your project in 2 steps') }}</h2>
+    <p class="launch-path__lead">{{ tr('Сначала зарегистрируйте имя, затем разместите сайт или бота на VPS.', 'Register the name first, then host your site or bot on a VPS.') }}</p>
+    {% elif _variant == 'dns_unconfigured' %}
+    <h2 class="launch-path__title">{{ tr('Домен есть — подключите его к серверу', 'Domain exists — connect it to a server') }}</h2>
+    <p class="launch-path__lead">{{ tr('DNS-записи для сайта не найдены. Выберите VPS и привяжите домен за несколько минут.', 'No website DNS records found. Pick a VPS and point the domain in minutes.') }}</p>
+    {% elif _variant == 'expiry' %}
+    <h2 class="launch-path__title">{{ tr('Продлите домен или запустите резерв на VPS', 'Renew the domain or launch a backup on VPS') }}</h2>
+    <p class="launch-path__lead">{{ tr('Пока основной домен активен, зарезервируйте имя и подготовьте инфраструктуру.', 'While the primary domain is active, secure a backup name and prepare hosting.') }}</p>
+    {% else %}
+    <h2 class="launch-path__title">{{ tr('Куда разместить сайт или бота', 'Where to host your site or bot') }}</h2>
+    <p class="launch-path__lead">{{ tr('Проверенные VPS с реферальными условиями — данные с vps.krivoshein.site.', 'Trusted VPS options with referral terms — curated on vps.krivoshein.site.') }}</p>
+    {% endif %}
+  </header>
+
+  <ol class="launch-path__steps">
+    {% if _variant in ['bundle', 'expiry'] and _buy %}
+    <li class="launch-path__step launch-path__step--active">
+      <div class="launch-path__step-marker" aria-hidden="true">1</div>
+      <div class="launch-path__step-body">
+        <div class="launch-path__step-head">
+          <h3 class="launch-path__step-title">{{ tr('Зарегистрировать домен', 'Register domain') }}</h3>
+          {% if _display %}<span class="launch-path__step-chip">{{ _display }}</span>{% endif %}
+        </div>
+        <p class="launch-path__step-text">{{ tr('Закрепите имя у регистратора, пока оно свободно.', 'Secure the name at the registrar while it is still available.') }}</p>
+        <a class="btn btn-success launch-path__step-cta"
+           href="{{ _buy }}"
+           target="_blank"
+           rel="nofollow noopener sponsored"
+           data-buy-track
+           data-buy-domain="{{ _domain }}"
+           data-buy-locale="{{ _locale_tag }}">
+          <i class="fa-solid fa-cart-shopping me-1" aria-hidden="true"></i>
+          {{ tr('Зарегистрировать', 'Register') }}{% if _display %} {{ _display }}{% endif %}
+        </a>
+      </div>
+    </li>
+    {% elif _variant == 'dns_unconfigured' %}
+    <li class="launch-path__step launch-path__step--done">
+      <div class="launch-path__step-marker" aria-hidden="true"><i class="fa-solid fa-check"></i></div>
+      <div class="launch-path__step-body">
+        <div class="launch-path__step-head">
+          <h3 class="launch-path__step-title">{{ tr('Домен зарегистрирован', 'Domain registered') }}</h3>
+          {% if _display %}<span class="launch-path__step-chip">{{ _display }}</span>{% endif %}
+        </div>
+        <p class="launch-path__step-text">{{ tr('Следующий шаг — VPS и DNS-записи для сайта или почты.', 'Next: VPS and DNS records for your site or mail.') }}</p>
+      </div>
+    </li>
+    {% endif %}
+
+    <li class="launch-path__step launch-path__step--active">
+      <div class="launch-path__step-marker" aria-hidden="true">{% if _variant in ['bundle', 'expiry'] and _buy %}2{% elif _variant == 'dns_unconfigured' %}2{% else %}1{% endif %}</div>
+      <div class="launch-path__step-body">
+        <div class="launch-path__step-head">
+          <h3 class="launch-path__step-title">{{ tr('Разместить на VPS', 'Host on VPS') }}</h3>
+        </div>
+        <p class="launch-path__step-text">{{ tr('Выберите провайдера под задачу: боты, WordPress, магазин или API.', 'Pick a provider for your use case: bots, WordPress, store, or API.') }}</p>
+        <div class="launch-path__providers">
+          {% for offer in _offers %}
+          <a class="launch-path__provider"
+             href="{{ offer.url }}"
+             target="_blank"
+             rel="nofollow noopener sponsored"
+             style="--hosting-accent: {{ offer.accent }}"
+             data-ref-track
+             data-ref-type="hosting"
+             data-ref-id="{{ offer.id }}"
+             data-ref-placement="{{ _placement }}"
+             data-ref-locale="{{ _locale_tag }}">
+            {% if offer.badge_text %}
+            <span class="launch-path__provider-badge">{{ offer.badge_text }}</span>
+            {% endif %}
+            <span class="launch-path__provider-icon" aria-hidden="true"><i class="fa-solid {{ offer.icon }}"></i></span>
+            <span class="launch-path__provider-name">{{ offer.name }}</span>
+            <span class="launch-path__provider-price">{{ tr('от', 'from') }} {{ offer.price_rub }} ₽</span>
+          </a>
+          {% endfor %}
+        </div>
+        <a class="launch-path__more link-offset-2"
+           href="{{ url_for('hosting_landing') }}">{{ tr('Сравнить все варианты', 'Compare all options') }}</a>
+      </div>
+    </li>
+
+    <li class="launch-path__step">
+      <div class="launch-path__step-marker" aria-hidden="true">{% if _variant in ['bundle', 'expiry'] and _buy %}3{% elif _variant == 'dns_unconfigured' %}3{% else %}2{% endif %}</div>
+      <div class="launch-path__step-body launch-path__step-body--setup">
+        <div class="launch-path__setup">
+          <div class="launch-path__setup-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <div class="launch-path__setup-copy">
+            <h3 class="launch-path__setup-title">{{ _setup.title }}</h3>
+            <p class="launch-path__setup-lead">{{ _setup.lead }}</p>
+            <p class="launch-path__setup-price">{{ tr('от', 'from') }} <strong>{{ _setup.price_rub|int }}</strong> ₽</p>
+          </div>
+          <div class="launch-path__setup-actions">
+            <a class="btn btn-outline-primary"
+               href="{{ _setup.url }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-ref-track
+               data-ref-type="setup"
+               data-ref-id="contacts"
+               data-ref-placement="{{ _placement }}"
+               data-ref-locale="{{ _locale_tag }}">
+              {{ tr('Обсудить настройку', 'Discuss setup') }}
+            </a>
+            <a class="btn btn-link launch-path__vps-link"
+               href="{{ hosting_vps_landing_url }}"
+               target="_blank"
+               rel="noopener noreferrer"
+               data-ref-track
+               data-ref-type="vps_landing"
+               data-ref-id="vps"
+               data-ref-placement="{{ _placement }}"
+               data-ref-locale="{{ _locale_tag }}">
+              vps.krivoshein.site
+              <i class="fa-solid fa-arrow-up-right-from-square ms-1" aria-hidden="true"></i>
+            </a>
+          </div>
+        </div>
+      </div>
+    </li>
+  </ol>
+</section>
