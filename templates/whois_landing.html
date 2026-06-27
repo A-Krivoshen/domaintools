@@ -3,8 +3,11 @@
 {% block meta_snippet %}{{ tr('Проверка WHOIS для домена ' ~ domain ~ ': регистратор, даты и статус + быстрый переход в DNS и отчёт.', 'WHOIS lookup for ' ~ domain ~ ': registrar, dates, status, plus quick jump to DNS and full report.') }}{% endblock %}
 
 {% block jsonld_extra %}
-{% set breadcrumb_name = 'WHOIS ' ~ domain %}
-{% set breadcrumb_path = url_for('lookup_whois_domain', domain=domain) %}
+{% set breadcrumb_items = [
+  {'name': tr('Главная','Home'), 'path': '/'},
+  {'name': 'WHOIS', 'path': url_for('whois_lookup')},
+  {'name': domain, 'path': url_for('lookup_whois_domain', domain=domain)},
+] %}
 {% include '_breadcrumb_jsonld.html' %}
 {% endblock %}
 

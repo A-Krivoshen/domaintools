@@ -6,6 +6,9 @@
 {% set breadcrumb_name = '.' ~ zone_display %}
 {% set breadcrumb_path = url_for('zone_landing', tld=zone) %}
 {% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Подбор доменов в зоне .', 'Domain search in .') ~ zone_display %}
+{% set webapp_path = url_for('zone_landing', tld=zone) %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}
 
 {% block content %}

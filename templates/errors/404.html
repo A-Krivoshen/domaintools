@@ -1,5 +1,25 @@
-<!doctype html>
-<meta charset="utf-8">
-<title>404</title>
-<h1>404 — Not Found</h1>
-<p>Page not found / Страница не найдена.</p>
+{% extends 'base.html' %}
+{% block title %}{{ tr('Страница не найдена — DomainTools', 'Page not found — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Запрошенная страница не найдена. Перейдите к проверке домена, DNS или WHOIS.', 'The requested page was not found. Go to domain check, DNS, or WHOIS tools.') }}{% endblock %}
+
+{% block head_extra %}<meta name="robots" content="noindex, follow">{% endblock %}
+
+{% block content %}
+<header class="tool-page-header mb-4">
+  <h1 class="tool-page-header__title mb-2">404</h1>
+  <p class="tool-page-header__intro mb-0">{{ tr('Страница не найдена.', 'Page not found.') }}</p>
+</header>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <p class="mb-3">{{ tr('Возможно, ссылка устарела или адрес введён с ошибкой. Попробуйте один из инструментов:', 'The link may be outdated or the address was mistyped. Try one of these tools:') }}</p>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-primary" href="{{ url_for('index') }}">{{ tr('Главная', 'Home') }}</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('domain_report') }}">{{ tr('Проверка домена', 'Domain check') }}</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('dns_lookup') }}">DNS</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('whois_lookup') }}">WHOIS</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('domain_search') }}">{{ tr('Подбор доменов', 'Domain search') }}</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

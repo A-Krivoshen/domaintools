@@ -3,8 +3,11 @@
 {% block meta_snippet %}{{ tr('Проверка DNS-записей домена ' ~ domain ~ ': A, MX, NS, TXT и другие типы.', 'DNS lookup for ' ~ domain ~ ': A, MX, NS, TXT and other record types.') }}{% endblock %}
 
 {% block jsonld_extra %}
-{% set breadcrumb_name = 'DNS ' ~ domain %}
-{% set breadcrumb_path = url_for('lookup_dns_domain', domain=domain) %}
+{% set breadcrumb_items = [
+  {'name': tr('Главная','Home'), 'path': '/'},
+  {'name': 'DNS', 'path': url_for('dns_lookup')},
+  {'name': domain, 'path': url_for('lookup_dns_domain', domain=domain)},
+] %}
 {% include '_breadcrumb_jsonld.html' %}
 {% endblock %}
 

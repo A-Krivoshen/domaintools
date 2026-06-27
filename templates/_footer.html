@@ -8,6 +8,11 @@
         <span class="ms-2 footer-note">{{ tr('Инструменты проверки доменов и инфраструктуры.', 'Tools for domain and infrastructure checks.') }}</span>
       </div>
       <nav class="nav footer-nav" aria-label="{{ tr('Служебные ссылки', 'Service links') }}">
+        <a class="nav-link px-2 text-muted" href="{{ url_for('dns_lookup') }}">DNS</a>
+        <a class="nav-link px-2 text-muted" href="{{ url_for('whois_lookup') }}">WHOIS</a>
+        <a class="nav-link px-2 text-muted" href="{{ url_for('domain_report') }}">{{ tr('Проверка', 'Check') }}</a>
+        <a class="nav-link px-2 text-muted" href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
+        <a class="nav-link px-2 text-muted" href="{{ url_for('geo_lookup') }}">GeoIP</a>
         <a class="nav-link px-2 text-muted" href="/sitemap.xml">sitemap.xml</a>
         <a class="nav-link px-2 text-muted" href="/robots.txt">robots.txt</a>
         <a class="nav-link px-2 text-muted" href="{{ url_for('history_list') }}">{{ tr('История', 'History') }}</a>

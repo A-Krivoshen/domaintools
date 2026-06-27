@@ -273,6 +273,7 @@ SEO_DOMAIN_META_NS = "dt:seo:domainmeta"
 SITEMAP_DYNAMIC_DOMAIN_LIMIT = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_LIMIT", "1000"))
 SITEMAP_DYNAMIC_DOMAIN_MIN_HITS = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_MIN_HITS", "2"))
 SITEMAP_DYNAMIC_DOMAIN_TTL_S = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_TTL_S", str(90 * 24 * 3600)))
+SITEMAP_ZONE_LIMIT = int(os.environ.get("SITEMAP_ZONE_LIMIT", "60"))
 
 
 def _redis_health() -> Dict[str, object]:
@@ -497,6 +498,58 @@ def _canonical_site_root() -> str:
         return request.url_root.rstrip("/")
     except RuntimeError:
         return "https://domaintools.site"
+
+
+def _seo_lang_code() -> str:
+    try:
+        loc = str(babel_get_locale() or "ru")
+    except Exception:
+        loc = "ru"
+    return "en" if loc.startswith("en") else "ru"
+
+
+def _seo_display_domain(clean: str, ascii_domain: str) -> str:
+    return _to_unicode(ascii_domain) or clean
+
+
+def _seo_canonical_url() -> str:
+    root = _canonical_site_root()
+    lang = _seo_lang_code()
+    try:
+        path = request.path or "/"
+    except RuntimeError:
+        return f"{root}/?lang={lang}"
+
+    q = (request.args.get("q") or request.args.get("query") or "").strip()
+    if q:
+        clean, ascii_domain = _sanitize_lookup_domain(q)
+        if clean and ascii_domain:
+            display = _seo_display_domain(clean, ascii_domain)
+            if path == "/dns":
+                return f"{root}{url_for('lookup_dns_domain', domain=display)}?lang={lang}"
+            if path == "/whois":
+                return f"{root}{url_for('lookup_whois_domain', domain=display)}?lang={lang}"
+            if path in ("/report", "/check") and _is_indexable_domain_host(ascii_domain):
+                return f"{root}{url_for('domain_check', domain=display)}?lang={lang}"
+            if path in ("/geo", "/reverse") and _is_indexable_domain_host(ascii_domain):
+                return f"{root}{url_for('domain_check', domain=display)}?lang={lang}"
+
+    return f"{root}{path}?lang={lang}"
+
+
+def _seo_noindex_auto() -> bool:
+    try:
+        path = request.path.rstrip("/") or "/"
+    except RuntimeError:
+        return False
+    if path == "/history" or path.startswith("/history/"):
+        return True
+    if request.args.get("job"):
+        return True
+    q = (request.args.get("q") or request.args.get("query") or "").strip()
+    if q and path in {"/dns", "/whois", "/geo", "/reverse", "/report", "/domains"}:
+        return True
+    return False
 
 
 def _indexnow_urls_for_domain(host_ascii: str) -> List[str]:
@@ -1622,6 +1675,8 @@ def jinja_more_globals():
     return {
         "country_flag": country_flag,
         "site_root": _canonical_site_root(),
+        "seo_canonical_url": _seo_canonical_url(),
+        "seo_noindex_auto": _seo_noindex_auto(),
     }
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
@@ -1666,6 +1721,15 @@ def health():
             "rate_limit_current_minute": security_metrics_minute,
         },
     ), 200
+
+@app.get("/apple-touch-icon.png")
+def apple_touch_icon():
+    return send_from_directory(
+        os.path.join(app.root_path, "static"),
+        "apple-touch-icon.png",
+        mimetype="image/png",
+    )
+
 
 @app.get("/favicon.ico")
 def favicon():
@@ -1742,9 +1806,14 @@ def robots():
     lines = [
         "User-agent: *",
         "Allow: /",
-        "Allow: /api/v1/",
         "Allow: /llms.txt",
+        "Disallow: /history",
         "Disallow: /history/",
+        "Disallow: /export/",
+        "Disallow: /track/",
+        "Disallow: /api/v1/",
+        "Disallow: /health",
+        "Disallow: /security/metrics",
         "",
         f"Sitemap: {url_for('sitemap', _external=True)}",
         "",
@@ -1769,14 +1838,18 @@ def sitemap():
         (url_for("reverse_lookup"), "0.8", "weekly"),
         (url_for("site_checker.site_checker"), "0.8", "weekly"),
         (url_for("security_tools"), "0.7", "monthly"),
+        (url_for("llms_txt"), "0.5", "monthly"),
     ]
 
-    dynamic_domain_paths: List[str] = []
+    dynamic_domain_entries: List[Tuple[str, str]] = []
     zone_paths: List[str] = []
-    for tld in app.config.get("DOMAIN_DEFAULT_TLDS", [])[:16]:
-        t = (tld or "").strip().lstrip(".")
-        if t:
-            zone_paths.append(url_for("zone_landing", tld=t))
+    allowed_zones = {
+        t.strip().lstrip(".").lower()
+        for t in app.config.get("TLD_LIST", [])
+        if (t or "").strip()
+    }
+    for tld in list(allowed_zones)[:max(1, SITEMAP_ZONE_LIMIT)]:
+        zone_paths.append(url_for("zone_landing", tld=tld))
     try:
         top_domains = r.zrevrange(SEO_DOMAIN_ZSET, 0, max(0, SITEMAP_DYNAMIC_DOMAIN_LIMIT - 1), withscores=True)
         now = int(time.time())
@@ -1796,9 +1869,14 @@ def sitemap():
                 continue
             if now - last_seen > SITEMAP_DYNAMIC_DOMAIN_TTL_S:
                 continue
-            dynamic_domain_paths.append(url_for("domain_check", domain=d))
-            dynamic_domain_paths.append(url_for("lookup_whois_domain", domain=d))
-            dynamic_domain_paths.append(url_for("lookup_dns_domain", domain=d))
+            display = _to_unicode(d) or d
+            lastmod_iso = datetime.fromtimestamp(last_seen, tz=timezone.utc).date().isoformat()
+            for path in (
+                url_for("domain_check", domain=display),
+                url_for("lookup_whois_domain", domain=display),
+                url_for("lookup_dns_domain", domain=display),
+            ):
+                dynamic_domain_entries.append((path, lastmod_iso))
     except Exception:
         app.logger.debug("Dynamic SEO sitemap domain load failed")
 
@@ -1809,24 +1887,25 @@ def sitemap():
     root = _canonical_site_root()
     now_iso = datetime.now(timezone.utc).date().isoformat()
 
-    def _append_url(path: str, priority: str, changefreq: str) -> None:
+    def _append_url(path: str, priority: str, changefreq: str, lastmod: Optional[str] = None) -> None:
         loc = f"{root}{path}"
         loc_ru = f"{loc}?lang=ru"
         loc_en = f"{loc}?lang=en"
+        loc_default = f"{loc}?lang=ru"
         xml.append("<url>")
         xml.append(f"<loc>{loc}</loc>")
-        xml.append(f"<lastmod>{now_iso}</lastmod>")
+        xml.append(f"<lastmod>{lastmod or now_iso}</lastmod>")
         xml.append(f"<changefreq>{changefreq}</changefreq>")
         xml.append(f"<priority>{priority}</priority>")
         xml.append(f'<xhtml:link rel="alternate" hreflang="ru" href="{loc_ru}" />')
         xml.append(f'<xhtml:link rel="alternate" hreflang="en" href="{loc_en}" />')
-        xml.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{loc}" />')
+        xml.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{loc_default}" />')
         xml.append("</url>")
 
     for path, priority, changefreq in static_pages:
         _append_url(path, priority, changefreq)
-    for path in dynamic_domain_paths:
-        _append_url(path, "0.75", "weekly")
+    for path, lastmod in dynamic_domain_entries:
+        _append_url(path, "0.75", "weekly", lastmod=lastmod)
     for path in zone_paths:
         _append_url(path, "0.8", "weekly")
     xml.append("</urlset>")
@@ -2371,6 +2450,7 @@ def domain_report():
         progress_domain_total=progress_domain_total,
         progress_domain=progress_domain,
         batch_max=REPORT_MAX_BATCH,
+        seo_noindex=bool(job_id or query),
     )
 
 # ---------- DNS ----------
@@ -2496,7 +2576,8 @@ def dns_lookup():
 
     result = {"domain": query, "has_records": bool(records), "records": records}
     _track_domain_for_seo(query)
-    permalink = url_for("dns_lookup", q=query, types=selected_types, _external=False)
+    display_domain = _to_unicode(query) or query
+    permalink = url_for("lookup_dns_domain", domain=display_domain, _external=False)
 
     affiliate_domain = _extract_affiliate_domain(query, "dns") or ""
     domain_availability = _evaluate_domain_availability(
@@ -3979,8 +4060,11 @@ def indexnow_key_file(indexnow_key: str):
 # ---------- ЧПУ для WHOIS ----------
 @app.route("/whois/<path:domain>", methods=["GET", "POST"])
 def whois_domain_lookup(domain):
-    q = (domain or '').strip().rstrip('.').lower()
-    return redirect(url_for('whois_lookup', query=q), code=302)
+    clean, ascii_domain = _sanitize_lookup_domain(domain)
+    if not clean:
+        abort(404)
+    display = _seo_display_domain(clean, ascii_domain)
+    return redirect(url_for("lookup_whois_domain", domain=display), code=301)
 
 # ВНИМАНИЕ: отдельный legacy-роут на /site-checker (blueprint)
 # отдаётся блюпринтом

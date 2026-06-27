@@ -2,6 +2,12 @@
 {% block title %}{{ tr('Проверка доменов — DomainTools', 'Domain checks — DomainTools') }}{% endblock %}
 {% block meta_snippet %}{{ tr('Введите домен — получите полную проверку: владелец, DNS, местоположение сервера.', 'Enter a domain — get a full check: owner, DNS, server location.') }}{% endblock %}
 
+{% block jsonld_extra %}
+{% set webapp_name = 'DomainTools' %}
+{% set webapp_path = url_for('index') %}
+{% include '_webapp_jsonld.html' %}
+{% endblock %}
+
 {% block content %}
 <section class="hero-home card-soft p-4 p-md-5 mb-3">
   <div class="hero-home__badge">DomainTools</div>

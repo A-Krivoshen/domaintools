@@ -2,6 +2,15 @@
 {% block title %}{{ tr('Проверка безопасности — DomainTools', 'Security checks — DomainTools') }}{% endblock %}
 {% block meta_snippet %}{{ tr('Безопасные проверки хоста: порт-сканер с лимитами и пассивная WordPress-проверка без brute-force.', 'Safe host checks: rate-limited port scanner and passive WordPress checks without brute-force.') }}{% endblock %}
 
+{% block jsonld_extra %}
+{% set breadcrumb_name = tr('Безопасность', 'Security') %}
+{% set breadcrumb_path = url_for('security_tools') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Проверка безопасности хоста', 'Host security checks') %}
+{% set webapp_path = url_for('security_tools') %}
+{% include '_webapp_jsonld.html' %}
+{% endblock %}
+
 {% block content %}
 {% set page_title = tr('Проверка безопасности хоста', 'Host security checks') %}
 {% set page_intro = tr('Только безопасные проверки: публичные цели, лимиты запросов и без brute-force.', 'Only safe checks: public targets, strict limits, and no brute-force.') %}

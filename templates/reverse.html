@@ -1,6 +1,15 @@
 {% extends "base.html" %}
-{% block title %}{{ tr('Reverse-проверка — DomainTools', 'Reverse lookup — DomainTools') }}{% endblock %}
+{% block title %}{% if query %}{{ tr('Reverse DNS для ', 'Reverse DNS for ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('Reverse-проверка — DomainTools', 'Reverse lookup — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{{ tr('Reverse DNS и FCrDNS проверка для IP/доменов с подробными PTR/forward-результатами.', 'Reverse DNS and FCrDNS checks for IP/domains with detailed PTR/forward results.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = 'Reverse' %}
+{% set breadcrumb_path = url_for('reverse_lookup') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Reverse DNS проверка', 'Reverse DNS lookup') %}
+{% set webapp_path = url_for('reverse_lookup') %}
+{% include '_webapp_jsonld.html' %}
+{% endblock %}
 
 {% block content %}
 {% set page_title = tr('Reverse (rDNS + FCrDNS)', 'Reverse (rDNS + FCrDNS)') %}

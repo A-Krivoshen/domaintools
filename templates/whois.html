@@ -1,11 +1,22 @@
 {% extends 'base.html' %}
-{% block title %}{{ tr('WHOIS-проверка — DomainTools', 'WHOIS lookup — DomainTools') }}{% endblock %}
-{% block meta_snippet %}{{ tr('WHOIS для доменов и IP: регистратор, даты, статусы, NS и подробная информация о регистрации.', 'WHOIS for domains and IPs: registrar, dates, statuses, NS, and full registration details.') }}{% endblock %}
+{% block title %}{% if query %}{{ tr('WHOIS для ', 'WHOIS for ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('WHOIS-проверка — DomainTools', 'WHOIS lookup — DomainTools') }}{% endif %}{% endblock %}
+{% block meta_snippet %}{% if query %}{{ tr('WHOIS домена ', 'WHOIS for ') ~ query ~ tr(': регистратор, даты, статусы и NS.', ': registrar, dates, statuses, and NS.') }}{% else %}{{ tr('WHOIS для доменов и IP: регистратор, даты, статусы, NS и подробная информация о регистрации.', 'WHOIS for domains and IPs: registrar, dates, statuses, NS, and full registration details.') }}{% endif %}{% endblock %}
 
 {% block jsonld_extra %}
+{% if query %}
+{% set breadcrumb_items = [
+  {'name': tr('Главная','Home'), 'path': '/'},
+  {'name': 'WHOIS', 'path': url_for('whois_lookup')},
+  {'name': query, 'path': url_for('lookup_whois_domain', domain=query)},
+] %}
+{% else %}
 {% set breadcrumb_name = 'WHOIS' %}
 {% set breadcrumb_path = url_for('whois_lookup') %}
+{% endif %}
 {% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('WHOIS-проверка домена', 'Domain WHOIS lookup') %}
+{% set webapp_path = url_for('whois_lookup') %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}
 
 {% block content %}

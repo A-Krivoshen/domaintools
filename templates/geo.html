@@ -1,11 +1,14 @@
 {% extends 'base.html' %}
-{% block title %}{{ tr('GeoIP-проверка — DomainTools', 'GeoIP lookup — DomainTools') }}{% endblock %}
+{% block title %}{% if query %}{{ tr('GeoIP для ', 'GeoIP for ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('GeoIP-проверка — DomainTools', 'GeoIP lookup — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{{ tr('GeoIP по домену или IP: ASN, страна, сеть и провайдер с быстрыми переходами к связанным проверкам.', 'GeoIP for domain or IP: ASN, country, network, and provider with quick related links.') }}{% endblock %}
 
 {% block jsonld_extra %}
 {% set breadcrumb_name = 'GeoIP' %}
 {% set breadcrumb_path = url_for('geo_lookup') %}
 {% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('GeoIP-проверка', 'GeoIP lookup') %}
+{% set webapp_path = url_for('geo_lookup') %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}
 
 {% block content %}

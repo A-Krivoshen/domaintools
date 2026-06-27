@@ -1,11 +1,14 @@
 {% extends "base.html" %}
-{% block title %}{{ tr('Подбор доменов — DomainTools', 'Domain search — DomainTools') }}{% endblock %}
+{% block title %}{% if q %}{{ tr('Подбор доменов: ', 'Domain search: ') ~ q ~ ' — DomainTools' }}{% else %}{{ tr('Подбор доменов — DomainTools', 'Domain search — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{{ tr('Подбор свободных доменных имён по множеству зон, включая IDN и популярные RU/Global TLD.', 'Find available domain names across many zones, including IDN and popular RU/Global TLDs.') }}{% endblock %}
 
 {% block jsonld_extra %}
 {% set breadcrumb_name = tr('Домены', 'Domains') %}
 {% set breadcrumb_path = url_for('domain_search') %}
 {% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Подбор свободных доменов', 'Available domain search') %}
+{% set webapp_path = url_for('domain_search') %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}
 
 {% block content %}

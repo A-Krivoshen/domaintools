@@ -1,0 +1,14 @@
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": {{ webapp_name|tojson }},
+  "url": {{ (site_root ~ webapp_path ~ '?lang=' ~ get_locale())|tojson }},
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Web",
+  "browserRequirements": "Requires JavaScript",
+  "offers": {"@type": "Offer", "price": "0", "priceCurrency": "USD"},
+  "inLanguage": {{ ('ru' if get_locale() == 'ru' else 'en')|tojson }},
+  "provider": {"@type": "Organization", "name": "DomainTools", "url": {{ (site_root ~ '/')|tojson }}}
+}
+</script>

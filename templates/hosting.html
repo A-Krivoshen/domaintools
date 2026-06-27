@@ -6,6 +6,9 @@
 {% set breadcrumb_name = tr('VPS / Хостинг', 'VPS / Hosting') %}
 {% set breadcrumb_path = url_for('hosting_landing') %}
 {% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Сравнение VPS-хостинга', 'VPS hosting comparison') %}
+{% set webapp_path = url_for('hosting_landing') %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}
 
 {% block content %}

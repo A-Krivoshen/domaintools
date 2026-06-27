@@ -1,12 +1,23 @@
 {# templates/dns.html #}
 {% extends "base.html" %}
-{% block title %}{{ tr('DNS-проверка — DomainTools', 'DNS lookup — DomainTools') }}{% endblock %}
-{% block meta_snippet %}{{ tr('Проверка DNS-записей домена: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV и другие типы.', 'Check domain DNS records: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV and other types.') }}{% endblock %}
+{% block title %}{% if query %}{{ tr('DNS для ', 'DNS for ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('DNS-проверка — DomainTools', 'DNS lookup — DomainTools') }}{% endif %}{% endblock %}
+{% block meta_snippet %}{% if query %}{{ tr('DNS-записи домена ', 'DNS records for ') ~ query ~ tr(': A, MX, NS, TXT и другие типы.', ': A, MX, NS, TXT and other record types.') }}{% else %}{{ tr('Проверка DNS-записей домена: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV и другие типы.', 'Check domain DNS records: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV and other types.') }}{% endif %}{% endblock %}
 
 {% block jsonld_extra %}
+{% if query %}
+{% set breadcrumb_items = [
+  {'name': tr('Главная','Home'), 'path': '/'},
+  {'name': 'DNS', 'path': url_for('dns_lookup')},
+  {'name': query, 'path': url_for('lookup_dns_domain', domain=query)},
+] %}
+{% else %}
 {% set breadcrumb_name = 'DNS' %}
 {% set breadcrumb_path = url_for('dns_lookup') %}
+{% endif %}
 {% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('DNS-проверка домена', 'Domain DNS lookup') %}
+{% set webapp_path = url_for('dns_lookup') %}
+{% include '_webapp_jsonld.html' %}
 {% endblock %}
 
 {% block content %}

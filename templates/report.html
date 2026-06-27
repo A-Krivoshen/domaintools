@@ -1,6 +1,15 @@
 {% extends 'base.html' %}
-{% block title %}{{ tr('Полная проверка домена — DomainTools', 'Full domain check — DomainTools') }}{% endblock %}
+{% block title %}{% if query %}{{ tr('Проверка ', 'Check ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('Полная проверка домена — DomainTools', 'Full domain check — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{{ tr('Единый отчёт: владелец, DNS, местоположение и обратная запись.', 'Single report: owner, DNS, location, and reverse lookup.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = tr('Полная проверка', 'Full check') %}
+{% set breadcrumb_path = url_for('domain_report') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Полная проверка домена', 'Full domain check') %}
+{% set webapp_path = url_for('domain_report') %}
+{% include '_webapp_jsonld.html' %}
+{% endblock %}
 
 {% block content %}
 {% set page_title = tr('Полная проверка', 'Full check') %}

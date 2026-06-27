@@ -1,5 +1,24 @@
-<!doctype html>
-<meta charset="utf-8">
-<title>500</title>
-<h1>500 — Internal Server Error</h1>
-<p>Something went wrong / Что-то пошло не так.</p>
+{% extends 'base.html' %}
+{% block title %}{{ tr('Ошибка сервера — DomainTools', 'Server error — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Внутренняя ошибка сервера. Повторите запрос позже или вернитесь на главную.', 'Internal server error. Please retry later or return to the home page.') }}{% endblock %}
+
+{% block head_extra %}<meta name="robots" content="noindex, follow">{% endblock %}
+
+{% block content %}
+<header class="tool-page-header mb-4">
+  <h1 class="tool-page-header__title mb-2">500</h1>
+  <p class="tool-page-header__intro mb-0">{{ tr('Что-то пошло не так на сервере.', 'Something went wrong on the server.') }}</p>
+</header>
+
+<div class="card shadow-sm">
+  <div class="card-body">
+    <p class="mb-3">{{ tr('Попробуйте обновить страницу через минуту или перейдите к инструментам:', 'Try refreshing in a minute or go to the tools:') }}</p>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-primary" href="{{ url_for('index') }}">{{ tr('Главная', 'Home') }}</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('domain_report') }}">{{ tr('Проверка домена', 'Domain check') }}</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('dns_lookup') }}">DNS</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('whois_lookup') }}">WHOIS</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
