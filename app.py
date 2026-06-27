@@ -1235,6 +1235,137 @@ def _to_unicode(domain: str) -> str:
     except Exception:
         return domain
 
+# --- WHOIS field extraction helpers -------------------------------------------
+_WHOIS_OBJECT_FIELDS = (
+    "domain_name",
+    "registrar",
+    "whois_server",
+    "creation_date",
+    "expiration_date",
+    "updated_date",
+    "name_servers",
+    "status",
+    "org",
+    "name",
+    "emails",
+    "country",
+)
+
+
+def _whois_object_to_dict(w) -> Dict[str, object]:
+    """python-whois stores parsed values as properties, not always in __dict__."""
+    out: Dict[str, object] = {}
+    if w is None:
+        return out
+    for key in _WHOIS_OBJECT_FIELDS:
+        try:
+            val = getattr(w, key, None)
+        except Exception:
+            val = None
+        if val not in (None, "", [], {}, ()):
+            out[key] = val
+    for key, val in getattr(w, "__dict__", {}).items():
+        if key.startswith("_"):
+            continue
+        if val and key not in out:
+            out[key] = val
+    return out
+
+
+def _format_whois_display_value(val) -> Optional[str]:
+    if val is None:
+        return None
+    if isinstance(val, datetime):
+        if val.tzinfo is None:
+            val = val.replace(tzinfo=timezone.utc)
+        return val.astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    if isinstance(val, date):
+        return val.strftime("%Y-%m-%d")
+    if isinstance(val, (list, tuple)):
+        for item in val:
+            formatted = _format_whois_display_value(item)
+            if formatted:
+                return formatted
+        return None
+    text = str(val).strip()
+    return text or None
+
+
+def _merge_whois_dict(target: Dict[str, object], source: Optional[Dict[str, object]]) -> Dict[str, object]:
+    if not source:
+        return target
+    for key, val in source.items():
+        if key.startswith("_"):
+            continue
+        if val in (None, "", [], {}, ()):
+            continue
+        if not target.get(key):
+            target[key] = val
+    return target
+
+
+def _extract_whois_core_fields_from_text(txt: str) -> Dict[str, object]:
+    out: Dict[str, object] = {}
+    if not txt:
+        return out
+    patterns = {
+        "registrar": (
+            r"(?im)^\s*registrar\s*:\s*(.+?)\s*$",
+        ),
+        "creation_date": (
+            r"(?im)^\s*created\s*:\s*(.+?)\s*$",
+            r"(?im)^\s*creation date\s*:\s*(.+?)\s*$",
+        ),
+        "expiration_date": (
+            r"(?im)^\s*paid-till\s*:\s*(.+?)\s*$",
+            r"(?im)^\s*registry expiry date\s*:\s*(.+?)\s*$",
+            r"(?im)^\s*registrar registration expiration date\s*:\s*(.+?)\s*$",
+            r"(?im)^\s*expir(?:y|ation) date\s*:\s*(.+?)\s*$",
+        ),
+    }
+    for field, field_patterns in patterns.items():
+        for pat in field_patterns:
+            m = re.search(pat, txt)
+            if m:
+                out[field] = m.group(1).strip()
+                break
+    return out
+
+
+def _finalize_whois_summary(data: Dict[str, object], host_ascii: str) -> Dict[str, object]:
+    alias_map = {
+        "registrar": ("registrar", "sponsoring_registrar", "registrar_name"),
+        "creation_date": ("creation_date", "created", "created_date", "registered"),
+        "expiration_date": (
+            "expiration_date",
+            "paid_till",
+            "paid-till",
+            "expires",
+            "expiry_date",
+            "registry_expiry_date",
+        ),
+    }
+    for target, aliases in alias_map.items():
+        if data.get(target):
+            continue
+        for alias in aliases:
+            val = data.get(alias)
+            if val:
+                data[target] = val
+                break
+
+    for field in ("registrar", "creation_date", "expiration_date"):
+        formatted = _format_whois_display_value(data.get(field))
+        if formatted:
+            data[field] = formatted
+
+    data["domain_name"] = host_ascii
+    du = _to_unicode(host_ascii)
+    if du and du != host_ascii:
+        data["domain_unicode"] = du
+    return data
+
+
 # --- Простой парсер RU whois (tcinet) для доп.полей ---------------------------
 def _parse_ru_whois_text(text: str) -> Dict:
     out: Dict[str, object] = {}
@@ -1736,20 +1867,18 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
     maybe_text = _whois_call(["whois", "-H", host_ascii], timeout=12)
     source_flags = {
         "cli_text": bool((maybe_text or "").strip()),
+        "pywhois_obj": False,
         "pywhois_text": False,
         "ru_parser": False,
         "generic_parser": False,
-        "regex_registrar": False,
-        "regex_created": False,
-        "regex_paid_till": False,
+        "regex_fields": False,
     }
     try:
         w = whois.whois(host_ascii)
-        for k, v in w.__dict__.items():
-            if k.startswith("_"):
-                continue
-            if v:
-                data[k] = v
+        parsed_obj = _whois_object_to_dict(w)
+        if parsed_obj:
+            _merge_whois_dict(data, parsed_obj)
+            source_flags["pywhois_obj"] = True
     except Exception:
         pass
 
@@ -1774,59 +1903,14 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
         source_flags["ru_parser"] = bool(parsed_ru)
         source_flags["generic_parser"] = bool(parsed_generic)
         for parsed in (parsed_ru, parsed_generic):
-            if not parsed:
-                continue
-            for key, val in parsed.items():
-                if not data.get(key) and val:
-                    data[key] = val
+            _merge_whois_dict(data, parsed)
 
-    # При необходимости извлекаем ключевые поля прямо из сырого текста.
-    # Часто встречается при tcinet/whois.su выдачах.
-    if maybe_text:
-        txt = maybe_text
-        if not data.get("registrar"):
-            m = re.search(r"(?im)^\s*registrar\s*:\s*(.+?)\s*$", txt)
-            if m:
-                data["registrar"] = m.group(1).strip()
-                source_flags["regex_registrar"] = True
-        if not data.get("creation_date"):
-            m = re.search(r"(?im)^\s*created\s*:\s*(.+?)\s*$", txt)
-            if m:
-                data["creation_date"] = m.group(1).strip()
-                source_flags["regex_created"] = True
-        if not data.get("expiration_date"):
-            m = re.search(r"(?im)^\s*paid-till\s*:\s*(.+?)\s*$", txt)
-            if m:
-                data["expiration_date"] = m.group(1).strip()
-                source_flags["regex_paid_till"] = True
+        regex_fields = _extract_whois_core_fields_from_text(maybe_text)
+        if regex_fields:
+            source_flags["regex_fields"] = True
+            _merge_whois_dict(data, regex_fields)
 
-    # Нормализуем частые алиасы полей (у разных whois-источников они отличаются).
-    alias_map = {
-        "registrar": ("registrar", "sponsoring_registrar", "registrar_name"),
-        "creation_date": ("creation_date", "created", "created_date", "registered"),
-        "expiration_date": ("expiration_date", "paid_till", "expires", "expiry_date", "registry_expiry_date"),
-    }
-    for target, aliases in alias_map.items():
-        if data.get(target):
-            continue
-        for a in aliases:
-            val = data.get(a)
-            if val:
-                data[target] = val
-                break
-
-    # Удобнее для UI: если пришел список дат/значений, берём первый осмысленный.
-    for field in ("registrar", "creation_date", "expiration_date"):
-        val = data.get(field)
-        if isinstance(val, (list, tuple)):
-            cleaned = [x for x in val if x not in (None, "", [])]
-            if cleaned:
-                data[field] = cleaned[0]
-
-    data["domain_name"] = host_ascii
-    du = _to_unicode(host_ascii)
-    if du and du != host_ascii:
-        data["domain_unicode"] = du
+    data = _finalize_whois_summary(data, host_ascii)
 
     app.logger.info(
         "WHOIS report summary for %s: registrar=%s creation=%s expiration=%s sources=%s",
@@ -2975,28 +3059,28 @@ def whois_lookup():
 
         def _compute_whois():
             base: Dict[str, object] = {}
-            # 1) попытка системной утилиты whois (часто лучше парсится .RU/.РФ)
             maybe_text = _whois_call(["whois", "-H", q], timeout=12)
-            important = False
             try:
                 w = whois.whois(q)
-                for k, v in w.__dict__.items():
-                    if k.startswith("_"):
-                        continue
-                    base[k] = v
-                important = True
+                _merge_whois_dict(base, _whois_object_to_dict(w))
             except Exception:
                 pass
 
-            if maybe_text and not important:
-                parsed = _parse_ru_whois_text(maybe_text) or parse_whois_text(q, maybe_text)
-                base.update(parsed)
+            if not maybe_text:
+                txt = base.get("text")
+                if isinstance(txt, str) and txt.strip():
+                    maybe_text = txt
+                elif isinstance(txt, (list, tuple)):
+                    joined = "\n".join(str(x) for x in txt if x)
+                    if joined.strip():
+                        maybe_text = joined
 
-            base.setdefault("domain_name", q)
-            du = _to_unicode(q)
-            if du and du != q:
-                base["domain_unicode"] = du
-            return base
+            if maybe_text:
+                _merge_whois_dict(base, _parse_ru_whois_text(maybe_text))
+                _merge_whois_dict(base, parse_whois_text(q, maybe_text))
+                _merge_whois_dict(base, _extract_whois_core_fields_from_text(maybe_text))
+
+            return _finalize_whois_summary(base, q)
 
         cache_key = f"cache:whois:{q}"
         ttl = 300  # 5 минут
