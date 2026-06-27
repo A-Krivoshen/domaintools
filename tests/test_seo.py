@@ -36,6 +36,38 @@ class SeoTests(unittest.TestCase):
         self.assertIn("DNS", html)
         self.assertTrue("lookup" in html.lower() or "запис" in html.lower() or "Проверка" in html)
 
+    def test_lookup_whois_route_is_not_shadowed(self):
+        resp = self.client.get("/lookup/whois/example.com")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("lookup-landing", html)
+        self.assertIn("WHOIS for example.com", html)
+        self.assertRegex(
+            html,
+            r'tool-page-header__title[^>]*>[\s\S]*?example\.com[\s\S]*?</h1>',
+        )
+        self.assertNotRegex(
+            html,
+            r'tool-page-header__title[^>]*>[\s\S]*?whois/example\.com[\s\S]*?</h1>',
+        )
+
+    def test_lookup_dns_landing_renders(self):
+        resp = self.client.get("/lookup/dns/example.com")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn("DNS", html)
+        self.assertIn("lookup-landing", html)
+
+    def test_zone_landing_renders_for_ru(self):
+        resp = self.client.get("/zones/ru")
+        self.assertEqual(resp.status_code, 200)
+        html = resp.get_data(as_text=True)
+        self.assertIn(".ru", html)
+
+    def test_sitemap_includes_zone_pages(self):
+        xml = self.client.get("/sitemap.xml").get_data(as_text=True)
+        self.assertIn("/zones/ru", xml)
+
 
 if __name__ == "__main__":
     unittest.main()
