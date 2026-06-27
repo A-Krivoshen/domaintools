@@ -265,6 +265,104 @@
     if (index > 0) el.classList.add('monetization-slot--hidden');
   });
 
+  function capVisualBanners() {
+    const slots = Array.from(document.querySelectorAll('[data-banner-priority]'));
+    if (!slots.length) return;
+    let best = null;
+    let bestPriority = -1;
+    slots.forEach((el) => {
+      const hasContent = el.textContent && el.textContent.trim().length > 0;
+      if (!hasContent) {
+        el.classList.add('banner-slot--hidden');
+        return;
+      }
+      const priority = Number(el.getAttribute('data-banner-priority')) || 0;
+      if (priority > bestPriority) {
+        bestPriority = priority;
+        best = el;
+      }
+    });
+    slots.forEach((el) => {
+      if (el !== best) el.classList.add('banner-slot--hidden');
+    });
+  }
+
+  function persistLastCheck(payload) {
+    if (!payload || !payload.domain) return;
+    try {
+      localStorage.setItem('dt_last_check_v1', JSON.stringify(payload));
+    } catch (e) {}
+  }
+
+  function renderStatusChip() {
+    const chip = document.querySelector('[data-status-chip]');
+    if (!chip) return;
+
+    let data = window.__DT_LAST_CHECK__;
+    if (!data) {
+      try {
+        data = JSON.parse(localStorage.getItem('dt_last_check_v1') || 'null');
+      } catch (e) {
+        data = null;
+      }
+    }
+    if (!data || !data.domain) {
+      chip.hidden = true;
+      return;
+    }
+
+    persistLastCheck(data);
+
+    const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+    const isRu = lang.startsWith('ru');
+    const label = isRu ? (data.label_ru || data.status || '') : (data.label_en || data.status || '');
+    const domainNode = chip.querySelector('[data-status-chip-domain]');
+    const badgeNode = chip.querySelector('[data-status-chip-badge]');
+    if (domainNode) domainNode.textContent = data.domain_display || data.domain;
+    if (badgeNode) {
+      badgeNode.textContent = label;
+      badgeNode.className = `status-chip__badge status-chip__badge--${data.status || 'ok'}`;
+    }
+    const target = data.url || `/check/${encodeURIComponent(data.domain)}`;
+    chip.setAttribute('href', target);
+    chip.hidden = false;
+  }
+
+  (function initUxModeToggle() {
+    const toggle = document.querySelector('[data-ux-mode-toggle]');
+    if (!toggle) return;
+
+    function currentMode() {
+      return document.documentElement.getAttribute('data-ux-mode') === 'expert' ? 'expert' : 'simple';
+    }
+
+    function applyMode(mode) {
+      const next = mode === 'expert' ? 'expert' : 'simple';
+      document.documentElement.setAttribute('data-ux-mode', next);
+      try {
+        localStorage.setItem('dt_ux_mode', next);
+      } catch (e) {}
+      const isRu = (document.documentElement.getAttribute('lang') || '').toLowerCase().startsWith('ru');
+      toggle.title = next === 'expert'
+        ? (isRu ? 'Простой режим' : (body?.dataset.i18nUxSimple || 'Simple mode'))
+        : (isRu ? 'Режим специалиста' : (body?.dataset.i18nUxExpert || 'Expert mode'));
+      toggle.setAttribute(
+        'aria-label',
+        next === 'expert'
+          ? (isRu ? 'Включить простой режим' : 'Switch to simple mode')
+          : (isRu ? 'Включить режим специалиста' : 'Switch to expert mode'),
+      );
+    }
+
+    toggle.addEventListener('click', () => {
+      applyMode(currentMode() === 'expert' ? 'simple' : 'expert');
+    });
+    applyMode(currentMode());
+  })();
+
+  capVisualBanners();
+  renderStatusChip();
+
   (function initOnboarding() {
     const root = document.querySelector('[data-onboarding]');
     if (!root) return;

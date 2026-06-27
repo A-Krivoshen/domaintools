@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('Проверка ', 'Check ') ~ domain ~ ' — DomainTools' }}{% endblock %}
+{% block meta_snippet %}{{ tr('Сводка по домену ', 'Domain summary for ') ~ domain ~ tr(': владелец, DNS, сервер.', ': owner, DNS, server.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = domain %}
+{% set breadcrumb_path = url_for('domain_check', domain=domain) %}
+{% include '_breadcrumb_jsonld.html' %}
+{% endblock %}
+
+{% block head_extra %}
+{% if check_status %}
+<script>window.__DT_LAST_CHECK__ = {{ check_status|tojson }};</script>
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<header class="tool-page-header mb-4">
+  <nav class="page-breadcrumb" aria-label="{{ tr('Навигация', 'Navigation') }}">
+    <ol class="page-breadcrumb__list">
+      <li><a href="{{ url_for('index') }}">{{ tr('Главная', 'Home') }}</a></li>
+      <li aria-current="page">{{ domain }}</li>
+    </ol>
+  </nav>
+  <div class="tool-page-header__row">
+    <div class="tool-page-header__icon" aria-hidden="true"><i class="fa-solid fa-globe"></i></div>
+    <div>
+      <h1 class="tool-page-header__title mb-1">{{ domain }}</h1>
+      <p class="tool-page-header__intro mb-0">{{ tr('Всё о домене в одном месте', 'Everything about this domain in one place') }}</p>
+    </div>
+  </div>
+</header>
+
+<form method="get" action="{{ url_for('domain_check_query') }}" class="tool-form mb-3" data-loading>
+  <div class="input-group input-group-lg search-command">
+    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+    <input name="q" class="form-control" placeholder="{{ tr('Другой домен…', 'Another domain…') }}" aria-label="{{ tr('Домен', 'Domain') }}">
+    <button class="btn btn-primary" type="submit">{{ tr('Проверить', 'Check') }}</button>
+  </div>
+</form>
+
+{% if error %}
+  <div class="alert alert-danger">{{ error }}</div>
+{% endif %}
+
+{% if one %}
+  {% set whois_expiry_urgency = one.whois_expiry_urgency %}
+  {% set _urgency_level = (whois_expiry_urgency.urgency if whois_expiry_urgency else '') %}
+  {% set show_expiry = _urgency_level in ['expired', 'critical', 'warning', 'notice'] %}
+  {% set show_available = (not show_expiry) and domain_availability and domain_availability.status == 'available' %}
+  {% set show_next_step = (not show_expiry) and (not show_available) %}
+  {% set show_hosting = (not show_expiry) and (not show_available) %}
+
+  {% if show_expiry %}
+  <div data-banner-priority="100">
+    {% include '_whois_expiry_urgency_banner.html' %}
+  </div>
+  {% elif show_available %}
+  <div data-banner-priority="80">
+    {% include '_domain_availability_banner.html' %}
+  </div>
+  {% endif %}
+
+  {% if show_next_step %}
+  <div data-banner-priority="60">
+    {% include '_report_next_step.html' %}
+  </div>
+  {% endif %}
+
+  {% include '_check_dashboard.html' %}
+
+  {% if show_hosting %}
+  <div data-banner-priority="40" data-monetization-slot>
+    {% with launch_variant='hosting_only', launch_domain=affiliate_domain, launch_display_domain=domain, placement='check-dashboard' %}
+    {% include '_hosting_launch_path.html' %}
+    {% endwith %}
+  </div>
+  {% endif %}
+
+  {% if related_tld_links and related_tld_links|length %}
+  <section class="check-related card-soft p-3 mb-3">
+    <div class="small fw-semibold mb-2">{{ tr('Тот же бренд в других зонах', 'Same brand in other zones') }}</div>
+    <div class="lookup-landing__related-chips">
+      {% for link in related_tld_links %}
+        <a class="lookup-landing__related-chip"
+           href="{{ url_for('domain_check', domain=link.fqdn) }}"
+           title="{{ tr('Проверить', 'Check') }} {{ link.fqdn }}">.{{ link.tld }}</a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+{% endif %}
+{% endblock %}

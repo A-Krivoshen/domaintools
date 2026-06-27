@@ -601,6 +601,89 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
   display: none !important;
 }
 
+.banner-slot--hidden {
+  display: none !important;
+}
+
+/* ===== UX mode: simple vs expert ===== */
+html[data-ux-mode="simple"] .ux-expert-only {
+  display: none !important;
+}
+
+html[data-ux-mode="expert"] .ux-simple-only {
+  display: none !important;
+}
+
+/* ===== Status chip (last check) ===== */
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  max-width: min(14rem, 36vw);
+  padding: .28rem .55rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: .78rem;
+  line-height: 1.2;
+  transition: border-color .15s ease, color .15s ease;
+}
+
+.status-chip:hover {
+  color: var(--bs-primary);
+  border-color: rgba(var(--bs-primary-rgb), .35);
+}
+
+.status-chip[hidden] {
+  display: none !important;
+}
+
+.status-chip__icon {
+  color: var(--bs-primary);
+  font-size: .72rem;
+  flex-shrink: 0;
+}
+
+.status-chip__domain {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.status-chip__badge {
+  flex-shrink: 0;
+  padding: .1rem .4rem;
+  border-radius: var(--radius-pill);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+}
+
+.status-chip__badge--ok {
+  background: rgba(var(--bs-success-rgb), .14);
+  color: var(--bs-success);
+}
+
+.status-chip__badge--warning {
+  background: rgba(var(--bs-warning-rgb), .18);
+  color: var(--bs-warning);
+}
+
+.status-chip__badge--critical {
+  background: rgba(var(--bs-danger-rgb), .14);
+  color: var(--bs-danger);
+}
+
+.ux-mode-toggle-btn {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
 /* ===== Onboarding ===== */
 .onboarding {
   position: fixed;

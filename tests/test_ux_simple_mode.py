@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 import app as app_module
 
@@ -86,6 +87,64 @@ class UXSimpleModeTests(unittest.TestCase):
         self.assertIsNotNone(job)
         self.assertEqual(job.get('status'), 'running')
         self.assertEqual(job.get('progress_step'), 'dns')
+
+    def test_wave3_status_chip_and_ux_mode_markup(self):
+        html = self.client.get('/?lang=ru').get_data(as_text=True)
+        self.assertIn('data-status-chip', html)
+        self.assertIn('data-ux-mode-toggle', html)
+        self.assertIn('data-ux-mode', html)
+
+    def test_lookup_redirects_to_check(self):
+        resp = self.client.get('/lookup/example.com', follow_redirects=False)
+        self.assertEqual(resp.status_code, 301)
+        self.assertIn('/check/example.com', resp.headers.get('Location', ''))
+
+    def test_derive_check_status_ok_and_critical(self):
+        with self.app.test_request_context('/'):
+            ok = app_module._derive_check_status({
+                'domain': 'example.com',
+                'domain_display': 'example.com',
+                'dns': {'has_records': True},
+                'whois_expiry_urgency': None,
+            })
+            critical = app_module._derive_check_status({
+                'domain': 'expired.com',
+                'whois_expiry_urgency': {'urgency': 'expired'},
+                'dns': {'has_records': True},
+            })
+        self.assertEqual(ok['status'], 'ok')
+        self.assertEqual(critical['status'], 'critical')
+
+    def test_check_dashboard_renders_with_mock_report(self):
+        sample = {
+            'domain': 'example.com',
+            'domain_display': 'example.com',
+            'dns': {'has_records': True, 'records': {'A': ['1.2.3.4']}},
+            'whois': {
+                'domain_unicode': 'example.com',
+                'registrar': 'Test Registrar',
+                'creation_date': '2000-01-01',
+                'expiration_date': '2030-01-01',
+            },
+            'geo': {'ip': '1.2.3.4', 'asn': 'AS123', 'country_name': 'United States'},
+            'reverse': {'ip': '1.2.3.4', 'ptr': ['example.com'], 'fcrdns_ok': True},
+            'whois_expiry_urgency': None,
+        }
+        with patch.object(app_module, 'cache_json', return_value=sample):
+            with patch.object(app_module, 'save_history', return_value=None):
+                resp = self.client.get('/check/example.com?lang=ru')
+                html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn('check-dashboard', html)
+        self.assertIn('__DT_LAST_CHECK__', html)
+        self.assertIn('data-banner-priority', html)
+
+    def test_single_domain_report_post_redirects_to_check(self):
+        with patch.object(app_module, '_verify_form_recaptcha_if_needed', return_value=None):
+            with patch.object(app_module, '_endpoint_ip_rate_limited', return_value=False):
+                resp = self.client.post('/report', data={'q': 'example.com'}, follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/check/example.com', resp.headers.get('Location', ''))
 
 
 if __name__ == '__main__':

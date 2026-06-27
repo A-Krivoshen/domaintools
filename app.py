@@ -1640,6 +1640,7 @@ def sitemap():
         (url_for("domain_search"), "0.9", "daily"),
         (url_for("hosting_landing"), "0.88", "weekly"),
         (url_for("domain_report"), "0.85", "weekly"),
+        (url_for("domain_check_query"), "0.9", "daily"),
         (url_for("dns_lookup"), "0.85", "weekly"),
         (url_for("whois_lookup"), "0.85", "weekly"),
         (url_for("geo_lookup"), "0.8", "weekly"),
@@ -1673,7 +1674,7 @@ def sitemap():
                 continue
             if now - last_seen > SITEMAP_DYNAMIC_DOMAIN_TTL_S:
                 continue
-            dynamic_domain_paths.append(url_for("lookup_domain", domain=d))
+            dynamic_domain_paths.append(url_for("domain_check", domain=d))
             dynamic_domain_paths.append(url_for("lookup_whois_domain", domain=d))
             dynamic_domain_paths.append(url_for("lookup_dns_domain", domain=d))
     except Exception:
@@ -1772,6 +1773,34 @@ def _related_tld_links(domain: str, limit: int = 6) -> List[Dict[str, str]]:
     return links
 
 
+def _derive_check_status(report: Dict[str, object]) -> Dict[str, object]:
+    domain = str(report.get("domain") or "").strip().lower()
+    display = str(report.get("domain_display") or domain)
+    urgency = report.get("whois_expiry_urgency") if isinstance(report.get("whois_expiry_urgency"), dict) else {}
+    level = str(urgency.get("urgency") or "").lower()
+    dns = report.get("dns") if isinstance(report.get("dns"), dict) else {}
+
+    if level == "expired":
+        status, label_ru, label_en = "critical", "Истёк", "Expired"
+    elif level == "critical":
+        status, label_ru, label_en = "critical", "Скоро истекает", "Expires soon"
+    elif level in {"warning", "notice"}:
+        status, label_ru, label_en = "warning", "Истекает", "Expiring"
+    elif not dns.get("has_records"):
+        status, label_ru, label_en = "warning", "Нет DNS", "No DNS"
+    else:
+        status, label_ru, label_en = "ok", "В порядке", "OK"
+
+    return {
+        "domain": domain,
+        "domain_display": display,
+        "status": status,
+        "label_ru": label_ru,
+        "label_en": label_en,
+        "url": url_for("domain_check", domain=domain) if domain else url_for("domain_report"),
+    }
+
+
 def _lookup_landing_context(clean: str, ascii_domain: str) -> Dict[str, object]:
     _track_domain_for_seo(ascii_domain)
     label, tld = _split_fqdn(clean)
@@ -1817,11 +1846,74 @@ def lookup_domain(domain: str):
     clean, ascii_domain = _sanitize_lookup_domain(domain)
     if not clean:
         abort(404)
+    return redirect(url_for("domain_check", domain=clean), code=301)
+
+
+@app.get("/check")
+def domain_check_query():
+    query = (request.args.get("q") or request.args.get("query") or "").strip()
+    clean, _ascii_domain = _sanitize_lookup_domain(query)
+    if clean:
+        return redirect(url_for("domain_check", domain=clean))
+    return redirect(url_for("domain_report"))
+
+
+@app.get("/check/<path:domain>")
+def domain_check(domain: str):
+    clean, ascii_domain = _sanitize_lookup_domain(domain)
+    if not clean:
+        abort(404)
+
+    client_ip = _client_ip()
+    limit = _report_limit_for_ip(client_ip)
+    if _endpoint_ip_rate_limited("check", client_ip, limit):
+        ctx = _lookup_landing_context(clean, ascii_domain)
+        ctx["domain_availability"] = None
+        ctx["whois_expiry_urgency"] = None
+        ctx["related_tld_links"] = []
+        return render_template(
+            "check.html",
+            error=_("Too many report requests. Please try again later."),
+            one=None,
+            check_status=None,
+            **ctx,
+        ), 429
+
+    _track_domain_for_seo(ascii_domain)
+    error = None
+    one = None
+    check_status = None
     try:
-        return render_template("lookup_landing.html", landing_kind="overview", **_lookup_landing_context(clean, ascii_domain))
+        one = cache_json(
+            f"cache:report:full:{ascii_domain}",
+            REPORT_FULL_TTL_S,
+            lambda: _build_domain_report(ascii_domain, clean),
+        )
+        whois_block = (one or {}).get("whois") if isinstance(one, dict) else {}
+        whois_missing_core = any(
+            not (whois_block or {}).get(k)
+            for k in ("registrar", "creation_date", "expiration_date")
+        )
+        if whois_missing_core:
+            one = _build_domain_report(ascii_domain, clean)
+        if isinstance(one, dict):
+            hid = save_history("report", ascii_domain, one)
+            if hid:
+                one["permalink"] = f"/history/report/{hid}"
+            check_status = _derive_check_status(one)
     except Exception:
-        app.logger.exception("Lookup landing render failed for %s", clean)
+        app.logger.exception("Domain check dashboard failed for %s", clean)
+        error = _("Failed to build domain report.")
         return redirect(url_for("domain_report", q=clean), code=302)
+
+    ctx = _lookup_landing_context(clean, ascii_domain)
+    return render_template(
+        "check.html",
+        one=one,
+        check_status=check_status,
+        error=error,
+        **ctx,
+    )
 
 
 @app.get("/zones/<tld>")
@@ -2130,6 +2222,9 @@ def domain_report():
                 limit = _report_limit_for_ip(client_ip)
                 if _endpoint_ip_rate_limited("report", client_ip, limit):
                     raise ValueError(_("Too many report requests. Please try again later."))
+
+                if len(normalized) == 1:
+                    return redirect(url_for("domain_check", domain=normalized[0]))
 
                 job_id = uuid.uuid4().hex
                 if not _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query}):

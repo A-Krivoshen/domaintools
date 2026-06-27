@@ -85,6 +85,14 @@
     "keywords": ["report", "отчёт", "summary", "batch"]
   },
   {
+    "id": "check",
+    "title": {{ tr('Проверка домена', 'Domain check')|tojson }},
+    "subtitle": {{ tr('Единый дашборд по домену', 'Unified domain dashboard')|tojson }},
+    "url": {{ url_for('domain_check_query')|tojson }},
+    "icon": "fa-globe",
+    "keywords": ["check", "dashboard", "проверка", "домен", "overview"]
+  },
+  {
     "id": "domains",
     "title": {{ tr('Подбор доменов', 'Domain search')|tojson }},
     "subtitle": {{ tr('Проверка доступности в зонах', 'Availability across TLD zones')|tojson }},

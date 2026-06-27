@@ -74,107 +74,14 @@
 
 {% if reports %}
   {% for one in reports %}
-<section class="card-soft p-3 p-md-4 mb-3 report-panel">
-  <div class="d-flex flex-wrap justify-content-between gap-2 align-items-center mb-3">
-    <h2 class="h5 mb-0">
-      <i class="fa-solid fa-globe me-2 text-primary" aria-hidden="true"></i>{{ one.domain_display or one.domain }}
-      {% if one.domain_display and one.domain_display != one.domain %}
-        <span class="text-muted small">({{ one.domain }})</span>
-      {% endif %}
-    </h2>
-    <div class="d-flex flex-wrap gap-2">
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ one.domain }}">{{ tr('Кто владелец', 'Who owns it') }}</a>
-      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('Куда ведёт', 'Where it points') }}</a>
-      {% set affiliate_domain = one.domain %}
-      {% set affiliate_buy_url = one.domain|affiliate_buy_url %}
-      {% set affiliate_domain_search_url = url_for('domain_search', query=one.domain|domain_label) %}
-      {% include '_affiliate_domain_actions.html' %}
-      {% if one.permalink %}
-        <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
-      {% endif %}
-    </div>
+  <div data-banner-priority="60">
+    {% include '_report_next_step.html' %}
   </div>
-
-  {% include '_report_next_step.html' %}
-
   {% set whois_expiry_urgency = one.whois_expiry_urgency %}
-  {% include '_whois_expiry_urgency_banner.html' %}
-
-  <div class="row g-3">
-    <div class="col-12 col-lg-6">
-      <div class="card h-100 report-card">
-        <div class="card-body">
-          <h3 class="h6">{{ tr('Куда ведёт домен', 'Where it points') }}</h3>
-          {% set explain_key = 'dns' %}
-          {% include '_report_explain.html' %}
-          {% if one.dns.has_records %}
-            <ul class="report-list list-unstyled mb-0 small">
-              {% for rtype, vals in one.dns.records.items() %}
-                <li><span class="report-label">{{ rtype }}</span><span class="report-value">{{ vals|length }}</span></li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <div class="text-muted small">{{ tr('Записи не найдены.', 'No records found.') }}</div>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-lg-6">
-      <div class="card h-100 report-card">
-        <div class="card-body">
-          <h3 class="h6">{{ tr('Кто владелец', 'Who owns it') }}</h3>
-          {% set explain_key = 'whois' %}
-          {% include '_report_explain.html' %}
-          <ul class="report-list list-unstyled mb-0 small">
-            <li><span class="report-label">{{ tr('Домен', 'Domain') }}</span><span class="report-value">{{ one.whois.domain_unicode or one.domain_display or one.domain }}</span></li>
-            <li><span class="report-label">{{ tr('Регистратор', 'Registrar') }}</span><span class="report-value">{{ one.whois.registrar or '—' }}</span></li>
-            <li><span class="report-label">{{ tr('Создан', 'Created') }}</span><span class="report-value">{{ one.whois.creation_date or '—' }}</span></li>
-            <li><span class="report-label">{{ tr('Истекает', 'Expires') }}</span><span class="report-value">{{ one.whois.expiration_date or '—' }}</span></li>
-          </ul>
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-lg-6">
-      <div class="card h-100 report-card">
-        <div class="card-body">
-          <h3 class="h6">{{ tr('Где сервер', 'Server location') }}</h3>
-          {% set explain_key = 'geo' %}
-          {% include '_report_explain.html' %}
-          {% if one.geo.error %}
-            <div class="text-muted small">{{ one.geo.error }}</div>
-          {% else %}
-            <ul class="report-list list-unstyled mb-0 small">
-              <li><span class="report-label">IP</span><span class="report-value">{{ one.geo.ip or '—' }}</span></li>
-              <li><span class="report-label">ASN</span><span class="report-value">{{ one.geo.asn or '—' }}</span></li>
-              <li><span class="report-label">{{ tr('Страна', 'Country') }}</span><span class="report-value">{{ one.geo.country_name or one.geo.country_code or '—' }}</span></li>
-            </ul>
-          {% endif %}
-        </div>
-      </div>
-    </div>
-
-    <div class="col-12 col-lg-6">
-      <div class="card h-100 report-card">
-        <div class="card-body">
-          <h3 class="h6">{{ tr('Обратная запись', 'Reverse lookup') }}</h3>
-          {% set explain_key = 'reverse' %}
-          {% include '_report_explain.html' %}
-          {% if one.reverse.error %}
-            <div class="text-muted small">{{ tr('PTR-запись не найдена или DNS-ответ недоступен.', 'PTR record not found or DNS response unavailable.') }}</div>
-          {% else %}
-            <ul class="report-list list-unstyled mb-0 small">
-              <li><span class="report-label">IP</span><span class="report-value">{{ one.reverse.ip or '—' }}</span></li>
-              <li><span class="report-label">PTR</span><span class="report-value">{{ (one.reverse.ptr or [])|join(', ') if one.reverse.ptr else '—' }}</span></li>
-              <li><span class="report-label">FCrDNS</span><span class="report-value">{{ tr('да', 'yes') if one.reverse.fcrdns_ok else tr('нет', 'no') }}</span></li>
-            </ul>
-          {% endif %}
-        </div>
-      </div>
-    </div>
+  <div data-banner-priority="100">
+    {% include '_whois_expiry_urgency_banner.html' %}
   </div>
-</section>
+  {% include '_check_dashboard.html' %}
   {% endfor %}
 {% endif %}
 {% if config.get('FORM_RECAPTCHA_ENABLED') and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
