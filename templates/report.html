@@ -70,6 +70,9 @@
     {{ tr('Порядок действий: связанные инструменты → постоянная ссылка.', 'Action order: related tools → permalink.') }}
   </div>
 
+  {% set whois_expiry_urgency = one.whois_expiry_urgency %}
+  {% include '_whois_expiry_urgency_banner.html' %}
+
   <div class="row g-3">
     <div class="col-12 col-lg-6">
       <div class="card h-100 report-card">

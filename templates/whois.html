@@ -33,6 +33,8 @@
         <h2 class="result-panel__title">{{ tr('Результаты для', 'Results for') }} <span class="result-panel__query">{{ result.domain_name or result.query or query }}</span></h2>
       </div>
     </div>
+    {% include '_domain_availability_banner.html' %}
+    {% include '_whois_expiry_urgency_banner.html' %}
     <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
       <div class="tool-actions__group">
         {% if result.domain_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ result.domain_name }}">DNS</a>{% endif %}
@@ -80,4 +82,5 @@
   {% else %}
     {% include "_cards_under_tools.html" %}
   {% endif %}
+{% include '_domain_sticky_cta.html' %}
 {% endblock %}

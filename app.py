@@ -15,7 +15,8 @@ import random
 from urllib.parse import urlencode, urlparse, urljoin, quote
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import dns.reversename
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
+from dateutil import parser as date_parser
 from typing import Optional, Dict, List, Tuple
 from markupsafe import Markup, escape
 import redis
@@ -765,11 +766,315 @@ def _affiliate_actions_for_domain(domain: str) -> Dict[str, str]:
     buy_url = _affiliate_buy_url(d)
     if not buy_url:
         return {}
+    label = d.split(".", 1)[0] if "." in d else d
     return {
         "affiliate_domain": d,
         "affiliate_buy_url": buy_url,
-        "affiliate_domain_search_url": url_for("domain_search", query=d),
+        "affiliate_domain_search_url": url_for("domain_search", query=label),
     }
+
+
+def _whois_result_indicates_taken(data: Optional[dict]) -> bool:
+    if not isinstance(data, dict) or not data:
+        return False
+    if data.get("registrar") or data.get("creation_date") or data.get("expiration_date"):
+        return True
+    ns = data.get("name_servers")
+    if isinstance(ns, (list, tuple)) and len(ns) > 0:
+        return True
+    if isinstance(ns, str) and ns.strip():
+        return True
+    status = data.get("status")
+    if isinstance(status, (list, tuple)) and len(status) > 0:
+        return True
+    if isinstance(status, str) and status.strip():
+        return True
+    return False
+
+
+def _dns_records_indicate_taken(records: Optional[dict]) -> bool:
+    if not isinstance(records, dict) or not records:
+        return False
+    for rtype in ("NS", "A", "AAAA"):
+        vals = records.get(rtype)
+        if vals:
+            return True
+    return False
+
+
+def _domain_label_from_fqdn(domain: str) -> str:
+    d = (domain or "").strip().lower().rstrip(".")
+    return d.split(".", 1)[0] if "." in d else d
+
+
+def _build_domain_availability(domain: str, *, status: str, source: str = "") -> Dict[str, object]:
+    d = (domain or "").strip().lower().rstrip(".")
+    display = _to_unicode(d) if d else d
+    payload: Dict[str, object] = {
+        "status": status,
+        "domain": d,
+        "display_domain": display or d,
+        "source": source,
+        "zones_search_url": url_for("domain_search", query=_domain_label_from_fqdn(d)),
+    }
+    payload.update(_affiliate_actions_for_domain(d))
+    return payload
+
+
+def _evaluate_domain_availability(
+    domain: str,
+    *,
+    whois_data: Optional[dict] = None,
+    dns_records: Optional[dict] = None,
+) -> Optional[Dict[str, object]]:
+    host, err = _normalize_domain_query(domain)
+    if err or not host or _is_ip_host(host):
+        return None
+
+    if _whois_result_indicates_taken(whois_data):
+        return _build_domain_availability(host, status="taken", source="whois")
+
+    if _dns_records_indicate_taken(dns_records):
+        return _build_domain_availability(host, status="taken", source="dns")
+
+    if whois_data is not None or dns_records is not None:
+        if _is_available_via_whois(host):
+            source = "whois" if whois_data is not None else "dns+whois"
+            return _build_domain_availability(host, status="available", source=source)
+        if whois_data is not None or _dns_records_indicate_taken(dns_records) is False and dns_records is not None:
+            return _build_domain_availability(host, status="taken", source="whois" if whois_data is not None else "dns")
+
+    return None
+
+
+def _domain_availability_from_search_items(items: List[Dict]) -> Optional[Dict[str, object]]:
+    available = [it for it in (items or []) if it.get("available") and it.get("fqdn")]
+    if not available:
+        return None
+    first = available[0]
+    payload = _build_domain_availability(str(first["fqdn"]), status="available", source="domains")
+    payload["available_count"] = len(available)
+    payload["available_domains"] = [str(it.get("fqdn")) for it in available[:8]]
+    payload["available_domain_links"] = []
+    for it in available[:8]:
+        fqdn = str(it.get("fqdn"))
+        payload["available_domain_links"].append({
+            "fqdn": fqdn,
+            "display": _to_unicode(fqdn),
+            "buy_url": _affiliate_buy_url(fqdn),
+        })
+    return payload
+
+
+WHOIS_EXPIRY_NOTICE_DAYS = 90
+WHOIS_EXPIRY_WARNING_DAYS = 30
+WHOIS_EXPIRY_CRITICAL_DAYS = 7
+WHOIS_EXPIRY_RECENTLY_EXPIRED_DAYS = 30
+
+
+def _parse_whois_expiration_date(value) -> Optional[datetime]:
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        for item in value:
+            parsed = _parse_whois_expiration_date(item)
+            if parsed:
+                return parsed
+        return None
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, date):
+        return datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+    raw = str(value).strip()
+    if not raw:
+        return None
+    for fmt in (
+        "%Y-%m-%d",
+        "%Y.%m.%d",
+        "%d.%m.%Y",
+        "%d-%b-%Y",
+        "%d.%b.%Y",
+        "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%a %b %d %Y",
+        "%Y/%m/%d",
+    ):
+        try:
+            dt = datetime.strptime(raw, fmt)
+            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            continue
+    try:
+        dt = date_parser.parse(raw, dayfirst=True, fuzzy=False)
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except (ValueError, TypeError, OverflowError):
+        return None
+
+
+def _whois_expiration_raw(whois_data: Optional[dict]) -> Optional[object]:
+    if not isinstance(whois_data, dict):
+        return None
+    for key in ("expiration_date", "paid_till", "expires", "expiry_date", "registry_expiry_date"):
+        val = whois_data.get(key)
+        if val in (None, "", []):
+            continue
+        if isinstance(val, (list, tuple)):
+            val = next((x for x in val if x not in (None, "", [])), None)
+        if val not in (None, "", []):
+            return val
+    return None
+
+
+def _build_whois_expiry_urgency(
+    whois_data: Optional[dict],
+    *,
+    domain: str = "",
+) -> Optional[Dict[str, object]]:
+    raw_exp = _whois_expiration_raw(whois_data)
+    if raw_exp is None:
+        return None
+    exp_dt = _parse_whois_expiration_date(raw_exp)
+    if not exp_dt:
+        return None
+
+    today = datetime.now(timezone.utc).date()
+    exp_date = exp_dt.date()
+    days_left = (exp_date - today).days
+    if days_left > WHOIS_EXPIRY_NOTICE_DAYS:
+        return None
+    if days_left < -WHOIS_EXPIRY_RECENTLY_EXPIRED_DAYS:
+        return None
+
+    if days_left < 0:
+        urgency = "expired"
+    elif days_left <= WHOIS_EXPIRY_CRITICAL_DAYS:
+        urgency = "critical"
+    elif days_left <= WHOIS_EXPIRY_WARNING_DAYS:
+        urgency = "warning"
+    else:
+        urgency = "notice"
+
+    host = (
+        (domain or (whois_data or {}).get("domain_name") or (whois_data or {}).get("domain_unicode") or "")
+        .strip()
+        .lower()
+        .rstrip(".")
+    )
+    display = _to_unicode(host) if host else ""
+    expiration_display = exp_date.strftime("%d.%m.%Y")
+    if isinstance(raw_exp, str) and raw_exp.strip():
+        expiration_display = raw_exp.strip()
+
+    payload: Dict[str, object] = {
+        "domain": host,
+        "display_domain": display or host,
+        "expiration_date": raw_exp,
+        "expiration_display": expiration_display,
+        "days_left": days_left,
+        "days_abs": abs(days_left),
+        "urgency": urgency,
+        "zones_search_url": url_for("domain_search", query=_domain_label_from_fqdn(host)) if host else url_for("domains"),
+    }
+    if host:
+        payload.update(_affiliate_actions_for_domain(host))
+    return payload
+
+
+def _landing_whois_expiry(domain_ascii: str) -> Optional[Dict[str, object]]:
+    host = (domain_ascii or "").strip().lower().rstrip(".")
+    if not host or _is_ip_host(host) or "." not in host:
+        return None
+
+    def _compute() -> Optional[Dict[str, object]]:
+        whois_part = _report_whois_summary(host)
+        return _build_whois_expiry_urgency(whois_part, domain=host)
+
+    try:
+        return cache_json(f"cache:whois-expiry:{host}", 3600, _compute)
+    except Exception:
+        return _compute()
+
+
+_DOMAIN_IDEA_PREFIXES = ("get", "my", "go", "try", "the", "we", "hi")
+_DOMAIN_IDEA_SUFFIXES = (
+    "shop", "store", "app", "hub", "online", "pro", "lab", "group", "team",
+    "studio", "box", "zone", "land", "place", "market",
+)
+_DOMAIN_IDEA_CONNECTORS = ("", "-")
+
+
+def _slugify_domain_label(value: str) -> str:
+    value = (value or "").strip().lower()
+    value = re.sub(r"[\s_]+", "-", value)
+    value = "".join(ch for ch in value if ch.isalnum() or ch == "-")
+    value = re.sub(r"-{2,}", "-", value).strip("-")
+    return value
+
+
+def _generate_domain_name_ideas(seed: str, limit: int = 24) -> List[str]:
+    raw = (seed or "").strip()
+    if not raw:
+        return []
+
+    tokens = re.findall(r"[\w\u0400-\u04FF]+", raw.lower())
+    if not tokens:
+        return []
+
+    bases: List[str] = []
+    joined = _slugify_domain_label("".join(tokens))
+    hyphenated = _slugify_domain_label("-".join(tokens))
+    if joined:
+        bases.append(joined)
+    if hyphenated and hyphenated != joined:
+        bases.append(hyphenated)
+    if tokens[0]:
+        bases.append(_slugify_domain_label(tokens[0]))
+    if len(tokens) > 1:
+        bases.append(_slugify_domain_label(tokens[0] + tokens[1]))
+
+    if any("а" <= ch <= "я" or ch == "ё" for ch in raw.lower()):
+        translit = _slugify_domain_label(_translit_ru("".join(tokens)))
+        if translit:
+            bases.append(translit)
+        translit_hyphen = _slugify_domain_label(_translit_ru("-".join(tokens)))
+        if translit_hyphen and translit_hyphen not in bases:
+            bases.append(translit_hyphen)
+
+    ideas: List[str] = []
+    seen = set()
+
+    def add(candidate: str) -> None:
+        if len(ideas) >= limit:
+            return
+        try:
+            normalized = _normalize_label(candidate)
+        except Exception:
+            return
+        if not normalized or normalized in seen:
+            return
+        seen.add(normalized)
+        ideas.append(normalized)
+
+    for base in bases:
+        add(base)
+        if len(ideas) >= limit:
+            break
+        for prefix in _DOMAIN_IDEA_PREFIXES:
+            for conn in _DOMAIN_IDEA_CONNECTORS:
+                add(f"{prefix}{conn}{base}")
+                if len(ideas) >= limit:
+                    break
+            if len(ideas) >= limit:
+                break
+        for suffix in _DOMAIN_IDEA_SUFFIXES:
+            for conn in _DOMAIN_IDEA_CONNECTORS:
+                add(f"{base}{conn}{suffix}")
+                if len(ideas) >= limit:
+                    break
+            if len(ideas) >= limit:
+                break
+
+    return ideas[:limit]
 
 
 def _to_unicode(domain: str) -> str:
@@ -1025,6 +1330,11 @@ def sitemap():
     ]
 
     dynamic_domain_paths: List[str] = []
+    zone_paths: List[str] = []
+    for tld in app.config.get("DOMAIN_DEFAULT_TLDS", [])[:16]:
+        t = (tld or "").strip().lstrip(".")
+        if t:
+            zone_paths.append(url_for("zone_landing", tld=t))
     try:
         top_domains = r.zrevrange(SEO_DOMAIN_ZSET, 0, max(0, SITEMAP_DYNAMIC_DOMAIN_LIMIT - 1), withscores=True)
         now = int(time.time())
@@ -1046,6 +1356,7 @@ def sitemap():
                 continue
             dynamic_domain_paths.append(url_for("lookup_domain", domain=d))
             dynamic_domain_paths.append(url_for("lookup_whois_domain", domain=d))
+            dynamic_domain_paths.append(url_for("lookup_dns_domain", domain=d))
     except Exception:
         app.logger.debug("Dynamic SEO sitemap domain load failed")
 
@@ -1074,6 +1385,8 @@ def sitemap():
         _append_url(path, priority, changefreq)
     for path in dynamic_domain_paths:
         _append_url(path, "0.75", "weekly")
+    for path in zone_paths:
+        _append_url(path, "0.8", "weekly")
     xml.append("</urlset>")
     return Response("\n".join(xml), mimetype="application/xml")
 
@@ -1082,50 +1395,125 @@ def index():
     return render_template("index.html")
 
 
-@app.get("/lookup/<path:domain>")
-def lookup_domain(domain: str):
+def _sanitize_lookup_domain(domain: str) -> tuple[Optional[str], Optional[str]]:
     clean = (domain or "").strip().lower().rstrip(".")
+    if "/" in clean or clean.startswith(("whois", "dns")):
+        return None, None
     clean = re.sub(r"[^a-zа-яё0-9.-]", "", clean)
     if not clean or len(clean) > 253 or "." not in clean:
-        abort(404)
+        return None, None
     try:
         ascii_domain = idna.encode(clean).decode("ascii")
     except Exception:
         ascii_domain = clean
+    return clean, ascii_domain
+
+
+def _split_fqdn(domain: str) -> tuple[str, str]:
+    d = (domain or "").strip().lower().rstrip(".")
+    if "." not in d:
+        return d, ""
+    label, tld = d.rsplit(".", 1)
+    return label, tld
+
+
+def _related_tld_links(domain: str, limit: int = 6) -> List[Dict[str, str]]:
+    label, current_tld = _split_fqdn(domain)
+    if not label or not current_tld:
+        return []
+    preferred = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
+    links: List[Dict[str, str]] = []
+    for tld in preferred:
+        if tld == current_tld:
+            continue
+        fqdn = f"{label}.{tld}"
+        try:
+            if not label.isascii() and tld not in IDN_READY_TLDS:
+                continue
+            idna.encode(fqdn, uts46=True)
+        except Exception:
+            continue
+        links.append({
+            "tld": tld,
+            "fqdn": _to_unicode(fqdn),
+            "search_url": url_for("domain_search", query=label, zones=[tld]),
+            "buy_url": _affiliate_buy_url(fqdn),
+            "overview_url": url_for("lookup_domain", domain=fqdn),
+        })
+        if len(links) >= limit:
+            break
+    return links
+
+
+def _lookup_landing_context(clean: str, ascii_domain: str) -> Dict[str, object]:
     _track_domain_for_seo(ascii_domain)
+    label, tld = _split_fqdn(clean)
+    return {
+        "domain": clean,
+        "domain_ascii": ascii_domain,
+        "domain_label": label,
+        "domain_tld": tld,
+        "q": quote(clean, safe=""),
+        "domain_availability": _landing_domain_availability(ascii_domain),
+        "whois_expiry_urgency": _landing_whois_expiry(ascii_domain),
+        "related_tld_links": _related_tld_links(clean),
+        **_affiliate_actions_for_domain(ascii_domain),
+    }
+
+
+@app.get("/lookup/whois/<path:domain>")
+def lookup_whois_domain(domain: str):
+    clean, ascii_domain = _sanitize_lookup_domain(domain)
+    if not clean:
+        abort(404)
     try:
-        return render_template(
-            "lookup_landing.html",
-            domain=clean,
-            domain_ascii=ascii_domain,
-            q=quote(clean, safe=""),
-        )
+        return render_template("whois_landing.html", landing_kind="whois", **_lookup_landing_context(clean, ascii_domain))
+    except Exception:
+        app.logger.exception("WHOIS lookup landing render failed for %s", clean)
+        return redirect(url_for("whois_lookup", query=clean), code=302)
+
+
+@app.get("/lookup/dns/<path:domain>")
+def lookup_dns_domain(domain: str):
+    clean, ascii_domain = _sanitize_lookup_domain(domain)
+    if not clean:
+        abort(404)
+    try:
+        return render_template("dns_landing.html", landing_kind="dns", **_lookup_landing_context(clean, ascii_domain))
+    except Exception:
+        app.logger.exception("DNS lookup landing render failed for %s", clean)
+        return redirect(url_for("dns_lookup", q=clean), code=302)
+
+
+@app.get("/lookup/<path:domain>")
+def lookup_domain(domain: str):
+    clean, ascii_domain = _sanitize_lookup_domain(domain)
+    if not clean:
+        abort(404)
+    try:
+        return render_template("lookup_landing.html", landing_kind="overview", **_lookup_landing_context(clean, ascii_domain))
     except Exception:
         app.logger.exception("Lookup landing render failed for %s", clean)
         return redirect(url_for("domain_report", q=clean), code=302)
 
 
-@app.get("/lookup/whois/<path:domain>")
-def lookup_whois_domain(domain: str):
-    clean = (domain or "").strip().lower().rstrip(".")
-    clean = re.sub(r"[^a-zа-яё0-9.-]", "", clean)
-    if not clean or len(clean) > 253 or "." not in clean:
+@app.get("/zones/<tld>")
+def zone_landing(tld: str):
+    zone = (tld or "").strip().lower().lstrip(".")
+    allowed = {t.strip().lstrip(".").lower() for t in app.config.get("TLD_LIST", []) if (t or "").strip()}
+    if not zone or zone not in allowed:
         abort(404)
-    try:
-        ascii_domain = idna.encode(clean).decode("ascii")
-    except Exception:
-        ascii_domain = clean
-    _track_domain_for_seo(ascii_domain)
-    try:
-        return render_template(
-            "whois_landing.html",
-            domain=clean,
-            domain_ascii=ascii_domain,
-            q=quote(clean, safe=""),
-        )
-    except Exception:
-        app.logger.exception("WHOIS lookup landing render failed for %s", clean)
-        return redirect(url_for("whois_lookup", query=clean), code=302)
+    zone_display = _to_unicode(zone) if zone else zone
+    popular_labels = ["shop", "studio", "online", "app", "blog", "pro"]
+    return render_template(
+        "zone_landing.html",
+        zone=zone,
+        zone_display=zone_display,
+        popular_labels=popular_labels,
+        default_tlds=[t for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if t in allowed][:12],
+        name_ideas=[],
+        idea_seed="",
+    )
 
 # ---------- DOMAIN REPORT ----------
 def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
@@ -1337,6 +1725,7 @@ def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object
         "domain_display": domain_unicode or host_ascii,
         "dns": dns_part,
         "whois": whois_part,
+        "whois_expiry_urgency": _build_whois_expiry_urgency(whois_part, domain=host_ascii),
         "geo": geo_part,
         "reverse": reverse_part,
     }
@@ -1570,6 +1959,12 @@ def dns_lookup():
     _track_domain_for_seo(query)
     permalink = url_for("dns_lookup", q=query, types=selected_types, _external=False)
 
+    affiliate_domain = _extract_affiliate_domain(query, "dns") or ""
+    domain_availability = _evaluate_domain_availability(
+        affiliate_domain or query,
+        dns_records=records,
+    )
+
     return render_template(
         "dns.html",
         meta=meta,
@@ -1580,7 +1975,8 @@ def dns_lookup():
         permalink=permalink,
         selected_types=selected_types,
         dns_type_options=dns_type_options,
-        **_affiliate_actions_for_domain(_extract_affiliate_domain(query, "dns") or ""),
+        domain_availability=domain_availability,
+        **_affiliate_actions_for_domain(affiliate_domain),
     )
 
 # ---------- Domains ----------
@@ -1669,6 +2065,10 @@ def domain_search():
     error = None
     suggestions = []
     permalink = None
+    idea_seed = (request.args.get("idea") or "").strip()
+    name_ideas: List[str] = []
+    if not is_post and idea_seed and request.args.get("generate", "").strip().lower() in {"1", "true", "yes", "on"}:
+        name_ideas = _generate_domain_name_ideas(idea_seed)
 
     all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
     # Убираем дубли, сохраняя порядок
@@ -1714,6 +2114,8 @@ def domain_search():
                 tld_groups=tld_groups,
                 tld_group_map=tld_group_map,
                 permalink=permalink,
+                name_ideas=name_ideas,
+                idea_seed=idea_seed,
             )
         captcha_error = _verify_form_recaptcha_if_needed() if is_post else None
         if captcha_error:
@@ -1748,6 +2150,8 @@ def domain_search():
     if query:
         permalink = url_for("domain_search", query=query, zones=selected_tlds)
 
+    domain_availability = _domain_availability_from_search_items(items) if items and not error else None
+
     return render_template(
         "domains.html",
         q=query,
@@ -1762,7 +2166,33 @@ def domain_search():
         tld_groups=tld_groups,
         tld_group_map=tld_group_map,
         permalink=permalink,
+        domain_availability=domain_availability,
+        name_ideas=name_ideas,
+        idea_seed=idea_seed,
     )
+
+
+def _landing_domain_availability(domain_ascii: str) -> Optional[Dict[str, object]]:
+    host = (domain_ascii or "").strip().lower().rstrip(".")
+    if not host or _is_ip_host(host) or "." not in host:
+        return None
+
+    def _compute() -> Optional[Dict[str, object]]:
+        records: Dict[str, List[str]] = {}
+        for rtype in ("NS", "A", "AAAA"):
+            try:
+                answers = dns.resolver.resolve(host, rtype)
+                vals = [str(r).rstrip(".") for r in answers]
+                if vals:
+                    records[rtype] = vals
+            except Exception:
+                continue
+        return _evaluate_domain_availability(host, dns_records=records)
+
+    try:
+        return cache_json(f"cache:landing-avail:{host}", 900, _compute)
+    except Exception:
+        return _compute()
 
 
 COMMON_SAFE_PORTS = [20,21,22,25,53,80,110,111,123,135,139,143,161,389,443,445,465,587,993,995,1433,1521,1723,1883,2049,2083,2087,2096,2375,2376,3000,3128,3306,3389,3690,4369,5000,5432,5672,5900,5985,5986,6379,6443,7001,7002,7443,8000,8080,8081,8443,9000,9090,9200,9300,10000,11211,15672,27017]
@@ -2394,12 +2824,25 @@ def whois_lookup():
 
     affiliate_domain = (data or {}).get("domain_name") if isinstance(data, dict) else None
     affiliate_domain = affiliate_domain or _extract_affiliate_domain(query, "whois")
+    domain_availability = None
+    whois_expiry_urgency = None
+    if data and not error:
+        domain_availability = _evaluate_domain_availability(
+            affiliate_domain or query,
+            whois_data=data if isinstance(data, dict) else None,
+        )
+        whois_expiry_urgency = _build_whois_expiry_urgency(
+            data if isinstance(data, dict) else None,
+            domain=affiliate_domain or query,
+        )
     return render_template(
         "whois.html",
         result=data,
         error=error,
         query=query,
         permalink=permalink,
+        domain_availability=domain_availability,
+        whois_expiry_urgency=whois_expiry_urgency,
         **_affiliate_actions_for_domain(affiliate_domain or ""),
     )
 

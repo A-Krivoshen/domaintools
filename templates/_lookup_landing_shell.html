@@ -1,0 +1,55 @@
+{% set kind = landing_kind or 'overview' %}
+<section class="lookup-landing card-soft p-4 p-md-5 mb-3">
+  <div class="small text-uppercase fw-semibold text-primary mb-2">{{ landing_badge }}</div>
+  <h1 class="tool-page-header__title mb-2">{{ landing_title|safe }}</h1>
+  <p class="text-muted mb-3">{{ landing_lead }}</p>
+
+  {% include '_domain_availability_banner.html' %}
+  {% include '_whois_expiry_urgency_banner.html' %}
+
+  <div class="d-flex flex-wrap gap-2 mb-2">
+    {% for action in landing_actions %}
+      <a class="btn {{ action.class or 'btn-outline-primary' }}"
+         href="{{ action.href }}"
+         {% if action.external %}target="_blank" rel="nofollow noopener"{% endif %}
+         {% if action.buy_track %}
+         data-buy-track
+         data-buy-domain="{{ action.buy_domain or affiliate_domain }}"
+         data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}"
+         {% endif %}>{{ action.label }}</a>
+    {% endfor %}
+    {% if affiliate_buy_url %}
+      <a class="btn btn-success"
+         href="{{ affiliate_buy_url }}"
+         target="_blank"
+         rel="nofollow noopener"
+         data-buy-track
+         data-buy-domain="{{ affiliate_domain }}"
+         data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ tr('Зарегистрировать', 'Register') }}</a>
+    {% endif %}
+  </div>
+
+  <div class="lookup-landing__crosslinks small mb-2">
+    <a href="{{ url_for('lookup_domain', domain=domain) }}">{{ tr('Обзор', 'Overview') }}</a>
+    <span aria-hidden="true">·</span>
+    <a href="{{ url_for('lookup_whois_domain', domain=domain) }}">WHOIS</a>
+    <span aria-hidden="true">·</span>
+    <a href="{{ url_for('lookup_dns_domain', domain=domain) }}">DNS</a>
+  </div>
+
+  {% if related_tld_links and related_tld_links|length %}
+  <div class="lookup-landing__related mt-3">
+    <div class="small fw-semibold mb-2">{{ tr('Тот же бренд в других зонах', 'Same brand in other zones') }}</div>
+    <div class="lookup-landing__related-chips">
+      {% for link in related_tld_links %}
+        <a class="lookup-landing__related-chip"
+           href="{{ link.search_url }}"
+           title="{{ tr('Проверить', 'Check') }} {{ link.fqdn }}">.{{ link.tld }}</a>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div class="small text-muted mt-3">{{ landing_note }}</div>
+</section>
+{% include '_domain_sticky_cta.html' %}

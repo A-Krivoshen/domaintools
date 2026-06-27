@@ -1,0 +1,80 @@
+{% if whois_expiry_urgency %}
+<section class="whois-expiry-banner whois-expiry-banner--{{ whois_expiry_urgency.urgency }} mb-3"
+         role="status"
+         aria-live="polite">
+  <div class="whois-expiry-banner__icon" aria-hidden="true">
+    {% if whois_expiry_urgency.urgency == 'expired' %}
+      <i class="fa-solid fa-circle-exclamation"></i>
+    {% else %}
+      <i class="fa-solid fa-hourglass-half"></i>
+    {% endif %}
+  </div>
+  <div class="whois-expiry-banner__body">
+    {% if whois_expiry_urgency.urgency == 'expired' %}
+      <h2 class="whois-expiry-banner__title">
+        {{ tr('Домен истёк:', 'Domain expired:') }}
+        <strong>{{ whois_expiry_urgency.display_domain }}</strong>
+      </h2>
+      <p class="whois-expiry-banner__lead mb-2">
+        {{ tr('Истёк', 'Expired') }}
+        {{ whois_expiry_urgency.days_abs }}
+        {{ tr('дн. назад', 'days ago') }}
+        ({{ whois_expiry_urgency.expiration_display }}).
+        {{ tr('Возможно скоро освободится — подберите резервное имя или проверьте доступность.', 'It may become available soon — pick a backup name or check availability.') }}
+      </p>
+    {% elif whois_expiry_urgency.urgency == 'critical' %}
+      <h2 class="whois-expiry-banner__title">
+        {{ tr('Срочно: домен истекает через', 'Urgent: domain expires in') }}
+        {{ whois_expiry_urgency.days_left }}
+        {{ tr('дн.', 'days') }}!
+      </h2>
+      <p class="whois-expiry-banner__lead mb-2">
+        <strong>{{ whois_expiry_urgency.display_domain }}</strong>
+        — {{ tr('дата истечения', 'expiry date') }}:
+        {{ whois_expiry_urgency.expiration_display }}.
+        {{ tr('Заранее зарегистрируйте резервное имя в другой зоне.', 'Register a backup name in another zone before it lapses.') }}
+      </p>
+    {% elif whois_expiry_urgency.urgency == 'warning' %}
+      <h2 class="whois-expiry-banner__title">
+        {{ tr('Домен истекает через', 'Domain expires in') }}
+        {{ whois_expiry_urgency.days_left }}
+        {{ tr('дн.', 'days') }}
+      </h2>
+      <p class="whois-expiry-banner__lead mb-2">
+        <strong>{{ whois_expiry_urgency.display_domain }}</strong>
+        — {{ whois_expiry_urgency.expiration_display }}.
+        {{ tr('Успейте занять похожее имя, пока основной домен ещё активен.', 'Secure a similar name while the primary domain is still active.') }}
+      </p>
+    {% else %}
+      <h2 class="whois-expiry-banner__title">
+        {{ tr('Напоминание: истекает через', 'Reminder: expires in') }}
+        {{ whois_expiry_urgency.days_left }}
+        {{ tr('дн.', 'days') }}
+      </h2>
+      <p class="whois-expiry-banner__lead mb-2">
+        <strong>{{ whois_expiry_urgency.display_domain }}</strong>
+        — {{ whois_expiry_urgency.expiration_display }}.
+        {{ tr('Проверьте свободные варианты в соседних зонах.', 'Check available alternatives in nearby zones.') }}
+      </p>
+    {% endif %}
+    <div class="whois-expiry-banner__actions">
+      <a class="btn btn-sm whois-expiry-banner__cta"
+         href="{{ whois_expiry_urgency.zones_search_url }}">
+        <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>
+        {{ tr('Подобрать свободные варианты', 'Find available alternatives') }}
+      </a>
+      {% if whois_expiry_urgency.affiliate_buy_url %}
+      <a class="btn btn-sm btn-outline-light whois-expiry-banner__secondary"
+         href="{{ whois_expiry_urgency.affiliate_buy_url }}"
+         target="_blank"
+         rel="nofollow noopener"
+         data-buy-track
+         data-buy-domain="{{ whois_expiry_urgency.affiliate_domain }}"
+         data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+        {{ tr('Проверить у регистратора', 'Check at registrar') }}
+      </a>
+      {% endif %}
+    </div>
+  </div>
+</section>
+{% endif %}
