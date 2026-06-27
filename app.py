@@ -107,7 +107,7 @@ app.config.update(
     # Основные зоны (по умолчанию отмечены в форме)
     DOMAIN_DEFAULT_TLDS=os.environ.get(
         "DOMAIN_DEFAULT_TLDS",
-        "ru,рф,su,рус,com,net,org,info,pro,site,online,store,app,io,ai,co,me,xyz,shop,blog",
+        "ru,рф,com,site,online",
     ).split(","),
     DOMAIN_CHECK_MAX_TLDS=int(os.environ.get("DOMAIN_CHECK_MAX_TLDS", "80")),
     DOMAIN_CHECK_WORKERS=int(os.environ.get("DOMAIN_CHECK_WORKERS", "8")),
@@ -531,6 +531,12 @@ def _save_report_job(job_id: str, payload: Dict, ttl_s: int = REPORT_JOB_TTL_S) 
 
 def _load_report_job(job_id: str) -> Optional[Dict]:
     return _load_job_payload(_REPORT_JOB_LOCAL, _report_job_key(job_id), job_id, "report")
+
+
+def _touch_report_job(job_id: str, **fields) -> bool:
+    job = _load_report_job(job_id) or {}
+    job.update(fields)
+    return _save_report_job(job_id, job)
 
 
 def _is_valid_report_job_id(job_id: str) -> bool:
@@ -1505,6 +1511,7 @@ def jinja_more_globals():
 app.jinja_env.filters['prettyjson'] = prettyjson_filter
 app.jinja_env.filters['json_rows'] = json_rows_filter
 app.jinja_env.filters['affiliate_buy_url'] = _affiliate_buy_url
+app.jinja_env.filters['domain_label'] = _domain_label_from_fqdn
 # --- форматирование времени для истории ---
 @app.template_filter("dt")
 def dt_filter(ts):
@@ -1965,8 +1972,24 @@ def _report_reverse_summary(ip: str | None) -> Dict[str, object]:
     return row
 
 
-def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object]:
+def _build_domain_report(
+    host_ascii: str,
+    source_input: str,
+    *,
+    job_id: Optional[str] = None,
+    progress_extra: Optional[Dict[str, object]] = None,
+) -> Dict[str, object]:
+    def _progress(step: str) -> None:
+        if not job_id:
+            return
+        payload: Dict[str, object] = {"status": "running", "progress_step": step}
+        if progress_extra:
+            payload.update(progress_extra)
+        _touch_report_job(job_id, **payload)
+
+    _progress("dns")
     dns_part = cache_json(f"cache:report:dns:{host_ascii}", REPORT_DNS_TTL_S, lambda: _report_dns_summary(host_ascii))
+    _progress("whois")
     whois_part = cache_json(f"cache:report:whois:{host_ascii}", REPORT_WHOIS_TTL_S, lambda: _report_whois_summary(host_ascii))
     whois_missing_core = any(
         not (whois_part or {}).get(k)
@@ -1981,16 +2004,19 @@ def _build_domain_report(host_ascii: str, source_input: str) -> Dict[str, object
                     merged[k] = v
             whois_part = merged
     first_ip = (dns_part.get("ips") or [None])[0]
+    _progress("geo")
     geo_part = cache_json(
         f"cache:report:geo:{first_ip or 'none'}",
         REPORT_GEO_TTL_S,
         lambda: _report_geo_summary(first_ip),
     )
+    _progress("reverse")
     reverse_part = cache_json(
         f"cache:report:reverse:{first_ip or 'none'}",
         REPORT_REVERSE_TTL_S,
         lambda: _report_reverse_summary(first_ip),
     )
+    _progress("finalize")
     domain_unicode = _to_unicode(host_ascii)
     return {
         "input": source_input,
@@ -2010,15 +2036,27 @@ def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> N
             app.logger.error("Report job aborted because storage is unavailable: job_id=%s", job_id)
             return
         reports = []
-        for d in domains:
-            report = cache_json(f"cache:report:full:{d}", REPORT_FULL_TTL_S, lambda d=d: _build_domain_report(d, source_input))
+        total = len(domains)
+        for idx, d in enumerate(domains):
+            progress_extra = {
+                "progress_domain_index": idx,
+                "progress_domain_total": total,
+                "progress_domain": d,
+            }
+            report = cache_json(
+                f"cache:report:full:{d}",
+                REPORT_FULL_TTL_S,
+                lambda d=d, progress_extra=progress_extra: _build_domain_report(
+                    d, source_input, job_id=job_id, progress_extra=progress_extra
+                ),
+            )
             whois_block = (report or {}).get("whois") if isinstance(report, dict) else {}
             whois_missing_core = any(
                 not (whois_block or {}).get(k)
                 for k in ("registrar", "creation_date", "expiration_date")
             )
             if whois_missing_core:
-                report = _build_domain_report(d, source_input)
+                report = _build_domain_report(d, source_input, job_id=job_id, progress_extra=progress_extra)
             hid = save_history("report", d, report)
             if hid:
                 report["permalink"] = f"/history/report/{hid}"
@@ -2042,6 +2080,10 @@ def domain_report():
     reports = []
     error = None
     job_status = None
+    progress_step = None
+    progress_domain_index = 0
+    progress_domain_total = 0
+    progress_domain = None
 
     # Poll existing async job
     if job_id:
@@ -2052,6 +2094,10 @@ def domain_report():
             if job:
                 job_status = str(job.get("status") or "").lower() or "queued"
                 query = query or str(job.get("source_input") or "")
+                progress_step = str(job.get("progress_step") or "").lower() or None
+                progress_domain_index = int(job.get("progress_domain_index") or 0)
+                progress_domain_total = int(job.get("progress_domain_total") or 0)
+                progress_domain = str(job.get("progress_domain") or "") or None
                 if job_status == "done":
                     reports = list(job.get("reports") or [])
                     report = reports[0] if reports else None
@@ -2104,6 +2150,10 @@ def domain_report():
         error=error,
         job_status=job_status,
         job_id=job_id,
+        progress_step=progress_step,
+        progress_domain_index=progress_domain_index,
+        progress_domain_total=progress_domain_total,
+        progress_domain=progress_domain,
         batch_max=REPORT_MAX_BATCH,
     )
 

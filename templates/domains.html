@@ -50,17 +50,20 @@
             data-over-limit-en="{{ tr('Too many zones selected — search may be slower.', 'Too many zones selected — search may be slower.') }}"
       ></span>
     </div>
-    <div class="d-flex flex-wrap gap-2" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
+    <div class="d-flex flex-wrap gap-2 zones-list zones-list--compact" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
          data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
          data-group-global="{{ (tld_groups.global or [])|join(',') }}"
          data-group-new="{{ (tld_groups.new or [])|join(',') }}">
       {% for tld in all_tlds %}
-      <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}">
+      <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}"{% if tld not in default_tlds %} data-zone-extra{% endif %}>
         <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
         .{{ tld }}
       </label>
       {% endfor %}
     </div>
+    <button type="button" class="btn btn-sm btn-link px-0 mt-2" data-zones-expand aria-expanded="false">
+      {{ tr('Показать все зоны', 'Show all zones') }}
+    </button>
   </div>
   {% if suggestions and suggestions|length %}
     <div class="form-text mt-1">
@@ -123,8 +126,8 @@
                data-buy-domain="{{ it.fqdn }}"
                data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ tr('Купить', 'Buy') }}</a>
           {% else %}
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">WHOIS</a>
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ it.fqdn }}">DNS</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">{{ tr('Владелец', 'Owner') }}</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ it.fqdn }}">{{ tr('DNS', 'DNS') }}</a>
           {% endif %}
         </td>
       </tr>

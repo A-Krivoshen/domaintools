@@ -1,7 +1,7 @@
 {% set _offers = hosting_offers_featured() %}
 {% set _locale_tag = 'en' if (get_locale()|string).startswith('en') else 'ru' %}
 {% if _offers %}
-<section class="hosting-footer-strip" aria-label="{{ tr('VPS и хостинг', 'VPS and hosting') }}">
+<section class="hosting-footer-strip" aria-label="{{ tr('VPS и хостинг', 'VPS and hosting') }}" data-monetization-slot>
   <div class="hosting-footer-strip__label">
     <i class="fa-solid fa-server" aria-hidden="true"></i>
     {{ tr('VPS для домена', 'VPS for your domain') }}

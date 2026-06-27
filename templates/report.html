@@ -1,21 +1,21 @@
 {% extends 'base.html' %}
-{% block title %}{{ tr('Сводный отчёт по домену — DomainTools', 'Domain report — DomainTools') }}{% endblock %}
-{% block meta_snippet %}{{ tr('Единый отчёт по домену: DNS, WHOIS, GeoIP и Reverse в одном месте.', 'Single domain report: DNS, WHOIS, GeoIP, and Reverse in one place.') }}{% endblock %}
+{% block title %}{{ tr('Полная проверка домена — DomainTools', 'Full domain check — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Единый отчёт: владелец, DNS, местоположение и обратная запись.', 'Single report: owner, DNS, location, and reverse lookup.') }}{% endblock %}
 
 {% block content %}
-{% set page_title = tr('Сводный отчёт по домену', 'Domain report') %}
-{% set page_intro = tr('Один запуск: DNS, WHOIS, GeoIP и Reverse (по первому IP). Поддерживается пакетная проверка через пробел/запятую.', 'Single run: DNS, WHOIS, GeoIP, and Reverse (by first IP). Batch mode is supported via space/comma.') %}
+{% set page_title = tr('Полная проверка', 'Full check') %}
+{% set page_intro = tr('Один запуск: куда ведёт домен, кто владелец, где сервер. Можно проверить несколько доменов через пробел или запятую.', 'One run: where the domain points, who owns it, where the server is. Check multiple domains separated by space or comma.') %}
 {% set page_icon = 'fa-file-lines' %}
-{% set breadcrumb_name = tr('Отчёт', 'Report') %}
+{% set breadcrumb_name = tr('Полная проверка', 'Full check') %}
 {% set breadcrumb_path = url_for('domain_report') %}
 {% include '_tool_page_header.html' %}
 
 <section class="tool-form mb-3">
-  <form method="post" action="{{ url_for('domain_report') }}" data-report-form data-no-global-recaptcha="1">
+  <form method="post" action="{{ url_for('domain_report') }}" data-report-form data-no-global-recaptcha="1" data-loading>
     <div class="input-group input-group-lg search-command">
       <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
       <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com пример.рф site.ru" aria-label="{{ tr('Домен', 'Domain') }}" autofocus>
-      <button class="btn btn-primary btn-lg" type="submit">{{ tr('Собрать отчёт', 'Build report') }}</button>
+      <button class="btn btn-primary btn-lg" type="submit">{{ tr('Полная проверка', 'Full check') }}</button>
     </div>
     <div class="col-12">
       <div class="form-text">{{ tr('Максимум доменов за раз:', 'Max domains per batch:') }} {{ batch_max }}</div>
@@ -28,8 +28,36 @@
   {% endif %}
 
   {% if job_status in ['queued', 'running'] %}
-    <div class="alert alert-info mt-3 mb-0">
-      {{ tr('Задача отчёта выполняется, страница обновится автоматически.', 'Report job is running, this page will refresh automatically.') }}
+    {% set _steps = [
+      ('queued', tr('В очереди…', 'Queued…')),
+      ('dns', tr('Собираем DNS…', 'Fetching DNS…')),
+      ('whois', tr('Проверяем владельца…', 'Checking owner…')),
+      ('geo', tr('Определяем местоположение…', 'Locating server…')),
+      ('reverse', tr('Проверяем обратную запись…', 'Checking reverse DNS…')),
+      ('finalize', tr('Формируем отчёт…', 'Building report…')),
+    ] %}
+    {% set _active = progress_step or 'queued' %}
+    <div class="report-progress mt-3 mb-0" aria-live="polite" aria-atomic="true" data-report-progress>
+      <div class="report-progress__header small text-muted mb-2">
+        {% if progress_domain_total > 1 %}
+          {{ tr('Домен', 'Domain') }} {{ progress_domain_index + 1 }} / {{ progress_domain_total }}
+          {% if progress_domain %}<span class="ms-1">— <strong>{{ progress_domain }}</strong></span>{% endif %}
+        {% else %}
+          {{ tr('Собираем отчёт…', 'Building report…') }}
+        {% endif %}
+      </div>
+      {% set _ns = namespace(active_idx=0) %}
+      {% for step_id, step_label in _steps %}
+        {% if step_id == _active %}{% set _ns.active_idx = loop.index0 %}{% endif %}
+      {% endfor %}
+      <ol class="report-progress__steps list-unstyled mb-0">
+        {% for step_id, step_label in _steps %}
+          <li class="report-progress__step{% if loop.index0 < _ns.active_idx %} is-done{% elif loop.index0 == _ns.active_idx %} is-active{% endif %}">
+            <span class="report-progress__dot" aria-hidden="true"></span>
+            <span>{{ step_label }}</span>
+          </li>
+        {% endfor %}
+      </ol>
     </div>
     <script>
       setTimeout(function () {
@@ -55,20 +83,19 @@
       {% endif %}
     </h2>
     <div class="d-flex flex-wrap gap-2">
-      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ one.domain }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>
-      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('DNS-записи', 'DNS records') }}</a>
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ one.domain }}">{{ tr('Кто владелец', 'Who owns it') }}</a>
+      <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('Куда ведёт', 'Where it points') }}</a>
       {% set affiliate_domain = one.domain %}
       {% set affiliate_buy_url = one.domain|affiliate_buy_url %}
-      {% set affiliate_domain_search_url = url_for('domain_search', query=one.domain) %}
+      {% set affiliate_domain_search_url = url_for('domain_search', query=one.domain|domain_label) %}
       {% include '_affiliate_domain_actions.html' %}
       {% if one.permalink %}
         <a class="btn btn-sm btn-outline-secondary" href="{{ one.permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
       {% endif %}
     </div>
   </div>
-  <div class="small text-muted mb-2">
-    {{ tr('Порядок действий: связанные инструменты → постоянная ссылка.', 'Action order: related tools → permalink.') }}
-  </div>
+
+  {% include '_report_next_step.html' %}
 
   {% set whois_expiry_urgency = one.whois_expiry_urgency %}
   {% include '_whois_expiry_urgency_banner.html' %}
@@ -77,7 +104,9 @@
     <div class="col-12 col-lg-6">
       <div class="card h-100 report-card">
         <div class="card-body">
-          <h3 class="h6">DNS</h3>
+          <h3 class="h6">{{ tr('Куда ведёт домен', 'Where it points') }}</h3>
+          {% set explain_key = 'dns' %}
+          {% include '_report_explain.html' %}
           {% if one.dns.has_records %}
             <ul class="report-list list-unstyled mb-0 small">
               {% for rtype, vals in one.dns.records.items() %}
@@ -94,7 +123,9 @@
     <div class="col-12 col-lg-6">
       <div class="card h-100 report-card">
         <div class="card-body">
-          <h3 class="h6">WHOIS</h3>
+          <h3 class="h6">{{ tr('Кто владелец', 'Who owns it') }}</h3>
+          {% set explain_key = 'whois' %}
+          {% include '_report_explain.html' %}
           <ul class="report-list list-unstyled mb-0 small">
             <li><span class="report-label">{{ tr('Домен', 'Domain') }}</span><span class="report-value">{{ one.whois.domain_unicode or one.domain_display or one.domain }}</span></li>
             <li><span class="report-label">{{ tr('Регистратор', 'Registrar') }}</span><span class="report-value">{{ one.whois.registrar or '—' }}</span></li>
@@ -108,7 +139,9 @@
     <div class="col-12 col-lg-6">
       <div class="card h-100 report-card">
         <div class="card-body">
-          <h3 class="h6">GeoIP</h3>
+          <h3 class="h6">{{ tr('Где сервер', 'Server location') }}</h3>
+          {% set explain_key = 'geo' %}
+          {% include '_report_explain.html' %}
           {% if one.geo.error %}
             <div class="text-muted small">{{ one.geo.error }}</div>
           {% else %}
@@ -125,7 +158,9 @@
     <div class="col-12 col-lg-6">
       <div class="card h-100 report-card">
         <div class="card-body">
-          <h3 class="h6">Reverse</h3>
+          <h3 class="h6">{{ tr('Обратная запись', 'Reverse lookup') }}</h3>
+          {% set explain_key = 'reverse' %}
+          {% include '_report_explain.html' %}
           {% if one.reverse.error %}
             <div class="text-muted small">{{ tr('PTR-запись не найдена или DNS-ответ недоступен.', 'PTR record not found or DNS response unavailable.') }}</div>
           {% else %}

@@ -1,31 +1,42 @@
 {% extends 'base.html' %}
-{% block title %}{{ tr('Проверка доменов и инфраструктуры — DomainTools', 'Domain and infrastructure checks — DomainTools') }}{% endblock %}
-{% block meta_snippet %}{{ tr('DNS, WHOIS, GeoIP, Reverse, Site Checker и Security в одном месте с сохранением истории проверок.', 'DNS, WHOIS, GeoIP, Reverse, Site Checker, and Security in one place with saved check history.') }}{% endblock %}
+{% block title %}{{ tr('Проверка доменов — DomainTools', 'Domain checks — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Введите домен — получите полную проверку: владелец, DNS, местоположение сервера.', 'Enter a domain — get a full check: owner, DNS, server location.') }}{% endblock %}
 
 {% block content %}
 <section class="hero-home card-soft p-4 p-md-5 mb-3">
-  <div class="hero-home__badge">DomainTools Suite</div>
-  <h1 class="hero-home__title mb-3">{{ tr('Проверка доменов и инфраструктуры за секунды', 'Check domains and infrastructure in seconds') }}</h1>
-  <p class="hero-home__lead mb-3">
-    {{ tr('DNS, WHOIS, GeoIP, Reverse, Site Checker и Security — в одном месте. Сохраняйте результаты в историю и быстро переходите к связанным проверкам.', 'DNS, WHOIS, GeoIP, Reverse, Site Checker, and Security in one place. Save results to history and jump to related checks instantly.') }}
+  <div class="hero-home__badge">DomainTools</div>
+  <h1 class="hero-home__title mb-3">{{ tr('Проверьте любой домен за секунды', 'Check any domain in seconds') }}</h1>
+  <p class="hero-home__lead mb-4">
+    {{ tr('Введите адрес сайта — мы покажем, кто владелец, куда ведёт домен и где находится сервер.', 'Enter a site address — we show who owns it, where it points, and where the server is.') }}
   </p>
 
-  <div class="hero-home__actions mb-2">
-    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">{{ tr('Проверить домен', 'Check domain') }}</a>
-    <a class="btn btn-outline-secondary" href="{{ url_for('domain_report') }}">{{ tr('Сводный отчёт', 'Domain report') }}</a>
-    <a class="btn btn-outline-primary" href="{{ url_for('whois_lookup') }}">{{ tr('Открыть WHOIS', 'Open WHOIS') }}</a>
-  </div>
-  <div class="small text-muted">
-    {{ tr('Безопасные проверки, лимиты запросов и сохранение истории результатов.', 'Safe checks, request limits, and saved result history.') }}
+  <form method="post" action="{{ url_for('domain_report') }}" class="hero-home__form mb-3" data-loading>
+    <div class="input-group input-group-lg search-command hero-home__search">
+      <span class="input-group-text"><i class="fa-solid fa-globe" aria-hidden="true"></i></span>
+      <input name="q" class="form-control form-control-lg" placeholder="{{ tr('например: example.com', 'for example: example.com') }}" aria-label="{{ tr('Домен', 'Domain') }}" autofocus required>
+      <button class="btn btn-primary btn-lg" type="submit">{{ tr('Полная проверка', 'Full check') }}</button>
+    </div>
+  </form>
+
+  <div class="hero-home__pills">
+    <a class="hero-pill" href="{{ url_for('domain_search') }}">
+      <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>{{ tr('Подобрать домен', 'Find a domain') }}
+    </a>
+    <a class="hero-pill" href="{{ url_for('whois_lookup') }}">
+      <i class="fa-solid fa-address-card me-1" aria-hidden="true"></i>{{ tr('Кто владелец', 'Who owns it') }}
+    </a>
+    <a class="hero-pill" href="{{ url_for('dns_lookup') }}">
+      <i class="fa-solid fa-database me-1" aria-hidden="true"></i>{{ tr('Куда ведёт домен', 'Where it points') }}
+    </a>
   </div>
 </section>
 
 <section class="mb-4">
-  <h2 class="page-section-title">{{ tr('Быстрые инструменты', 'Quick tools') }}</h2>
+  <h2 class="page-section-title">{{ tr('С чего начать', 'Get started') }}</h2>
   {% include "_home_cards.html" %}
 </section>
 
-<section class="mb-4">
+<section class="mb-4" data-monetization-slot>
   <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
     <div>
       <h2 class="page-section-title mb-1">{{ tr('Домен + VPS', 'Domain + VPS') }}</h2>
@@ -44,11 +55,11 @@
       <i class="fa-solid fa-shield-halved"></i>
     </div>
     <div class="flex-grow-1">
-      <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
+      <div class="fw-semibold mb-1">{{ tr('Проверить безопасность', 'Check security') }}</div>
       <div class="small text-muted mb-2">
-        {{ tr('Раздел Security (Port Scanner / WordPress Scan) работает в безопасном режиме: только публичные цели, ограничения запросов и без brute-force.', 'Security section (Port Scanner / WordPress Scan) runs in safe mode: public targets only, strict request limits, and no brute-force.') }}
+        {{ tr('Безопасный порт-сканер и пассивная проверка WordPress — только для ваших сайтов, без агрессивных атак.', 'Safe port scanner and passive WordPress check — for your sites only, no aggressive attacks.') }}
       </div>
-      <a class="btn btn-sm btn-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('security_tools') }}">{{ tr('Проверить безопасность', 'Check security') }}</a>
     </div>
   </div>
 </section>

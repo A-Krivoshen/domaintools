@@ -46,7 +46,7 @@
   },
   {
     "id": "dns",
-    "title": "DNS",
+    "title": {{ tr('Куда ведёт домен', 'Where it points')|tojson }},
     "subtitle": {{ tr('Проверка DNS-записей домена', 'Domain DNS record lookup')|tojson }},
     "url": {{ url_for('dns_lookup')|tojson }},
     "icon": "fa-database",
@@ -54,7 +54,7 @@
   },
   {
     "id": "whois",
-    "title": "WHOIS",
+    "title": {{ tr('Кто владелец', 'Who owns it')|tojson }},
     "subtitle": {{ tr('Владелец, регистратор, даты', 'Owner, registrar, dates')|tojson }},
     "url": {{ url_for('whois_lookup')|tojson }},
     "icon": "fa-address-card",
@@ -78,8 +78,8 @@
   },
   {
     "id": "report",
-    "title": {{ tr('Сводный отчёт', 'Domain report')|tojson }},
-    "subtitle": {{ tr('DNS + WHOIS + GeoIP + Reverse', 'DNS + WHOIS + GeoIP + Reverse')|tojson }},
+    "title": {{ tr('Полная проверка', 'Full check')|tojson }},
+    "subtitle": {{ tr('Владелец + DNS + GeoIP + Reverse', 'Owner + DNS + GeoIP + Reverse')|tojson }},
     "url": {{ url_for('domain_report')|tojson }},
     "icon": "fa-file-lines",
     "keywords": ["report", "отчёт", "summary", "batch"]
@@ -110,7 +110,7 @@
   },
   {
     "id": "security",
-    "title": {{ tr('Безопасность', 'Security')|tojson }},
+    "title": {{ tr('Проверить безопасность', 'Check security')|tojson }},
     "subtitle": {{ tr('Port Scanner, WordPress Scan', 'Port Scanner, WordPress Scan')|tojson }},
     "url": {{ url_for('security_tools')|tojson }},
     "icon": "fa-user-shield",

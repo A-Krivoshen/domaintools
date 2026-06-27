@@ -245,8 +245,61 @@
       });
     }
 
+    const expandBtn = form.querySelector('[data-zones-expand]');
+    const zonesList = form.querySelector('[data-zones-list]');
+    if (expandBtn && zonesList) {
+      const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
+      const showLabel = expandBtn.textContent.trim();
+      const hideLabel = lang.startsWith('en') ? 'Show fewer zones' : 'Скрыть лишние зоны';
+      expandBtn.addEventListener('click', () => {
+        const expanded = zonesList.classList.toggle('zones-list--expanded');
+        expandBtn.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+        expandBtn.textContent = expanded ? hideLabel : showLabel;
+      });
+    }
+
     updateZonesCounter();
   });
+
+  document.querySelectorAll('[data-monetization-slot]').forEach((el, index) => {
+    if (index > 0) el.classList.add('monetization-slot--hidden');
+  });
+
+  (function initOnboarding() {
+    const root = document.querySelector('[data-onboarding]');
+    if (!root) return;
+    const storageKey = 'dt_onboarding_done_v1';
+    try {
+      if (localStorage.getItem(storageKey) === '1') return;
+    } catch (e) {
+      return;
+    }
+
+    const steps = Array.from(root.querySelectorAll('[data-onboarding-step]'));
+    const dots = Array.from(root.querySelectorAll('[data-onboarding-dot]'));
+    let current = 0;
+
+    function showStep(idx) {
+      current = Math.max(0, Math.min(idx, steps.length - 1));
+      steps.forEach((step, i) => step.classList.toggle('d-none', i !== current));
+      dots.forEach((dot, i) => dot.classList.toggle('is-active', i === current));
+    }
+
+    function finish() {
+      try { localStorage.setItem(storageKey, '1'); } catch (e) {}
+      root.hidden = true;
+    }
+
+    root.hidden = false;
+    showStep(0);
+
+    root.querySelectorAll('[data-onboarding-next]').forEach((btn) => {
+      btn.addEventListener('click', () => showStep(current + 1));
+    });
+    root.querySelectorAll('[data-onboarding-done], [data-onboarding-dismiss]').forEach((btn) => {
+      btn.addEventListener('click', finish);
+    });
+  })();
 
   function sendAnalyticsBeacon(url, payload) {
     const body = JSON.stringify(payload);

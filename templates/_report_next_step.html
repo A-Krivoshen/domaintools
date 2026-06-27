@@ -1,0 +1,46 @@
+{# Context: one (report dict) #}
+{% set urgency = one.whois_expiry_urgency %}
+<section class="report-next-step mb-3" aria-label="{{ tr('Следующий шаг', 'Next step') }}">
+  {% if urgency and urgency.urgency in ['expired', 'critical'] %}
+    <div class="report-next-step__card report-next-step__card--urgent">
+      <div class="report-next-step__label">{{ tr('Важно', 'Important') }}</div>
+      <p class="mb-2">
+        {% if urgency.urgency == 'expired' %}
+          {{ tr('Срок регистрации домена истёк. Проверьте, не освободилось ли имя.', 'Domain registration has expired. Check if the name became available.') }}
+        {% else %}
+          {{ tr('Домен скоро истекает — продлите регистрацию, чтобы не потерять имя.', 'Domain expires soon — renew registration to keep the name.') }}
+        {% endif %}
+      </p>
+      <div class="d-flex flex-wrap gap-2">
+        <a class="btn btn-sm btn-primary" href="{{ urgency.zones_search_url }}">{{ tr('Проверить доступность', 'Check availability') }}</a>
+        {% if urgency.affiliate_buy_url %}
+        <a class="btn btn-sm btn-outline-primary"
+           href="{{ urgency.affiliate_buy_url }}"
+           target="_blank"
+           rel="nofollow noopener"
+           data-buy-track
+           data-buy-domain="{{ urgency.affiliate_domain }}"
+           data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ tr('Продлить / купить', 'Renew / buy') }}</a>
+        {% endif %}
+      </div>
+    </div>
+  {% elif not one.dns.has_records %}
+    <div class="report-next-step__card">
+      <div class="report-next-step__label">{{ tr('Совет', 'Tip') }}</div>
+      <p class="mb-2">{{ tr('DNS-записи не найдены — домен может быть не настроен или ещё не делегирован.', 'No DNS records found — the domain may be unconfigured or not yet delegated.') }}</p>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('dns_lookup') }}?q={{ one.domain }}">{{ tr('Подробнее про DNS', 'More on DNS') }}</a>
+    </div>
+  {% elif one.geo.error and not one.reverse.error %}
+    <div class="report-next-step__card">
+      <div class="report-next-step__label">{{ tr('Совет', 'Tip') }}</div>
+      <p class="mb-2">{{ tr('Не удалось определить местоположение — проверьте сайт отдельно.', 'Could not determine location — check the site separately.') }}</p>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('site_checker.site_checker') }}?url={{ one.domain }}">{{ tr('Проверить сайт', 'Check site') }}</a>
+    </div>
+  {% else %}
+    <div class="report-next-step__card">
+      <div class="report-next-step__label">{{ tr('Дальше', 'Next') }}</div>
+      <p class="mb-2">{{ tr('Хотите похожее имя? Проверьте свободные варианты в популярных зонах.', 'Want a similar name? Check free options in popular zones.') }}</p>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('domain_search') }}?query={{ one.domain|domain_label }}">{{ tr('Подобрать похожие', 'Find similar names') }}</a>
+    </div>
+  {% endif %}
+</section>

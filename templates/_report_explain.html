@@ -1,0 +1,18 @@
+{# explain_key: dns | whois | geo | reverse #}
+<details class="report-explain">
+  <summary class="report-explain__toggle">
+    <i class="fa-solid fa-circle-question" aria-hidden="true"></i>
+    {{ tr('Что это значит?', 'What does this mean?') }}
+  </summary>
+  <div class="report-explain__body small text-muted">
+    {% if explain_key == 'dns' %}
+      <p class="mb-0">{{ tr('DNS — это «адресная книга» интернета. Записи показывают, на какой сервер ведёт домен, куда приходит почта и какие сервисы подключены.', 'DNS is the internet\'s address book. Records show which server a domain points to, where mail goes, and which services are connected.') }}</p>
+    {% elif explain_key == 'whois' %}
+      <p class="mb-0">{{ tr('WHOIS — публичная справка о домене: кто регистратор, когда зарегистрирован и когда истекает срок. Помогает понять, занят ли домен и кому он принадлежит.', 'WHOIS is public domain info: registrar, registration date, and expiry. It helps you see if a domain is taken and who owns it.') }}</p>
+    {% elif explain_key == 'geo' %}
+      <p class="mb-0">{{ tr('GeoIP показывает примерное местоположение сервера по IP: страну и сеть провайдера. Это не точный адрес офиса, а где физически стоит хостинг.', 'GeoIP shows the server\'s approximate location by IP: country and provider network. It\'s not an exact office address, but where hosting is located.') }}</p>
+    {% elif explain_key == 'reverse' %}
+      <p class="mb-0">{{ tr('Reverse — обратная проверка: по IP узнаём имя сервера (PTR). FCrDNS «да» значит, что имя и IP согласованы — хороший знак для почты и доверия.', 'Reverse lookup finds the server name (PTR) from an IP. FCrDNS "yes" means name and IP match — good for mail and trust.') }}</p>
+    {% endif %}
+  </div>
+</details>

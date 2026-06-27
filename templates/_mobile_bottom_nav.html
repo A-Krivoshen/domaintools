@@ -4,15 +4,15 @@
     <i class="fa-solid fa-house" aria-hidden="true"></i>
     <span>{{ tr('Главная', 'Home') }}</span>
   </a>
-  <a class="mobile-bottom-nav__item {% if request.endpoint == 'dns_lookup' %}is-active{% endif %}"
-     href="{{ url_for('dns_lookup') }}">
-    <i class="fa-solid fa-database" aria-hidden="true"></i>
-    <span>DNS</span>
+  <a class="mobile-bottom-nav__item {% if request.endpoint == 'domain_report' %}is-active{% endif %}"
+     href="{{ url_for('domain_report') }}">
+    <i class="fa-solid fa-file-lines" aria-hidden="true"></i>
+    <span>{{ tr('Проверка', 'Check') }}</span>
   </a>
   <a class="mobile-bottom-nav__item {% if request.endpoint == 'whois_lookup' %}is-active{% endif %}"
      href="{{ url_for('whois_lookup') }}">
     <i class="fa-solid fa-address-card" aria-hidden="true"></i>
-    <span>WHOIS</span>
+    <span>{{ tr('Владелец', 'Owner') }}</span>
   </a>
   <a class="mobile-bottom-nav__item {% if request.endpoint == 'domain_search' %}is-active{% endif %}"
      href="{{ url_for('domain_search') }}">

@@ -1,0 +1,37 @@
+<div id="onboarding"
+     class="onboarding"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="onboardingTitle"
+     hidden
+     data-onboarding>
+  <div class="onboarding__backdrop" data-onboarding-dismiss tabindex="-1"></div>
+  <div class="onboarding__panel card-soft">
+    <button type="button" class="onboarding__close btn btn-sm btn-outline-secondary" data-onboarding-dismiss aria-label="{{ tr('Закрыть', 'Close') }}">
+      <i class="fa-solid fa-xmark" aria-hidden="true"></i>
+    </button>
+    <div class="onboarding__step" data-onboarding-step="1">
+      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-globe"></i></div>
+      <h2 id="onboardingTitle" class="h5 mb-2">{{ tr('Добро пожаловать в DomainTools', 'Welcome to DomainTools') }}</h2>
+      <p class="text-muted mb-3">{{ tr('Введите домен на главной — получите полную проверку за один клик.', 'Enter a domain on the home page — get a full check in one click.') }}</p>
+      <button type="button" class="btn btn-primary" data-onboarding-next>{{ tr('Далее', 'Next') }}</button>
+    </div>
+    <div class="onboarding__step d-none" data-onboarding-step="2">
+      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-address-card"></i></div>
+      <h2 class="h5 mb-2">{{ tr('Понятные названия', 'Plain-language labels') }}</h2>
+      <p class="text-muted mb-3">{{ tr('«Кто владелец» вместо WHOIS, «Куда ведёт домен» вместо DNS — без технического жаргона.', '"Who owns it" instead of WHOIS, "Where it points" instead of DNS — no tech jargon.') }}</p>
+      <button type="button" class="btn btn-primary" data-onboarding-next>{{ tr('Далее', 'Next') }}</button>
+    </div>
+    <div class="onboarding__step d-none" data-onboarding-step="3">
+      <div class="onboarding__icon" aria-hidden="true"><i class="fa-solid fa-circle-question"></i></div>
+      <h2 class="h5 mb-2">{{ tr('Подсказки в отчёте', 'Hints in the report') }}</h2>
+      <p class="text-muted mb-3">{{ tr('В сводном отчёте нажмите «Что это значит?» — краткое объяснение простым языком.', 'In the full report, tap "What does this mean?" for a plain-language explanation.') }}</p>
+      <button type="button" class="btn btn-primary" data-onboarding-done>{{ tr('Начать', 'Get started') }}</button>
+    </div>
+    <div class="onboarding__dots" aria-hidden="true">
+      <span class="onboarding__dot is-active" data-onboarding-dot="1"></span>
+      <span class="onboarding__dot" data-onboarding-dot="2"></span>
+      <span class="onboarding__dot" data-onboarding-dot="3"></span>
+    </div>
+  </div>
+</div>
