@@ -44,14 +44,16 @@
 }
 
 /* Base */
-html {
+html,
+body {
   scroll-behavior: smooth;
   overflow-x: clip;
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
 
-html::-webkit-scrollbar {
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
   display: none;
   width: 0;
   height: 0;
@@ -62,7 +64,6 @@ body {
   background: var(--gradient-page), var(--bs-body-bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
-  overflow-x: clip;
   max-width: 100%;
 }
 
@@ -1551,9 +1552,10 @@ body.has-mobile-nav.has-domain-sticky-cta {
   --scroll-top-size: 2.75rem;
   --scroll-top-offset: 1.15rem;
   position: fixed;
+  left: auto;
   right: calc(var(--scroll-top-offset) + env(safe-area-inset-right, 0px));
   bottom: calc(var(--scroll-top-offset) + env(safe-area-inset-bottom, 0px));
-  z-index: 1038;
+  z-index: 1046;
   width: var(--scroll-top-size);
   height: var(--scroll-top-size);
   display: inline-flex;
@@ -1626,4 +1628,23 @@ body.has-mobile-nav.has-domain-sticky-cta {
   .scroll-to-top {
     transition: none !important;
   }
+}
+
+/* Yandex floorAd leftover tab/arrow (if cached script still injects DOM) */
+:where(
+  [class*="yandex_rtb"][class*="floor"],
+  [class*="ya-unit-floor"],
+  [id*="yandex_rtb_floor"],
+  [class*="floor-ad"],
+  [class*="rtb-floor"]
+) :where(button, [role="button"], a) {
+  display: none !important;
+}
+
+:where(
+  [class*="yandex_rtb"][class*="floor"],
+  [class*="ya-unit-floor"],
+  [id*="yandex_rtb_floor"]
+) {
+  display: none !important;
 }
