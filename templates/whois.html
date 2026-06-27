@@ -18,7 +18,9 @@
     <div class="input-group input-group-lg search-command">
       <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
       <input type="text" class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}" autofocus>
-      <button class="btn btn-primary" type="submit">{{ tr('Проверить', 'Check') }}</button>
+      {% with short_ru='Проверить', short_en='Check', long_ru='Проверить', long_en='Check', btn_variant='btn-primary' %}
+      {% include '_search_submit_btn.html' %}
+      {% endwith %}
     </div>
   </form>
 

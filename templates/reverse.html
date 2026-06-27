@@ -17,7 +17,9 @@
              placeholder="{{ tr('8.8.8.8 или example.com', '8.8.8.8 or example.com') }}"
              value="{{ query or '' }}"
              autofocus>
-      <button class="btn btn-primary btn-lg" type="submit">{{ tr('Проверить', 'Check') }}</button>
+      {% with short_ru='Проверить', short_en='Check', long_ru='Проверить', long_en='Check', btn_variant='btn-primary btn-lg' %}
+      {% include '_search_submit_btn.html' %}
+      {% endwith %}
     </div>
   </form>
 

@@ -14,7 +14,6 @@ class UIToolPagesSmokeTests(unittest.TestCase):
             '/whois',
             '/domains',
             '/report',
-            '/check?q=',
             '/hosting',
             '/geo',
             '/reverse',
@@ -46,6 +45,11 @@ class UIToolPagesSmokeTests(unittest.TestCase):
                 html = self.client.get(path).get_data(as_text=True)
                 for marker in markers:
                     self.assertIn(marker, html)
+
+    def test_check_query_redirects_to_report_without_domain(self):
+        resp = self.client.get('/check?q=', follow_redirects=False)
+        self.assertEqual(resp.status_code, 302)
+        self.assertIn('/report', resp.headers.get('Location', ''))
 
     def test_command_palette_and_mobile_nav_present(self):
         html = self.client.get('/').get_data(as_text=True)

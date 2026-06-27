@@ -1,0 +1,3 @@
+{% macro nav_dual(_tr, short_ru, short_en, long_ru, long_en) -%}
+<span class="nav-label nav-label--long">{{ _tr(long_ru, long_en) }}</span><span class="nav-label nav-label--short">{{ _tr(short_ru, short_en) }}</span>
+{%- endmacro %}

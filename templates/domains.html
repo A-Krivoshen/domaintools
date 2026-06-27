@@ -25,7 +25,9 @@
   <div class="input-group input-group-lg search-command">
     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
     <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required autofocus>
-    <button class="btn btn-primary">{{ tr('Поиск домена', 'Search domain') }}</button>
+    {% with short_ru='Искать', short_en='Search', long_ru='Поиск домена', long_en='Search domain', btn_variant='btn-primary' %}
+    {% include '_search_submit_btn.html' %}
+    {% endwith %}
   </div>
 
   <div class="mt-2">

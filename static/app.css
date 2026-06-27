@@ -423,6 +423,57 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
   margin: .28rem;
   padding-inline: 1.15rem;
   font-weight: 600;
+  white-space: nowrap;
+  min-height: 2.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.search-command__actions {
+  display: inline-flex;
+  align-items: stretch;
+  gap: .35rem;
+  margin: .28rem;
+}
+
+.search-command__actions .btn {
+  margin: 0;
+}
+
+/* Adaptive button/nav labels: short on narrow screens */
+.btn-label--long,
+.nav-label--long {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .btn-label--short,
+  .nav-label--short {
+    display: none;
+  }
+
+  .btn-label--long,
+  .nav-label--long {
+    display: inline;
+  }
+}
+
+.nav-link--adaptive .nav-label--short,
+.nav-link--adaptive .nav-label--long {
+  display: none;
+}
+
+@media (max-width: 1199.98px) {
+  .nav-link--adaptive .nav-label--short {
+    display: inline;
+  }
+}
+
+@media (min-width: 1200px) {
+  .nav-link--adaptive .nav-label--long {
+    display: inline;
+  }
 }
 
 /* ===== Tool actions toolbar ===== */
@@ -906,13 +957,100 @@ html[data-ux-mode="expert"] .ux-simple-only {
   padding: 1rem 1.1rem;
 }
 
+@media (max-width: 767.98px) {
+  .search-command {
+    flex-wrap: wrap;
+    align-items: stretch;
+    border-radius: var(--radius-lg);
+    overflow: visible;
+    padding: .3rem;
+  }
+
+  .search-command .input-group-text {
+    padding-left: .75rem;
+    flex: 0 0 auto;
+  }
+
+  .search-command .form-control,
+  .search-command .form-control-lg {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto !important;
+    font-size: 16px;
+  }
+
+  .search-command > .btn,
+  .search-command > .btn-lg,
+  .search-command__actions {
+    flex: 0 0 100%;
+    width: 100%;
+    max-width: 100%;
+    margin: .35rem 0 0 !important;
+  }
+
+  .search-command__actions {
+    display: flex;
+    gap: .4rem;
+  }
+
+  .search-command__actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    margin: 0 !important;
+    border-radius: var(--radius-md) !important;
+    white-space: normal;
+    text-wrap: balance;
+    line-height: 1.2;
+    padding-inline: .65rem;
+    min-height: 2.75rem;
+  }
+
+  .search-command > .btn,
+  .search-command > .btn-lg {
+    border-radius: var(--radius-md) !important;
+    white-space: normal;
+    text-wrap: balance;
+    line-height: 1.2;
+    padding-inline: .85rem;
+    min-height: 2.75rem;
+  }
+
+  .hero-home__search .btn {
+    border-radius: var(--radius-md) !important;
+  }
+}
+
+@media (min-width: 992px) and (max-width: 1199.98px) {
+  .site-navbar .nav-link {
+    padding: .4rem .52rem !important;
+    font-size: .86rem;
+  }
+
+  .command-palette-trigger__label,
+  .command-palette-trigger__kbd {
+    display: none !important;
+  }
+
+  .status-chip {
+    max-width: 9.5rem;
+  }
+}
+
+@media (max-width: 991.98px) {
+  .navbar-tools .status-chip {
+    display: none !important;
+  }
+}
+
 @media (max-width: 576px) {
   .hero-home { padding: 1.15rem !important; }
   .hero-home__lead { font-size: .98rem; }
   .hero-home__actions .btn { width: 100%; }
-  .search-command { border-radius: var(--radius-lg); }
-  .search-command .btn { width: calc(100% - .56rem); margin-top: 0; }
   .tool-actions__group + .tool-actions__group::before { display: none; }
+  .hero-pill {
+    font-size: .88rem;
+    padding: .38rem .62rem;
+  }
 }
 
 /* ===== Feature cards ===== */
@@ -1260,6 +1398,11 @@ html[data-ux-mode="expert"] .ux-simple-only {
   white-space: nowrap;
 }
 
+.wpsc-form .search-command {
+  max-width: none;
+  margin: 0;
+}
+
 .wpsc-result {
   border: 1px solid rgba(var(--bs-primary-rgb), .22);
 }
@@ -1271,16 +1414,10 @@ html[data-ux-mode="expert"] .ux-simple-only {
   background: rgba(var(--bs-primary-rgb), .03);
 }
 
-@media (max-width: 576px) {
-  .wpsc-form .input-group {
-    flex-direction: column;
-  }
-
-  .wpsc-form .input-group .form-control,
-  .wpsc-form .input-group .btn {
-    width: 100%;
-    border-radius: var(--radius-sm) !important;
-  }
+.security-form .btn {
+  min-height: 2.75rem;
+  white-space: normal;
+  text-wrap: balance;
 }
 
 .domain-search-progress {

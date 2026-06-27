@@ -20,7 +20,10 @@
     <div class="input-group input-group-lg search-command">
       <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
       <input class="form-control" name="query" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required autofocus>
-      <button class="btn btn-primary" type="submit">{{ tr('Искать в .', 'Search in .') }}{{ zone_display }}</button>
+      <button class="btn btn-primary" type="submit">
+        <span class="btn-label btn-label--short">{{ tr('Искать', 'Search') }}</span>
+        <span class="btn-label btn-label--long">{{ tr('Искать в .', 'Search in .') }}{{ zone_display }}</span>
+      </button>
     </div>
   </form>
 </section>

@@ -12,11 +12,16 @@
 
   <div class="card card-soft p-4 p-md-5 wpsc-hero mb-3">
     <form method="post" class="wpsc-form tool-form border-0 shadow-none p-0 bg-transparent" autocomplete="off">
-      <div class="input-group input-group-lg search-command">
+      <div class="input-group input-group-lg search-command search-command--multi">
         <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
         <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com" class="form-control" required autofocus>
-        <button type="submit" class="btn btn-primary">{{ tr('Поиск сайта', 'Check site') }}</button>
-        <a class="btn btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Очистить', 'Clear') }}</a>
+        <div class="search-command__actions">
+          <button type="submit" class="btn btn-primary">
+            <span class="btn-label btn-label--short">{{ tr('Проверить', 'Check') }}</span>
+            <span class="btn-label btn-label--long">{{ tr('Поиск сайта', 'Check site') }}</span>
+          </button>
+          <a class="btn btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Очистить', 'Clear') }}</a>
+        </div>
       </div>
     </form>
 

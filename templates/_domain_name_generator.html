@@ -17,7 +17,9 @@
              name="idea"
              value="{{ idea_seed or '' }}"
              placeholder="{{ tr('например: кофейня москва, coffee shop', 'for example: coffee shop, bakery nyc') }}">
-      <button class="btn btn-outline-primary" type="submit">{{ tr('Сгенерировать', 'Generate') }}</button>
+      {% with short_ru='Идеи', short_en='Ideas', long_ru='Сгенерировать', long_en='Generate', btn_variant='btn-outline-primary' %}
+      {% include '_search_submit_btn.html' %}
+      {% endwith %}
     </div>
   </form>
 
