@@ -1,0 +1,60 @@
+# DomainTools
+
+> Domain and infrastructure lookup suite for humans and AI agents.
+
+DomainTools provides DNS, WHOIS, GeoIP, reverse DNS, domain availability search, site checks, and security scans.
+Use the Agent API for structured JSON responses suitable for automation and LLM tool calling.
+
+## Agent API
+
+- Base URL: /api/v1/
+- OpenAPI: /api/v1/openapi.json
+- Health: /health
+
+### Endpoints
+
+- GET /api/v1/dns?domain=example.com&types=A,MX,TXT
+- GET /api/v1/whois?domain=example.com
+- GET /api/v1/geo?query=example.com
+- GET /api/v1/reverse?query=8.8.8.8
+- GET /api/v1/report?domains=example.com,example.org
+- POST /api/v1/report — queue async report job (JSON body: {"domains": ["example.com"]})
+- GET /api/v1/report/jobs/{job_id} — poll async report job
+
+### Authentication
+
+Agent API is disabled by default. The server must set AGENT_API_ENABLED=1 and AGENT_API_KEY.
+Send the key via header X-API-Key: <key> or Authorization: Bearer <key>.
+Query-string api_key is not supported.
+
+### Rate limits (per IP, per minute)
+
+- Agent API (general): AGENT_API_RATE_LIMIT_PER_MIN (default 30)
+- Agent API report: AGENT_API_REPORT_RATE_LIMIT_PER_MIN (default 10)
+- Web tools (DNS/WHOIS/Geo/Reverse): TOOL_RATE_LIMIT_PER_MIN (default 20)
+- Domain search: DOMAINS_RATE_LIMIT_PER_MIN (default 10)
+- Site checker: SITE_CHECKER_RATE_LIMIT_PER_MIN (default 15)
+
+Limits use Redis with in-memory fallback when Redis is unavailable. Respect 429 responses and retry with backoff.
+
+## Human UI tools
+
+- /dns — DNS record lookup
+- /whois — WHOIS lookup
+- /geo — GeoIP / ASN lookup
+- /reverse — PTR and FCrDNS checks
+- /report — combined domain report
+- /domains — domain availability search
+- /site-checker — HTTP availability and RKN checks
+- /security — safe port scanner and passive WordPress checks
+- /history — saved lookup history with JSON/CSV export
+
+## Languages
+
+Russian (default) and English. Append ?lang=en or ?lang=ru to any URL.
+
+## Notes for agents
+
+- Prefer /api/v1/* over HTML scraping.
+- Do not brute-force Security scanners; they are rate-limited and captcha-protected in the web UI.
+- Batch report size is limited; split large domain lists into multiple requests.

@@ -1,0 +1,16 @@
+<header class="tool-page-header mb-4">
+  {% include '_page_breadcrumb.html' %}
+  <div class="tool-page-header__main">
+    {% if page_icon %}
+    <div class="tool-page-header__icon" aria-hidden="true">
+      <i class="fa-solid {{ page_icon }}"></i>
+    </div>
+    {% endif %}
+    <div class="tool-page-header__text">
+      <h1 class="tool-page-header__title">{{ page_title }}</h1>
+      {% if page_intro %}
+      <p class="tool-page-header__intro tool-intro">{{ page_intro }}</p>
+      {% endif %}
+    </div>
+  </div>
+</header>

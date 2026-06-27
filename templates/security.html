@@ -3,11 +3,10 @@
 {% block meta_snippet %}{{ tr('Безопасные проверки хоста: порт-сканер с лимитами и пассивная WordPress-проверка без brute-force.', 'Safe host checks: rate-limited port scanner and passive WordPress checks without brute-force.') }}{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <h1 class="mb-2">{{ tr('Безопасность', 'Security') }}</h1>
-  <p class="text-muted tool-intro mb-3">
-    {{ tr('Только безопасные проверки: публичные цели, лимиты запросов и без brute-force.', 'Only safe checks: public targets, strict limits, and no brute-force.') }}
-  </p>
+{% set page_title = tr('Проверка безопасности хоста', 'Host security checks') %}
+{% set page_intro = tr('Только безопасные проверки: публичные цели, лимиты запросов и без brute-force.', 'Only safe checks: public targets, strict limits, and no brute-force.') %}
+{% set page_icon = 'fa-user-shield' %}
+{% include '_tool_page_header.html' %}
 
   {% if security_error %}
     <div class="alert alert-warning">{{ security_error }}</div>
@@ -164,7 +163,6 @@
   {% endif %}
 
   {% include "_cards_under_tools.html" %}
-</div>
 {% endblock %}
 
 {% block extra_scripts %}

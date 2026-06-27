@@ -3,8 +3,14 @@
 {% block title %}{{ tr('История', 'History') }} — DomainTools{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <h1 class="h3 mb-3">{{ tr('Последние запросы', 'Recent queries') }}</h1>
+{% set page_title = tr('Последние запросы', 'Recent queries') %}
+{% set page_intro = tr('История сохранённых проверок с быстрым повтором и переходом к результатам.', 'Saved check history with quick repeat and result links.') %}
+{% set page_icon = 'fa-clock-rotate-left' %}
+{% set breadcrumb_name = tr('История', 'History') %}
+{% set breadcrumb_path = url_for('history_list') %}
+{% include '_tool_page_header.html' %}
+
+  <div class="history-list">
 
   {% if history_error %}
     <div class="alert alert-warning">{{ history_error }}</div>
@@ -33,6 +39,20 @@
             <a class="btn btn-sm btn-outline-secondary" href="{{ it.view_url }}">
               <i class="fa-solid fa-bookmark me-1" aria-hidden="true"></i>{{ tr('Сохранённый результат', 'Saved result') }}
             </a>
+            {% if it.affiliate_buy_url and it.affiliate_domain %}
+              <a class="btn btn-sm btn-outline-secondary" href="{{ it.affiliate_domain_search_url }}">
+                <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>{{ tr('Проверить доступность', 'Check availability') }}
+              </a>
+              <a class="btn btn-sm btn-success"
+                 href="{{ it.affiliate_buy_url }}"
+                 target="_blank"
+                 rel="nofollow noopener"
+                 data-buy-track
+                 data-buy-domain="{{ it.affiliate_domain }}"
+                 data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
+                <i class="fa-solid fa-cart-shopping me-1" aria-hidden="true"></i>{{ tr('Зарегистрировать', 'Register') }}
+              </a>
+            {% endif %}
             {% if it.landing_url or it.whois_landing_url %}
               <div class="dropdown ms-auto ms-sm-0">
                 <button class="btn btn-sm btn-outline-dark dropdown-toggle text-nowrap" type="button" data-bs-toggle="dropdown" aria-expanded="false">
@@ -72,5 +92,5 @@
   {% else %}
     <p class="text-muted">{{ tr('История пуста.', 'History is empty.') }}</p>
   {% endif %}
-</div>
+  </div>
 {% endblock %}

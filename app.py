@@ -1,5 +1,6 @@
 # app.py
 import os
+import sys
 import re
 import socket
 import json
@@ -44,17 +45,38 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 # === Блюпринт Site Checker ====================================
 from flask_site_checker.blueprint import site_checker_bp
+# === Agent API (JSON для LLM/агентов) ==========================
+from agent_api import agent_api_bp
 # ===============================================================
 
 # -------------------------------------------------
 # App & config
 # -------------------------------------------------
+def _env_flag(name: str) -> bool:
+    return os.environ.get(name, "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _running_under_tests() -> bool:
+    return "unittest" in sys.modules or "pytest" in sys.modules or _env_flag("FLASK_TESTING")
+
+
+def _resolve_secret_key() -> str:
+    explicit = (os.environ.get("SECRET_KEY") or "").strip()
+    if explicit:
+        return explicit
+    if _running_under_tests():
+        return "test-secret"
+    if _env_flag("FLASK_DEBUG"):
+        return "dev-secret"
+    return ""
+
+
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 
 app.config.update(
-    SECRET_KEY=os.environ.get("SECRET_KEY", "dev-secret"),
+    SECRET_KEY=_resolve_secret_key(),
     TEMPLATES_AUTO_RELOAD=True,
     JSON_SORT_KEYS=False,
     # Babel
@@ -107,10 +129,30 @@ app.config.update(
     JOB_STORAGE_ALLOW_LOCAL_FALLBACK=(os.environ.get("JOB_STORAGE_ALLOW_LOCAL_FALLBACK", "0").strip().lower() in {"1", "true", "yes", "on"}),
     SAFE_HTTP_MAX_BYTES=int(os.environ.get("SAFE_HTTP_MAX_BYTES", "1048576")),
     SAFE_HTTP_MAX_REDIRECTS=int(os.environ.get("SAFE_HTTP_MAX_REDIRECTS", "5")),
+    # Agent / LLM API (disabled by default; enable only with AGENT_API_KEY set)
+    AGENT_API_ENABLED=(os.environ.get("AGENT_API_ENABLED", "0").strip().lower() in {"1", "true", "yes", "on"}),
+    AGENT_API_KEY=(os.environ.get("AGENT_API_KEY") or "").strip(),
+    AGENT_API_RATE_LIMIT_PER_MIN=int(os.environ.get("AGENT_API_RATE_LIMIT_PER_MIN", "30")),
+    AGENT_API_REPORT_RATE_LIMIT_PER_MIN=int(os.environ.get("AGENT_API_REPORT_RATE_LIMIT_PER_MIN", "10")),
+    TOOL_RATE_LIMIT_PER_MIN=int(os.environ.get("TOOL_RATE_LIMIT_PER_MIN", "20")),
+    DOMAINS_RATE_LIMIT_PER_MIN=int(os.environ.get("DOMAINS_RATE_LIMIT_PER_MIN", "10")),
+    SITE_CHECKER_RATE_LIMIT_PER_MIN=int(os.environ.get("SITE_CHECKER_RATE_LIMIT_PER_MIN", "15")),
 )
 
-# Регистрируем блюпринт (он обслуживает /site-checker)
-app.register_blueprint(site_checker_bp)
+if not app.config.get("SECRET_KEY"):
+    raise RuntimeError(
+        "SECRET_KEY is required in production. "
+        "Set SECRET_KEY in the environment (see deploy/domaintools.env.example)."
+    )
+
+if app.config.get("AGENT_API_ENABLED") and not app.config.get("AGENT_API_KEY"):
+    app.logger.warning(
+        "AGENT_API_ENABLED=1 but AGENT_API_KEY is empty — Agent API requests will be rejected until a key is set."
+    )
+
+# Регистрируем блюпринты
+app.register_blueprint(site_checker_bp)  # /site-checker
+app.register_blueprint(agent_api_bp)     # /api/v1/*
 
 SECURITY_JOB_TTL_S = int(os.environ.get("SECURITY_JOB_TTL_S", "3600"))
 SECURITY_ASYNC_WORKERS = int(os.environ.get("SECURITY_ASYNC_WORKERS", "4"))
@@ -490,20 +532,51 @@ def _is_valid_report_job_id(job_id: str) -> bool:
     return bool(re.fullmatch(r"[a-f0-9]{32}", txt))
 
 
-def _endpoint_ip_rate_limited(endpoint: str, ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+_ENDPOINT_RATE_BUCKETS: Dict[str, Dict[str, List[float]]] = {}
+
+
+def _ip_rate_limited(bucket: str, ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+    """Return True when the IP exceeded the per-bucket limit (Redis + in-memory fallback)."""
     if not ip:
         return False
-    key = f"rl:{endpoint}:{ip}"
     limit = max(1, int(limit_per_min))
     win = max(1, int(window_s))
+    redis_key = f"rl:{bucket}:{ip}"
     try:
         with r.pipeline() as pipe:
-            pipe.incr(key)
-            pipe.expire(key, win, nx=True)
+            pipe.incr(redis_key)
+            pipe.expire(redis_key, win, nx=True)
             vals = pipe.execute()
         return int(vals[0] or 0) > limit
     except Exception:
-        return False
+        now = time.time()
+        per_bucket = _ENDPOINT_RATE_BUCKETS.setdefault(bucket, {})
+        timestamps = per_bucket.get(ip, [])
+        fresh = [t for t in timestamps if now - t < win]
+        limited = len(fresh) >= limit
+        fresh.append(now)
+        per_bucket[ip] = fresh[-200:]
+        return limited
+
+
+def _endpoint_ip_rate_limited(endpoint: str, ip: str, limit_per_min: int, window_s: int = 60) -> bool:
+    return _ip_rate_limited(endpoint, ip, limit_per_min, window_s)
+
+
+def _tool_rate_limited(tool: str) -> Optional[str]:
+    """Return a user-facing error when a web tool endpoint is rate-limited."""
+    limits = {
+        "dns": ("TOOL_RATE_LIMIT_PER_MIN", 20),
+        "whois": ("TOOL_RATE_LIMIT_PER_MIN", 20),
+        "geo": ("TOOL_RATE_LIMIT_PER_MIN", 20),
+        "reverse": ("TOOL_RATE_LIMIT_PER_MIN", 20),
+        "domains": ("DOMAINS_RATE_LIMIT_PER_MIN", 10),
+    }
+    cfg_key, default = limits.get(tool, ("TOOL_RATE_LIMIT_PER_MIN", 20))
+    limit = int(app.config.get(cfg_key, default))
+    if _endpoint_ip_rate_limited(tool, _client_ip(), limit):
+        return _("Too many requests. Please try again later.")
+    return None
 
 
 def _ip_asn(ip: str) -> str:
@@ -626,6 +699,78 @@ def _normalize_domain_query(q: str) -> Tuple[Optional[str], Optional[str]]:
     if not DOMAIN_RE.match(q):
         return None, _("Invalid domain name.")
     return q, None
+
+
+def _affiliate_buy_base() -> str:
+    locale = str(babel_get_locale() or "ru")
+    if locale.startswith("en"):
+        return (
+            app.config.get("AFFILIATE_BUY_BASE_EN")
+            or app.config.get("AFFILIATE_BUY_BASE")
+            or ""
+        )
+    return (
+        app.config.get("AFFILIATE_BUY_BASE_RU")
+        or app.config.get("AFFILIATE_BUY_BASE")
+        or ""
+    )
+
+
+def _affiliate_buy_url(domain: str) -> str:
+    d = (domain or "").strip().lower().rstrip(".")
+    base = _affiliate_buy_base()
+    if not d or not base:
+        return ""
+    try:
+        return base.format(domain=d)
+    except Exception:
+        return ""
+
+
+def _is_ip_host(value: str) -> bool:
+    try:
+        ipaddress.ip_address((value or "").strip())
+        return True
+    except Exception:
+        return False
+
+
+def _extract_affiliate_domain(query: str, kind: str) -> Optional[str]:
+    q = (query or "").strip()
+    if not q:
+        return None
+
+    candidate = q
+    if kind == "security":
+        if q.startswith("ports:"):
+            candidate = q.split(":", 2)[1] if q.count(":") >= 1 else ""
+        elif q.startswith("wp:"):
+            candidate = q.split(":", 1)[1] if ":" in q else ""
+        else:
+            return None
+    elif kind == "report":
+        parts = [p.strip() for p in re.split(r"[\s,;]+", q) if p.strip()]
+        candidate = parts[0] if parts else ""
+
+    host_ascii, err = _normalize_domain_query(candidate)
+    if err or not host_ascii or _is_ip_host(host_ascii):
+        return None
+    return host_ascii
+
+
+def _affiliate_actions_for_domain(domain: str) -> Dict[str, str]:
+    d = (domain or "").strip().lower().rstrip(".")
+    if not d:
+        return {}
+    buy_url = _affiliate_buy_url(d)
+    if not buy_url:
+        return {}
+    return {
+        "affiliate_domain": d,
+        "affiliate_buy_url": buy_url,
+        "affiliate_domain_search_url": url_for("domain_search", query=d),
+    }
+
 
 def _to_unicode(domain: str) -> str:
     try:
@@ -763,11 +908,15 @@ def country_flag(cc: str) -> str:
 
 @app.context_processor
 def jinja_more_globals():
-    return {"country_flag": country_flag}
+    return {
+        "country_flag": country_flag,
+        "site_root": request.url_root.rstrip("/"),
+    }
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
 app.jinja_env.filters['prettyjson'] = prettyjson_filter
 app.jinja_env.filters['json_rows'] = json_rows_filter
+app.jinja_env.filters['affiliate_buy_url'] = _affiliate_buy_url
 # --- форматирование времени для истории ---
 @app.template_filter("dt")
 def dt_filter(ts):
@@ -837,11 +986,24 @@ def track_buy_click():
 
     return jsonify(ok=True), 200
 
+@app.get("/llms.txt")
+def llms_txt():
+    path = os.path.join(app.root_path, "static", "llms.txt")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            body = fh.read()
+    except OSError:
+        abort(404)
+    return Response(body, mimetype="text/plain; charset=utf-8")
+
+
 @app.get("/robots.txt")
 def robots():
     lines = [
         "User-agent: *",
         "Allow: /",
+        "Allow: /api/v1/",
+        "Allow: /llms.txt",
         "",
         f"Sitemap: {url_for('sitemap', _external=True)}",
         "",
@@ -850,27 +1012,17 @@ def robots():
 
 @app.get("/sitemap.xml")
 def sitemap():
-    base_paths = [
-        url_for("index"),
-        url_for("domain_report"),
-        url_for("dns_lookup"),
-        url_for("whois_lookup"),
-        url_for("geo_lookup"),
-        url_for("domain_search"),
-        url_for("reverse_lookup"),
-        url_for("history_list"),
-        url_for("security_tools"),
-        # ссылка на маршрут блюпринта
-        url_for("site_checker.site_checker"),
+    static_pages = [
+        (url_for("index"), "1.0", "daily"),
+        (url_for("domain_search"), "0.9", "daily"),
+        (url_for("domain_report"), "0.85", "weekly"),
+        (url_for("dns_lookup"), "0.85", "weekly"),
+        (url_for("whois_lookup"), "0.85", "weekly"),
+        (url_for("geo_lookup"), "0.8", "weekly"),
+        (url_for("reverse_lookup"), "0.8", "weekly"),
+        (url_for("site_checker.site_checker"), "0.8", "weekly"),
+        (url_for("security_tools"), "0.7", "monthly"),
     ]
-    keys = r.zrevrange(HIST_ZSET, 0, 199)
-    hist_paths = []
-    for s in keys:
-        pair = _split_kind_id(s)
-        if not pair:
-            continue
-        kind, hid = pair
-        hist_paths.append(url_for("history_view", kind=kind, hid=hid))
 
     dynamic_domain_paths: List[str] = []
     try:
@@ -903,19 +1055,25 @@ def sitemap():
     ]
     root = request.url_root.rstrip("/")
     now_iso = datetime.now(timezone.utc).date().isoformat()
-    for path in base_paths + hist_paths + dynamic_domain_paths:
+
+    def _append_url(path: str, priority: str, changefreq: str) -> None:
         loc = f"{root}{path}"
         loc_ru = f"{loc}?lang=ru"
         loc_en = f"{loc}?lang=en"
         xml.append("<url>")
         xml.append(f"<loc>{loc}</loc>")
         xml.append(f"<lastmod>{now_iso}</lastmod>")
-        xml.append("<changefreq>daily</changefreq>")
-        xml.append("<priority>0.8</priority>")
+        xml.append(f"<changefreq>{changefreq}</changefreq>")
+        xml.append(f"<priority>{priority}</priority>")
         xml.append(f'<xhtml:link rel="alternate" hreflang="ru" href="{loc_ru}" />')
         xml.append(f'<xhtml:link rel="alternate" hreflang="en" href="{loc_en}" />')
         xml.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{loc}" />')
         xml.append("</url>")
+
+    for path, priority, changefreq in static_pages:
+        _append_url(path, priority, changefreq)
+    for path in dynamic_domain_paths:
+        _append_url(path, "0.75", "weekly")
     xml.append("</urlset>")
     return Response("\n".join(xml), mimetype="application/xml")
 
@@ -1334,6 +1492,18 @@ def dns_lookup():
             dns_type_options=dns_type_options,
         )
 
+    rate_error = _tool_rate_limited("dns")
+    if rate_error:
+        return render_template(
+            "dns.html",
+            meta=meta,
+            result=None,
+            error=rate_error,
+            query=query,
+            selected_types=selected_types,
+            dns_type_options=dns_type_options,
+        )
+
     error = None
     try:
         # punycode
@@ -1410,6 +1580,7 @@ def dns_lookup():
         permalink=permalink,
         selected_types=selected_types,
         dns_type_options=dns_type_options,
+        **_affiliate_actions_for_domain(_extract_affiliate_domain(query, "dns") or ""),
     )
 
 # ---------- Domains ----------
@@ -1548,25 +1719,29 @@ def domain_search():
         if captcha_error:
             error = captcha_error
         else:
-            try:
-                if "." in query:
-                    query = query.split(".")[0]
-                label = _normalize_label(query)
-                if any("а" <= ch <= "я" or ch == "ё" for ch in label):
-                    translit = _translit_ru(label)
-                    suggestions = sorted(set([
-                        translit,
-                        translit.replace("sch", "sh").replace("ya", "a"),
-                    ]))
+            rate_error = _tool_rate_limited("domains")
+            if rate_error:
+                error = rate_error
+            else:
+                try:
+                    if "." in query:
+                        query = query.split(".")[0]
+                    label = _normalize_label(query)
+                    if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                        translit = _translit_ru(label)
+                        suggestions = sorted(set([
+                            translit,
+                            translit.replace("sch", "sh").replace("ya", "a"),
+                        ]))
 
-                tlds_for_check = selected_tlds
-                if not selected_from_req:
-                    tlds_for_check = selected_tlds[:max_tlds]
+                    tlds_for_check = selected_tlds
+                    if not selected_from_req:
+                        tlds_for_check = selected_tlds[:max_tlds]
 
-                items = _check_candidates(label, tlds_for_check)
-            except Exception:
-                app.logger.exception("Domain search failed", extra={"query": query})
-                error = _("Не удалось выполнить подбор доменов. Попробуйте ещё раз.")
+                    items = _check_candidates(label, tlds_for_check)
+                except Exception:
+                    app.logger.exception("Domain search failed", extra={"query": query})
+                    error = _("Не удалось выполнить подбор доменов. Попробуйте ещё раз.")
 
     locale = str(babel_get_locale() or "ru")
     buy_base = app.config.get("AFFILIATE_BUY_BASE_EN") if locale.startswith("en") else app.config.get("AFFILIATE_BUY_BASE_RU")
@@ -2033,9 +2208,6 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
             })
 
 
-_SECURITY_RATE_BUCKET: Dict[str, List[float]] = {}
-
-
 def _client_ip() -> str:
     xff = (request.headers.get("X-Forwarded-For") or "").strip()
     if xff:
@@ -2044,31 +2216,8 @@ def _client_ip() -> str:
 
 
 def _security_is_rate_limited(ip: str, limit_per_min: int, window_s: int = 60) -> bool:
-    """Rate-limit by IP with Redis primary storage and in-memory fallback."""
-    if not ip:
-        return False
-
-    limit = max(1, int(limit_per_min))
-    win = max(1, int(window_s))
-
-    # Primary: Redis shared counter (works across gunicorn workers)
-    try:
-        key = f"rl:security:{ip}"
-        with r.pipeline() as pipe:
-            pipe.incr(key)
-            pipe.expire(key, win, nx=True)
-            vals = pipe.execute()
-        current = int(vals[0] or 0)
-        return current > limit
-    except Exception:
-        # Fallback: local in-memory bucket (keeps service operational if Redis unavailable)
-        now = time.time()
-        bucket = _SECURITY_RATE_BUCKET.get(ip, [])
-        fresh = [t for t in bucket if now - t < win]
-        limited = len(fresh) >= limit
-        fresh.append(now)
-        _SECURITY_RATE_BUCKET[ip] = fresh[-200:]
-        return limited
+    """Rate-limit security scans by IP (Redis primary, in-memory fallback)."""
+    return _ip_rate_limited("security", ip, limit_per_min, window_s)
 
 
 
@@ -2195,6 +2344,10 @@ def whois_lookup():
     if captcha_error:
         return render_template("whois.html", result=None, error=captcha_error, query=query, permalink=None)
 
+    rate_error = _tool_rate_limited("whois")
+    if rate_error:
+        return render_template("whois.html", result=None, error=rate_error, query=query, permalink=None)
+
     try:
         q, err = _normalize_domain_query(query)
         if err:
@@ -2239,7 +2392,16 @@ def whois_lookup():
         app.logger.exception("WHOIS error for %s", query)
         error = _("Unexpected error during WHOIS lookup.")
 
-    return render_template("whois.html", result=data, error=error, query=query, permalink=permalink)
+    affiliate_domain = (data or {}).get("domain_name") if isinstance(data, dict) else None
+    affiliate_domain = affiliate_domain or _extract_affiliate_domain(query, "whois")
+    return render_template(
+        "whois.html",
+        result=data,
+        error=error,
+        query=query,
+        permalink=permalink,
+        **_affiliate_actions_for_domain(affiliate_domain or ""),
+    )
 
 # ---------- GEO ----------
 @app.route("/geo", methods=["GET", "POST"])
@@ -2254,6 +2416,9 @@ def geo_lookup():
         captcha_error = _verify_form_recaptcha_if_needed()
         if captcha_error:
             return render_template('geo.html', result=None, error=captcha_error, query=(query or ''), permalink=None)
+        rate_error = _tool_rate_limited("geo")
+        if rate_error:
+            return render_template('geo.html', result=None, error=rate_error, query=(query or ''), permalink=None)
         query, err = _normalize_domain_query(query)
         if err:
             error = err
@@ -2347,6 +2512,9 @@ def reverse_lookup():
         captcha_error = _verify_form_recaptcha_if_needed()
         if captcha_error:
             return render_template("reverse.html", result=None, error=captcha_error, query=query, permalink=None)
+        rate_error = _tool_rate_limited("reverse")
+        if rate_error:
+            return render_template("reverse.html", result=None, error=rate_error, query=query, permalink=None)
         try:
             # IP?
             try:
@@ -2637,11 +2805,12 @@ def history_list():
 
         landing_url = None
         whois_landing_url = None
-        if q and "." in q and kind in {"dns", "whois", "report", "geo", "reverse"}:
-            landing_url = url_for("lookup_domain", domain=q)
-            whois_landing_url = url_for("lookup_whois_domain", domain=q)
+        affiliate_domain = _extract_affiliate_domain(q, kind)
+        if affiliate_domain:
+            landing_url = url_for("lookup_domain", domain=affiliate_domain)
+            whois_landing_url = url_for("lookup_whois_domain", domain=affiliate_domain)
 
-        items.append({
+        item = {
             "id": hid,
             "kind": kind,
             "query": q,
@@ -2650,9 +2819,11 @@ def history_list():
             "repeat_url": repeat_url,
             "landing_url": landing_url,
             "whois_landing_url": whois_landing_url,
-        })
+        }
+        item.update(_affiliate_actions_for_domain(affiliate_domain or ""))
+        items.append(item)
 
-    return render_template("history.html", items=items, history_error=history_error)
+    return render_template("history.html", items=items, history_error=history_error, seo_noindex=True)
 
 @app.route("/history/<kind>/<hid>")
 def history_view(kind: str, hid: str):
@@ -2664,14 +2835,33 @@ def history_view(kind: str, hid: str):
     q = doc.get("query")
     res = doc.get("result")
     permalink = request.url
+    _history_seo = {"seo_noindex": True}
     if kind == "dns":
-        return render_template("dns.html", result=res, error=None, query=q, permalink=permalink)
+        return render_template(
+            "dns.html",
+            result=res,
+            error=None,
+            query=q,
+            permalink=permalink,
+            **_affiliate_actions_for_domain(_extract_affiliate_domain(q or "", "dns") or ""),
+            **_history_seo,
+        )
     if kind == "whois":
-        return render_template("whois.html", result=res, error=None, query=q, permalink=permalink)
+        whois_domain = (res or {}).get("domain_name") if isinstance(res, dict) else None
+        whois_domain = whois_domain or _extract_affiliate_domain(q or "", "whois")
+        return render_template(
+            "whois.html",
+            result=res,
+            error=None,
+            query=q,
+            permalink=permalink,
+            **_affiliate_actions_for_domain(whois_domain or ""),
+            **_history_seo,
+        )
     if kind == "geo":
-        return render_template("geo.html", result=res, error=None, query=q, permalink=permalink)
+        return render_template("geo.html", result=res, error=None, query=q, permalink=permalink, **_history_seo)
     if kind == "reverse":
-        return render_template("reverse.html", result=res, error=None, query=q, permalink=permalink)
+        return render_template("reverse.html", result=res, error=None, query=q, permalink=permalink, **_history_seo)
     if kind == "security":
         return render_template(
             "security.html",
@@ -2692,6 +2882,7 @@ def history_view(kind: str, hid: str):
             recaptcha_setup_error=_recaptcha_setup_status()[1],
             permalink=permalink,
             common_ports=COMMON_SAFE_PORTS[:20],
+            **_history_seo,
         )
     if kind == "report":
         report_obj = dict(res) if isinstance(res, dict) else None
@@ -2706,6 +2897,7 @@ def history_view(kind: str, hid: str):
             job_status=None,
             job_id="",
             batch_max=REPORT_MAX_BATCH,
+            **_history_seo,
         )
     abort(404)
 

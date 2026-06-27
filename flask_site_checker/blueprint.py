@@ -276,6 +276,12 @@ def site_checker():
     if is_invalid and not error:
         error = "Проверьте корректность домена. Пример: example.com"
 
+    if domain and not is_invalid and not error:
+        import app as app_module
+        limit = int(current_app.config.get("SITE_CHECKER_RATE_LIMIT_PER_MIN", 15))
+        if app_module._endpoint_ip_rate_limited("site_checker", _client_ip(), limit):
+            error = "Слишком много запросов. Повторите позже."
+
     should_check = bool(domain) and not is_invalid and not error
 
     # вычисления

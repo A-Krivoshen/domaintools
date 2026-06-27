@@ -10,7 +10,6 @@
     themeAutoTip: body?.dataset.i18nThemeAutoTip || 'Auto mode: theme follows time of day (RU — Moscow time, EN — local time).',
   };
 
-  // ===== Copy by selector: <button data-copy="#selector">...</button>
   document.querySelectorAll('[data-copy]').forEach(el => {
     el.addEventListener('click', async () => {
       const target = el.getAttribute('data-copy');
@@ -24,7 +23,6 @@
     });
   });
 
-  // ===== Form spinner (if form has data-loading)
   document.querySelectorAll('form[data-loading]').forEach(form => {
     form.addEventListener('submit', () => {
       const btn = form.querySelector('button[type=submit], input[type=submit]');
@@ -36,7 +34,6 @@
     });
   });
 
-  // ===== Domains search progress =====
   document.querySelectorAll('form[data-domain-progress]').forEach(form => {
     form.addEventListener('submit', () => {
       if (form.dataset.progressStarted === '1') return;
@@ -61,8 +58,8 @@
     });
   });
 
-  // ===== Theme toggle (persist in localStorage)
   const root = document.documentElement;
+
   function autoThemeByTime() {
     const lang = (document.documentElement.getAttribute('lang') || '').toLowerCase();
     let hour;
@@ -164,8 +161,7 @@
     const t = e.target.closest('[data-theme-toggle]');
     if (!t) return;
     e.preventDefault();
-    const mode = getThemeMode();
-    const effective = getEffectiveTheme(mode);
+    const effective = getEffectiveTheme(getThemeMode());
     const nextMode = effective === 'dark' ? 'light' : 'dark';
     setThemeMode(nextMode, true);
     closeNav();
@@ -179,7 +175,6 @@
   updateThemeToggleIcon();
   showAutoThemeHintOnce();
 
-  // ===== Domains zones controls =====
   document.querySelectorAll('form[data-zones-controls]').forEach(form => {
     const zoneInputs = () => Array.from(form.querySelectorAll('input[name="zones"]'));
     const list = form.querySelector('[data-zones-list]');
@@ -236,10 +231,23 @@
     zoneInputs().forEach(input => {
       input.addEventListener('change', updateZonesCounter);
     });
+
+    const filter = form.querySelector('[data-zone-filter]');
+    if (filter) {
+      filter.addEventListener('input', () => {
+        const q = filter.value.trim().toLowerCase().replace(/^\./, '');
+        zoneInputs().forEach(input => {
+          const label = input.closest('label');
+          if (!label) return;
+          const v = (input.value || '').toLowerCase();
+          label.style.display = (!q || v.includes(q)) ? '' : 'none';
+        });
+      });
+    }
+
     updateZonesCounter();
   });
 
-  // ===== Domain buy-flow analytics (no PII)
   document.querySelectorAll('[data-buy-track]').forEach((link) => {
     link.addEventListener('click', () => {
       const domain = (link.getAttribute('data-buy-domain') || '').toLowerCase();
@@ -262,7 +270,6 @@
     });
   });
 
-  // ===== Security quick-set ports (client-side only; no extra GET requests)
   document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const form = btn.closest('form.security-form');
@@ -275,71 +282,6 @@
     });
   });
 
-  // ===== Security quick-set ports (client-side only; no extra GET requests)
-  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const form = btn.closest('form.security-form');
-      if (!form) return;
-      const portsInput = form.querySelector('input[name="ports"]');
-      if (!portsInput) return;
-      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
-      portsInput.focus();
-      portsInput.select();
-    });
-  });
-
-  // ===== Security quick-set ports (client-side only; no extra GET requests)
-  document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
-    btn.addEventListener('click', () => {
-      const form = btn.closest('form.security-form');
-      if (!form) return;
-      const portsInput = form.querySelector('input[name="ports"]');
-      if (!portsInput) return;
-      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
-      portsInput.focus();
-      portsInput.select();
-    });
-  });
-
-  updateThemeToggleIcon();
-
-  // ===== Domains zones controls =====
-  document.querySelectorAll('form[data-zones-controls]').forEach(form => {
-    const zoneInputs = () => Array.from(form.querySelectorAll('input[name="zones"]'));
-    const list = form.querySelector('[data-zones-list]');
-    const defaults = new Set((list?.dataset.defaultZones || '').split(',').map(s => s.trim()).filter(Boolean));
-
-    form.querySelectorAll('[data-zone-action]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const action = btn.getAttribute('data-zone-action');
-        const inputs = zoneInputs();
-        if (action === 'all') {
-          inputs.forEach(i => { if (!i.disabled) i.checked = true; });
-        } else if (action === 'none') {
-          inputs.forEach(i => { if (!i.disabled) i.checked = false; });
-        } else if (action === 'defaults') {
-          inputs.forEach(i => { if (!i.disabled) i.checked = defaults.has(i.value); });
-        }
-      });
-    });
-
-    const filter = form.querySelector('[data-zone-filter]');
-    if (filter) {
-      filter.addEventListener('input', () => {
-        const q = filter.value.trim().toLowerCase().replace(/^\./, '');
-        zoneInputs().forEach(input => {
-          const label = input.closest('label');
-          if (!label) return;
-          const v = (input.value || '').toLowerCase();
-          label.style.display = (!q || v.includes(q)) ? '' : 'none';
-        });
-      });
-    }
-  });
-
-  updateThemeToggleIcon();
-
-  // ===== Collapse helpers: auto-close menu after click
   function closeNav() {
     const nav = document.getElementById('mainNav');
     if (!nav) return;
@@ -357,7 +299,6 @@
     if (link) closeNav();
   });
 
-  // ===== Navbar de-dup guard for Report link (keep the last one)
   (function dedupeReportNavLink() {
     const nav = document.getElementById('mainNav');
     if (!nav) return;
@@ -371,5 +312,211 @@
     });
     if (reportLinks.length <= 1) return;
     reportLinks.slice(0, -1).forEach((a) => a.closest('.nav-item')?.remove());
+  })();
+
+  // ===== Command palette (Ctrl/Cmd+K) =====
+  (function initCommandPalette() {
+    const root = document.getElementById('commandPalette');
+    const input = document.getElementById('commandPaletteInput');
+    const list = document.getElementById('commandPaletteList');
+    const dataEl = document.getElementById('command-palette-data');
+    if (!root || !input || !list || !dataEl) return;
+
+    let items = [];
+    try {
+      items = JSON.parse(dataEl.textContent || '[]');
+    } catch (e) {
+      items = [];
+    }
+
+    let filtered = items.slice();
+    let selectedIndex = 0;
+    let lastFocus = null;
+
+    function normalize(value) {
+      return String(value || '').toLowerCase().trim();
+    }
+
+    function itemHaystack(item) {
+      const keywords = Array.isArray(item.keywords) ? item.keywords.join(' ') : '';
+      return normalize(`${item.title} ${item.subtitle || ''} ${keywords}`);
+    }
+
+    function filterItems(query) {
+      const q = normalize(query);
+      if (!q) return items.slice();
+      const tokens = q.split(/\s+/).filter(Boolean);
+      return items.filter((item) => {
+        const hay = itemHaystack(item);
+        return tokens.every((token) => hay.includes(token));
+      });
+    }
+
+    function renderList() {
+      list.innerHTML = '';
+      if (!filtered.length) {
+        const empty = document.createElement('li');
+        empty.className = 'command-palette__empty';
+        empty.textContent = document.documentElement.lang.startsWith('en')
+          ? 'No matching tools'
+          : 'Ничего не найдено';
+        list.appendChild(empty);
+        return;
+      }
+
+      filtered.forEach((item, index) => {
+        const li = document.createElement('li');
+        const link = document.createElement('a');
+        link.className = 'command-palette__item';
+        link.href = item.url;
+        link.setAttribute('role', 'option');
+        link.setAttribute('aria-selected', index === selectedIndex ? 'true' : 'false');
+        if (index === selectedIndex) link.classList.add('is-selected');
+        link.dataset.index = String(index);
+
+        const icon = document.createElement('span');
+        icon.className = 'command-palette__item-icon';
+        icon.innerHTML = `<i class="fa-solid ${item.icon || 'fa-arrow-right'}" aria-hidden="true"></i>`;
+
+        const text = document.createElement('span');
+        text.className = 'command-palette__item-text';
+        const title = document.createElement('span');
+        title.className = 'command-palette__item-title';
+        title.textContent = item.title || '';
+        const subtitle = document.createElement('span');
+        subtitle.className = 'command-palette__item-subtitle';
+        subtitle.textContent = item.subtitle || '';
+        text.append(title, subtitle);
+
+        link.append(icon, text);
+        li.appendChild(link);
+        list.appendChild(li);
+      });
+    }
+
+    function scrollSelectedIntoView() {
+      const selected = list.querySelector('.command-palette__item.is-selected');
+      if (selected) selected.scrollIntoView({ block: 'nearest' });
+    }
+
+    function setSelected(index) {
+      if (!filtered.length) {
+        selectedIndex = 0;
+        renderList();
+        return;
+      }
+      selectedIndex = ((index % filtered.length) + filtered.length) % filtered.length;
+      renderList();
+      scrollSelectedIntoView();
+    }
+
+    function openPalette() {
+      if (root.classList.contains('is-open')) return;
+      lastFocus = document.activeElement;
+      filtered = items.slice();
+      selectedIndex = 0;
+      input.value = '';
+      renderList();
+      root.removeAttribute('hidden');
+      root.setAttribute('aria-hidden', 'false');
+      root.classList.add('is-open');
+      document.body.classList.add('command-palette-open');
+      closeNav();
+      window.setTimeout(() => input.focus(), 0);
+    }
+
+    function closePalette() {
+      if (!root.classList.contains('is-open')) return;
+      root.classList.remove('is-open');
+      root.setAttribute('aria-hidden', 'true');
+      root.setAttribute('hidden', '');
+      document.body.classList.remove('command-palette-open');
+      if (lastFocus && typeof lastFocus.focus === 'function') {
+        lastFocus.focus();
+      }
+    }
+
+    function navigateToSelected() {
+      const item = filtered[selectedIndex];
+      if (!item || !item.url) return;
+      window.location.href = item.url;
+    }
+
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('[data-command-palette-open]')) {
+        e.preventDefault();
+        openPalette();
+      }
+      if (e.target.closest('[data-command-palette-close]')) {
+        e.preventDefault();
+        closePalette();
+      }
+    });
+
+    document.addEventListener('keydown', (e) => {
+      const isMac = /Mac|iPhone|iPad|iPod/.test(navigator.platform || '');
+      const modifier = isMac ? e.metaKey : e.ctrlKey;
+      if (modifier && (e.key === 'k' || e.key === 'K')) {
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea' || document.activeElement?.isContentEditable) return;
+        e.preventDefault();
+        if (root.classList.contains('is-open')) closePalette();
+        else openPalette();
+        return;
+      }
+
+      if (!root.classList.contains('is-open')) return;
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closePalette();
+        return;
+      }
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelected(selectedIndex + 1);
+        return;
+      }
+
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelected(selectedIndex - 1);
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if (tag === 'input' || tag === 'textarea') {
+          e.preventDefault();
+          navigateToSelected();
+        }
+      }
+    });
+
+    input.addEventListener('input', () => {
+      filtered = filterItems(input.value);
+      selectedIndex = 0;
+      renderList();
+    });
+
+    list.addEventListener('mousemove', (e) => {
+      const itemEl = e.target.closest('.command-palette__item');
+      if (!itemEl) return;
+      const idx = Number(itemEl.dataset.index);
+      if (!Number.isNaN(idx) && idx !== selectedIndex) {
+        selectedIndex = idx;
+        renderList();
+      }
+    });
+
+    list.addEventListener('click', (e) => {
+      const itemEl = e.target.closest('.command-palette__item');
+      if (!itemEl) return;
+      e.preventDefault();
+      const idx = Number(itemEl.dataset.index);
+      if (!Number.isNaN(idx)) selectedIndex = idx;
+      navigateToSelected();
+    });
   })();
 })();

@@ -44,6 +44,16 @@ class UIToolPagesSmokeTests(unittest.TestCase):
                 for marker in markers:
                     self.assertIn(marker, html)
 
+    def test_command_palette_and_mobile_nav_present(self):
+        html = self.client.get('/').get_data(as_text=True)
+        for marker in (
+            'commandPalette',
+            'command-palette-data',
+            'data-command-palette-open',
+            'mobile-bottom-nav',
+        ):
+            self.assertIn(marker, html)
+
 
 if __name__ == '__main__':
     unittest.main()

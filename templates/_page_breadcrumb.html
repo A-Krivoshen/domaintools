@@ -1,0 +1,16 @@
+{% if breadcrumb_name %}
+<nav class="page-breadcrumb" aria-label="{{ tr('Навигация', 'Breadcrumb') }}">
+  <ol class="page-breadcrumb__list">
+    <li class="page-breadcrumb__item">
+      <a href="{{ url_for('index') }}">{{ tr('Главная', 'Home') }}</a>
+    </li>
+    <li class="page-breadcrumb__item page-breadcrumb__item--current" aria-current="page">
+      {% if breadcrumb_path %}
+        <a href="{{ breadcrumb_path }}">{{ breadcrumb_name }}</a>
+      {% else %}
+        {{ breadcrumb_name }}
+      {% endif %}
+    </li>
+  </ol>
+</nav>
+{% endif %}

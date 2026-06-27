@@ -3,18 +3,29 @@
 {% block title %}{{ tr('DNS-проверка — DomainTools', 'DNS lookup — DomainTools') }}{% endblock %}
 {% block meta_snippet %}{{ tr('Проверка DNS-записей домена: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV и другие типы.', 'Check domain DNS records: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV and other types.') }}{% endblock %}
 
+{% block jsonld_extra %}
+{% set breadcrumb_name = 'DNS' %}
+{% set breadcrumb_path = url_for('dns_lookup') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% endblock %}
+
 {% block content %}
-<div class="container my-4">
-  <h1 class="mb-2">DNS</h1>
-  <p class="text-muted tool-intro mb-3">{{ tr('Проверка DNS-записей домена с выбором типов и быстрыми переходами к связанным инструментам.', 'Check domain DNS records with type selection and quick links to related tools.') }}</p>
+{% set page_title = tr('Проверка DNS записей домена', 'Domain DNS record lookup') %}
+{% set page_intro = tr('Проверка DNS-записей домена с выбором типов и быстрыми переходами к связанным инструментам.', 'Check domain DNS records with type selection and quick links to related tools.') %}
+{% set page_icon = 'fa-database' %}
+{% set breadcrumb_name = 'DNS' %}
+{% set breadcrumb_path = url_for('dns_lookup') %}
+{% include '_tool_page_header.html' %}
 
 <form method="get" action="{{ url_for('dns_lookup') }}" class="tool-form mb-4" autocomplete="off">
-  <div class="input-group input-group-lg searchbar">
+  <div class="input-group input-group-lg search-command">
+    <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
     <input type="text"
            class="form-control form-control-lg"
            name="q"
            placeholder="{{ tr('example.com', 'example.com') }}"
-           value="{{ query or '' }}">
+           value="{{ query or '' }}"
+           autofocus>
     <button class="btn btn-primary btn-lg" type="submit">{{ tr('Проверить', 'Check') }}</button>
   </div>
 
@@ -42,25 +53,35 @@
 
   <!-- РЕЗУЛЬТАТЫ ПОИСКА -->
   {% if result %}
-    <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ query }}</code></h2>
+    <div class="result-panel mb-3">
+      <div class="result-panel__head">
+        <h2 class="result-panel__title">{{ tr('Результаты для', 'Results for') }} <span class="result-panel__query">{{ query }}</span></h2>
+        <span class="small text-muted">{{ tr('Типов:', 'Types:') }} {{ selected_types|length }}</span>
+      </div>
+    </div>
     {% if permalink or query %}
-      <div class="tool-actions d-flex flex-wrap gap-2 small mb-2">
-        {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
-        {% if query %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('domain_search') }}?query={{ query }}">{{ tr('Подобрать домен', 'Find domains') }}</a>{% endif %}
-        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
+        <div class="tool-actions__group" aria-label="{{ tr('Связанные инструменты', 'Related tools') }}">
+          {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+        </div>
+        <div class="tool-actions__group" aria-label="{{ tr('Домен', 'Domain') }}">
+          {% include '_affiliate_domain_actions.html' %}
+        </div>
+        <div class="tool-actions__group" aria-label="{{ tr('Ссылка', 'Link') }}">
+          {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+        </div>
       </div>
       {% include "_action_bar_hint.html" %}
     {% endif %}
-    <p class="small text-muted">{{ tr('Выбрано типов:', 'Selected types:') }} {{ selected_types|length }} ({{ selected_types|join(', ') }})</p>
 
     {% if records and records|length > 0 %}
       {% for rtype, values in records.items() %}
-        <div class="card mb-3">
-          <div class="card-header"><strong>{{ rtype }}</strong></div>
-          <div class="card-body">
+        <div class="result-card">
+          <div class="result-card__head">{{ rtype }}</div>
+          <div class="result-card__body">
             <ul class="mb-0">
               {% for v in values %}
-                <li><code>{{ v }}</code></li>
+                <li><code class="dns-code">{{ v }}</code></li>
               {% endfor %}
             </ul>
           </div>
@@ -113,5 +134,4 @@
 </div>
 
   {% endif %}
-</div>
 {% endblock %}

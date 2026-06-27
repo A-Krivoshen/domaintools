@@ -3,17 +3,20 @@
 {% block meta_snippet %}{{ tr('Reverse DNS и FCrDNS проверка для IP/доменов с подробными PTR/forward-результатами.', 'Reverse DNS and FCrDNS checks for IP/domains with detailed PTR/forward results.') }}{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <h1 class="mb-2">{{ tr('Reverse (rDNS + FCrDNS)', 'Reverse (rDNS + FCrDNS)') }}</h1>
-  <p class="text-muted tool-intro mb-3">{{ tr('Проверка PTR и согласованности FCrDNS для IP и доменов.', 'Check PTR records and FCrDNS consistency for IPs and domains.') }}</p>
+{% set page_title = tr('Reverse (rDNS + FCrDNS)', 'Reverse (rDNS + FCrDNS)') %}
+{% set page_intro = tr('Проверка PTR и согласованности FCrDNS для IP и доменов.', 'Check PTR records and FCrDNS consistency for IPs and domains.') %}
+{% set page_icon = 'fa-rotate' %}
+{% include '_tool_page_header.html' %}
 
   <form method="get" action="{{ url_for('reverse_lookup') }}" class="tool-form mb-4" autocomplete="off">
-    <div class="input-group input-group-lg searchbar">
+    <div class="input-group input-group-lg search-command">
+      <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
       <input type="text"
              class="form-control form-control-lg"
              name="q"
              placeholder="{{ tr('8.8.8.8 или example.com', '8.8.8.8 or example.com') }}"
-             value="{{ query or '' }}">
+             value="{{ query or '' }}"
+             autofocus>
       <button class="btn btn-primary btn-lg" type="submit">{{ tr('Проверить', 'Check') }}</button>
     </div>
   </form>
@@ -23,15 +26,23 @@
   {% endif %}
 
   {% if result %}
-    <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ result.input or query }}</code></h2>
-    {% if result.input_ascii and result.input_ascii != result.input %}
-      <p class="text-muted small mb-1">ASCII: <code>{{ result.input_ascii }}</code></p>
-    {% endif %}
+    <div class="result-panel mb-3">
+      <div class="result-panel__head">
+        <h2 class="result-panel__title">{{ tr('Результаты для', 'Results for') }} <span class="result-panel__query">{{ result.input or query }}</span></h2>
+        {% if result.input_ascii and result.input_ascii != result.input %}
+          <span class="small text-muted">ASCII: <code>{{ result.input_ascii }}</code></span>
+        {% endif %}
+      </div>
+    </div>
     {% if permalink or query %}
-      <div class="tool-actions d-flex flex-wrap gap-2 small mb-3">
-        {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
-        {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
-        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      <div class="tool-actions mb-3" role="toolbar">
+        <div class="tool-actions__group">
+          {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+          {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
+        </div>
+        <div class="tool-actions__group">
+          {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+        </div>
       </div>
       {% include "_action_bar_hint.html" %}
     {% endif %}
@@ -117,5 +128,4 @@
   {% else %}
     {% include "_cards_under_tools.html" %}
   {% endif %}
-</div>
 {% endblock %}

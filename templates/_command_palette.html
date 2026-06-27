@@ -1,0 +1,120 @@
+<div id="commandPalette"
+     class="command-palette"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="commandPaletteTitle"
+     aria-hidden="true"
+     hidden>
+  <div class="command-palette__backdrop" data-command-palette-close tabindex="-1"></div>
+  <div class="command-palette__panel" role="document">
+    <div class="command-palette__header">
+      <label class="command-palette__search-wrap" for="commandPaletteInput">
+        <i class="fa-solid fa-magnifying-glass command-palette__search-icon" aria-hidden="true"></i>
+        <input id="commandPaletteInput"
+               class="command-palette__input"
+               type="search"
+               autocomplete="off"
+               spellcheck="false"
+               placeholder="{{ tr('Перейти к инструменту…', 'Jump to a tool…') }}"
+               aria-controls="commandPaletteList"
+               aria-autocomplete="list">
+      </label>
+      <button type="button" class="command-palette__close btn btn-sm btn-outline-secondary" data-command-palette-close aria-label="{{ tr('Закрыть', 'Close') }}">
+        <span class="command-palette__kbd d-none d-sm-inline">Esc</span>
+        <i class="fa-solid fa-xmark d-sm-none" aria-hidden="true"></i>
+      </button>
+    </div>
+    <p id="commandPaletteTitle" class="visually-hidden">{{ tr('Быстрый переход', 'Quick navigation') }}</p>
+    <ul id="commandPaletteList" class="command-palette__list" role="listbox" aria-label="{{ tr('Инструменты', 'Tools') }}"></ul>
+    <div class="command-palette__footer">
+      <span><kbd class="command-palette__kbd">↑↓</kbd> {{ tr('выбор', 'navigate') }}</span>
+      <span><kbd class="command-palette__kbd">↵</kbd> {{ tr('открыть', 'open') }}</span>
+      <span class="d-none d-md-inline"><kbd class="command-palette__kbd">⌘K</kbd> / <kbd class="command-palette__kbd">Ctrl+K</kbd></span>
+    </div>
+  </div>
+</div>
+
+<script type="application/json" id="command-palette-data">
+[
+  {
+    "id": "home",
+    "title": {{ tr('Главная', 'Home')|tojson }},
+    "subtitle": {{ tr('Все инструменты DomainTools', 'All DomainTools utilities')|tojson }},
+    "url": {{ url_for('index')|tojson }},
+    "icon": "fa-house",
+    "keywords": ["home", "главная", "index", "tools"]
+  },
+  {
+    "id": "dns",
+    "title": "DNS",
+    "subtitle": {{ tr('Проверка DNS-записей домена', 'Domain DNS record lookup')|tojson }},
+    "url": {{ url_for('dns_lookup')|tojson }},
+    "icon": "fa-database",
+    "keywords": ["dns", "mx", "txt", "ns", "a", "aaaa", "записи"]
+  },
+  {
+    "id": "whois",
+    "title": "WHOIS",
+    "subtitle": {{ tr('Владелец, регистратор, даты', 'Owner, registrar, dates')|tojson }},
+    "url": {{ url_for('whois_lookup')|tojson }},
+    "icon": "fa-address-card",
+    "keywords": ["whois", "владелец", "регистратор", "domain"]
+  },
+  {
+    "id": "geo",
+    "title": "GeoIP",
+    "subtitle": {{ tr('ASN, страна, сеть по IP', 'ASN, country, network by IP')|tojson }},
+    "url": {{ url_for('geo_lookup')|tojson }},
+    "icon": "fa-globe",
+    "keywords": ["geo", "geoip", "asn", "country", "ip", "гео"]
+  },
+  {
+    "id": "reverse",
+    "title": "Reverse",
+    "subtitle": {{ tr('PTR и FCrDNS', 'PTR and FCrDNS')|tojson }},
+    "url": {{ url_for('reverse_lookup')|tojson }},
+    "icon": "fa-rotate",
+    "keywords": ["reverse", "ptr", "rdns", "fcrdns"]
+  },
+  {
+    "id": "report",
+    "title": {{ tr('Сводный отчёт', 'Domain report')|tojson }},
+    "subtitle": {{ tr('DNS + WHOIS + GeoIP + Reverse', 'DNS + WHOIS + GeoIP + Reverse')|tojson }},
+    "url": {{ url_for('domain_report')|tojson }},
+    "icon": "fa-file-lines",
+    "keywords": ["report", "отчёт", "summary", "batch"]
+  },
+  {
+    "id": "domains",
+    "title": {{ tr('Подбор доменов', 'Domain search')|tojson }},
+    "subtitle": {{ tr('Проверка доступности в зонах', 'Availability across TLD zones')|tojson }},
+    "url": {{ url_for('domain_search')|tojson }},
+    "icon": "fa-magnifying-glass",
+    "keywords": ["domains", "домены", "search", "availability", "tld", "зоны"]
+  },
+  {
+    "id": "site-checker",
+    "title": {{ tr('Проверка сайта', 'Site Checker')|tojson }},
+    "subtitle": {{ tr('DNS, HTTP, IP, РКН', 'DNS, HTTP, IP, RKN')|tojson }},
+    "url": {{ url_for('site_checker.site_checker')|tojson }},
+    "icon": "fa-shield-halved",
+    "keywords": ["site", "checker", "http", "rkn", "сайт"]
+  },
+  {
+    "id": "security",
+    "title": {{ tr('Безопасность', 'Security')|tojson }},
+    "subtitle": {{ tr('Port Scanner, WordPress Scan', 'Port Scanner, WordPress Scan')|tojson }},
+    "url": {{ url_for('security_tools')|tojson }},
+    "icon": "fa-user-shield",
+    "keywords": ["security", "port", "scanner", "wordpress", "безопасность"]
+  },
+  {
+    "id": "history",
+    "title": {{ tr('История', 'History')|tojson }},
+    "subtitle": {{ tr('Сохранённые проверки', 'Saved checks')|tojson }},
+    "url": {{ url_for('history_list')|tojson }},
+    "icon": "fa-clock-rotate-left",
+    "keywords": ["history", "история", "saved", "recent"]
+  }
+]
+</script>

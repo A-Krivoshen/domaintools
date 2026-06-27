@@ -20,16 +20,23 @@
   </div>
 </section>
 
-<section class="mb-3">
-  <h2 class="h5 mb-2">{{ tr('Быстрые инструменты', 'Quick tools') }}</h2>
+<section class="mb-4">
+  <h2 class="page-section-title">{{ tr('Быстрые инструменты', 'Quick tools') }}</h2>
   {% include "_home_cards.html" %}
 </section>
 
-<section class="alert alert-info mb-3" role="note" aria-label="{{ tr('Безопасность сканеров', 'Scanner security') }}">
-  <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
-  <div class="small mb-2">
-    {{ tr('Раздел Security (Port Scanner / WordPress Scan) работает в безопасном режиме: только публичные цели, ограничения запросов и без brute-force.', 'Security section (Port Scanner / WordPress Scan) runs in safe mode: public targets only, strict request limits, and no brute-force.') }}
+<section class="security-note mb-3" role="note" aria-label="{{ tr('Безопасность сканеров', 'Scanner security') }}">
+  <div class="d-flex flex-wrap align-items-start gap-3">
+    <div class="tool-page-header__icon mb-0" aria-hidden="true">
+      <i class="fa-solid fa-shield-halved"></i>
+    </div>
+    <div class="flex-grow-1">
+      <div class="fw-semibold mb-1">{{ tr('Безопасность сканеров', 'Scanner security') }}</div>
+      <div class="small text-muted mb-2">
+        {{ tr('Раздел Security (Port Scanner / WordPress Scan) работает в безопасном режиме: только публичные цели, ограничения запросов и без brute-force.', 'Security section (Port Scanner / WordPress Scan) runs in safe mode: public targets only, strict request limits, and no brute-force.') }}
+      </div>
+      <a class="btn btn-sm btn-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
+    </div>
   </div>
-  <a class="btn btn-sm btn-outline-primary" href="{{ url_for('security_tools') }}">{{ tr('Открыть Security', 'Open Security') }}</a>
 </section>
 {% endblock %}

@@ -3,22 +3,21 @@
 {% block meta_snippet %}{{ tr('GeoIP по домену или IP: ASN, страна, сеть и провайдер с быстрыми переходами к связанным проверкам.', 'GeoIP for domain or IP: ASN, country, network, and provider with quick related links.') }}{% endblock %}
 
 {% block jsonld_extra %}
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
-{"@type":"ListItem","position":1,"name":"Home","item":"https://domaintools.site/"},
-{"@type":"ListItem","position":2,"name":"GeoIP","item":"https://domaintools.site/geo"}
-]}
-</script>
+{% set breadcrumb_name = 'GeoIP' %}
+{% set breadcrumb_path = url_for('geo_lookup') %}
+{% include '_breadcrumb_jsonld.html' %}
 {% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <h1 class="mb-2">GeoIP</h1>
-  <p class="text-muted tool-intro mb-3">{{ tr('Определение ASN, страны и сети для IP/домена с быстрыми действиями после результата.', 'Detect ASN, country, and network for IP/domain with quick actions after results.') }}</p>
+{% set page_title = tr('GeoIP — геолокация IP и домена', 'GeoIP — IP and domain geolocation') %}
+{% set page_intro = tr('Определение ASN, страны и сети для IP/домена с быстрыми действиями после результата.', 'Detect ASN, country, and network for IP/domain with quick actions after results.') %}
+{% set page_icon = 'fa-globe' %}
+{% include '_tool_page_header.html' %}
 
   <form method="get" class="tool-form mb-3">
-    <div class="input-group input-group-lg">
-      <input class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}">
+    <div class="input-group input-group-lg search-command">
+      <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+      <input class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}" autofocus>
       <button class="btn btn-primary">{{ tr('Проверить', 'Check') }}</button>
     </div>
   </form>
@@ -26,13 +25,21 @@
   {% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
 
   {% if result %}
-  <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ query }}</code></h2>
-  <div class="tool-actions d-flex flex-wrap gap-2 small mb-2">
-    {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
-    {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ query }}">DNS</a>{% endif %}
-    {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
-    {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/geo/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
-    {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/geo/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
+  <div class="result-panel mb-3">
+    <div class="result-panel__head">
+      <h2 class="result-panel__title">{{ tr('Результаты для', 'Results for') }} <span class="result-panel__query">{{ query }}</span></h2>
+    </div>
+  </div>
+  <div class="tool-actions mb-2" role="toolbar">
+    <div class="tool-actions__group">
+      {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
+      {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ query }}">DNS</a>{% endif %}
+    </div>
+    <div class="tool-actions__group">
+      {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+      {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/geo/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
+      {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/geo/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
+    </div>
   </div>
   {% include "_action_bar_hint.html" %}
   <div class="table-responsive">
@@ -64,5 +71,4 @@
   {% else %}
     {% include "_cards_under_tools.html" %}
   {% endif %}
-</div>
 {% endblock %}

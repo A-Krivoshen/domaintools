@@ -3,22 +3,21 @@
 {% block meta_snippet %}{{ tr('WHOIS для доменов и IP: регистратор, даты, статусы, NS и подробная информация о регистрации.', 'WHOIS for domains and IPs: registrar, dates, statuses, NS, and full registration details.') }}{% endblock %}
 
 {% block jsonld_extra %}
-<script type="application/ld+json">
-{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[
-{"@type":"ListItem","position":1,"name":"Home","item":"https://domaintools.site/"},
-{"@type":"ListItem","position":2,"name":"WHOIS","item":"https://domaintools.site/whois"}
-]}
-</script>
+{% set breadcrumb_name = 'WHOIS' %}
+{% set breadcrumb_path = url_for('whois_lookup') %}
+{% include '_breadcrumb_jsonld.html' %}
 {% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <h1 class="mb-2">WHOIS</h1>
-  <p class="text-muted tool-intro mb-3">{{ tr('Проверяйте владельца, статусы и даты домена/IP с быстрым доступом к экспорту и связанным проверкам.', 'Check owner, statuses, and dates for domain/IP with quick export and related checks.') }}</p>
+{% set page_title = tr('WHOIS-проверка домена', 'Domain WHOIS lookup') %}
+{% set page_intro = tr('Проверяйте владельца, статусы и даты домена/IP с быстрым доступом к экспорту и связанным проверкам.', 'Check owner, statuses, and dates for domain/IP with quick export and related checks.') %}
+{% set page_icon = 'fa-address-card' %}
+{% include '_tool_page_header.html' %}
 
   <form method="get" action="{{ url_for('whois_lookup') }}" class="tool-form mb-3" autocomplete="off">
-    <div class="input-group input-group-lg">
-      <input type="text" class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}">
+    <div class="input-group input-group-lg search-command">
+      <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+      <input type="text" class="form-control" name="query" placeholder="{{ tr('example.com или 8.8.8.8', 'example.com or 8.8.8.8') }}" value="{{ query or request.args.get('query','') }}" autofocus>
       <button class="btn btn-primary" type="submit">{{ tr('Проверить', 'Check') }}</button>
     </div>
   </form>
@@ -29,14 +28,25 @@
 
   {% if result %}
     <!-- таблица как у тебя ранее -->
-    <h2 class="h5">{{ tr('Результаты для', 'Results for') }} <code>{{ result.domain_name or result.query or query }}</code></h2>
-    <div class="tool-actions d-flex flex-wrap gap-2 small mb-2">
-      {% if result.domain_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ result.domain_name }}">DNS</a>{% endif %}
-      {% if result.domain_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('lookup_whois_domain', domain=result.domain_name) }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>{% endif %}
-      {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
-      {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/whois/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
-      {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/whois/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
-      <a class="btn btn-sm btn-outline-secondary" href="#" data-copy="#raw-whois">{{ tr('Скопировать WHOIS', 'Copy WHOIS') }}</a>
+    <div class="result-panel mb-3">
+      <div class="result-panel__head">
+        <h2 class="result-panel__title">{{ tr('Результаты для', 'Results for') }} <span class="result-panel__query">{{ result.domain_name or result.query or query }}</span></h2>
+      </div>
+    </div>
+    <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
+      <div class="tool-actions__group">
+        {% if result.domain_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('dns_lookup') }}?q={{ result.domain_name }}">DNS</a>{% endif %}
+        {% if result.domain_name %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('lookup_whois_domain', domain=result.domain_name) }}">{{ tr('Регистрация (WHOIS)', 'Registration (WHOIS)') }}</a>{% endif %}
+      </div>
+      <div class="tool-actions__group">
+        {% include '_affiliate_domain_actions.html' %}
+      </div>
+      <div class="tool-actions__group">
+        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
+        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/whois/{{ permalink.split('/')[-1] }}.json">{{ tr('Экспорт JSON', 'Export JSON') }}</a>{% endif %}
+        {% if permalink %}<a class="btn btn-sm btn-outline-secondary" href="/export/whois/{{ permalink.split('/')[-1] }}.csv">{{ tr('Экспорт CSV', 'Export CSV') }}</a>{% endif %}
+        <a class="btn btn-sm btn-outline-secondary" href="#" data-copy="#raw-whois">{{ tr('Скопировать WHOIS', 'Copy WHOIS') }}</a>
+      </div>
     </div>
     {% include "_action_bar_hint.html" %}
     <div class="table-responsive">
@@ -70,5 +80,4 @@
   {% else %}
     {% include "_cards_under_tools.html" %}
   {% endif %}
-</div>
 {% endblock %}

@@ -3,14 +3,18 @@
 {% block meta_snippet %}{{ tr('Проверка сайта по DNS, HTTP, IP и реестру РКН с единым выводом результата.', 'Check a site by DNS, HTTP, IP and RKN registry with unified result output.') }}{% endblock %}
 
 {% block content %}
-<div class="container my-4">
-  <div class="card card-soft p-4 p-md-5 wpsc-hero">
-    <h1 class="h3 mb-2">🔎 {{ tr('Проверка сайта', 'Site Checker') }}</h1>
-    <p class="text-muted tool-intro mb-3">{{ tr('Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.', 'Check domain by DNS, HTTP, IP information and RKN registry status.') }}</p>
+{% set page_title = tr('Проверка сайта', 'Site Checker') %}
+{% set page_intro = tr('Проверяем домен по DNS, HTTP, IP-информации и наличию в реестре РКН.', 'Check domain by DNS, HTTP, IP information and RKN registry status.') %}
+{% set page_icon = 'fa-shield-halved' %}
+{% set breadcrumb_name = tr('Проверка сайта', 'Site Checker') %}
+{% set breadcrumb_path = url_for('site_checker.site_checker') %}
+{% include '_tool_page_header.html' %}
 
-    <form method="post" class="wpsc-form tool-form" autocomplete="off">
-      <div class="input-group input-group-lg">
-        <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com" class="form-control" required>
+  <div class="card card-soft p-4 p-md-5 wpsc-hero mb-3">
+    <form method="post" class="wpsc-form tool-form border-0 shadow-none p-0 bg-transparent" autocomplete="off">
+      <div class="input-group input-group-lg search-command">
+        <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+        <input type="text" name="domain" value="{{ domain or '' }}" placeholder="example.com" class="form-control" required autofocus>
         <button type="submit" class="btn btn-primary">{{ tr('Поиск сайта', 'Check site') }}</button>
         <a class="btn btn-outline-secondary" href="{{ url_for('site_checker.site_checker') }}">{{ tr('Очистить', 'Clear') }}</a>
       </div>
@@ -34,7 +38,6 @@
   {% endif %}
 
   {% include "_cards_under_tools.html" %}
-</div>
 
 <script>
 function copyWpscResult(){
