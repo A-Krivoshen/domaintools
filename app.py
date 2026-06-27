@@ -138,6 +138,8 @@ app.config.update(
     TOOL_RATE_LIMIT_PER_MIN=int(os.environ.get("TOOL_RATE_LIMIT_PER_MIN", "20")),
     DOMAINS_RATE_LIMIT_PER_MIN=int(os.environ.get("DOMAINS_RATE_LIMIT_PER_MIN", "10")),
     SITE_CHECKER_RATE_LIMIT_PER_MIN=int(os.environ.get("SITE_CHECKER_RATE_LIMIT_PER_MIN", "15")),
+    SITE_CANONICAL_ROOT=(os.environ.get("SITE_CANONICAL_ROOT", "https://domaintools.site").strip().rstrip("/")),
+    INDEXNOW_DEBOUNCE_S=int(os.environ.get("INDEXNOW_DEBOUNCE_S", "600")),
 )
 
 if not app.config.get("SECRET_KEY"):
@@ -151,6 +153,22 @@ if app.config.get("AGENT_API_ENABLED") and not app.config.get("AGENT_API_KEY"):
         "AGENT_API_ENABLED=1 but AGENT_API_KEY is empty — Agent API requests will be rejected until a key is set."
     )
 
+_indexnow_key = (os.environ.get("INDEXNOW_KEY") or "").strip()
+_indexnow_explicit = os.environ.get("INDEXNOW_ENABLED", "").strip().lower()
+if _indexnow_explicit in {"0", "false", "no", "off"}:
+    _indexnow_wanted = False
+elif _indexnow_explicit in {"1", "true", "yes", "on"} or _env_flag("INDEXNOW_AUTO_KEY"):
+    _indexnow_wanted = True
+else:
+    _indexnow_wanted = not _env_flag("INDEXNOW_DISABLED") and not _running_under_tests()
+if not _indexnow_key and _indexnow_wanted:
+    _indexnow_key = hashlib.sha256(f"{app.config['SECRET_KEY']}:indexnow:v1".encode()).hexdigest()[:32]
+app.config["INDEXNOW_KEY"] = _indexnow_key
+app.config["INDEXNOW_ENABLED"] = bool(_indexnow_key and _indexnow_wanted and not _running_under_tests())
+if app.config["INDEXNOW_ENABLED"]:
+    _idx_root = app.config.get("SITE_CANONICAL_ROOT") or "https://domaintools.site"
+    app.logger.info("IndexNow enabled: key file at %s/%s.txt", _idx_root.rstrip("/"), _indexnow_key)
+
 # Регистрируем блюпринты
 app.register_blueprint(site_checker_bp)  # /site-checker
 app.register_blueprint(agent_api_bp)     # /api/v1/*
@@ -163,6 +181,7 @@ _SECURITY_JOB_LOCAL: Dict[str, Dict] = {}
 REPORT_JOB_TTL_S = int(os.environ.get("REPORT_JOB_TTL_S", "3600"))
 REPORT_ASYNC_WORKERS = int(os.environ.get("REPORT_ASYNC_WORKERS", "4"))
 _REPORT_ASYNC_POOL = ThreadPoolExecutor(max_workers=max(1, REPORT_ASYNC_WORKERS))
+_INDEXNOW_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="indexnow")
 _REPORT_JOB_LOCAL: Dict[str, Dict] = {}
 
 REPORT_DNS_TTL_S = int(os.environ.get("REPORT_DNS_TTL_S", "180"))
@@ -470,13 +489,110 @@ def load_history(kind: str, hid: str) -> Optional[Dict]:
         return None
 
 
+def _canonical_site_root() -> str:
+    explicit = (app.config.get("SITE_CANONICAL_ROOT") or "").strip().rstrip("/")
+    if explicit:
+        return explicit
+    try:
+        return request.url_root.rstrip("/")
+    except RuntimeError:
+        return "https://domaintools.site"
+
+
+def _indexnow_urls_for_domain(host_ascii: str) -> List[str]:
+    root = _canonical_site_root()
+    display = _to_unicode(host_ascii) or host_ascii
+    with app.app_context():
+        with app.test_request_context(base_url=f"{root}/", path="/"):
+            paths = [
+                url_for("domain_check", domain=display),
+                url_for("lookup_whois_domain", domain=display),
+                url_for("lookup_dns_domain", domain=display),
+            ]
+    out: List[str] = []
+    for path in paths:
+        if not path:
+            continue
+        out.append(urljoin(f"{root}/", path.lstrip("/")))
+    return list(dict.fromkeys(out))
+
+
+def _submit_indexnow_urls(urls: List[str]) -> None:
+    if not app.config.get("INDEXNOW_ENABLED"):
+        return
+    key = (app.config.get("INDEXNOW_KEY") or "").strip()
+    if not key or not urls:
+        return
+    root = _canonical_site_root()
+    host = urlparse(root).netloc
+    if not host:
+        return
+    payload = {
+        "host": host,
+        "key": key,
+        "keyLocation": f"{root}/{key}.txt",
+        "urlList": list(dict.fromkeys(urls))[:10000],
+    }
+    headers = {"Content-Type": "application/json; charset=utf-8"}
+    for endpoint in (
+        "https://api.indexnow.org/indexnow",
+        "https://www.bing.com/indexnow",
+        "https://yandex.com/indexnow",
+    ):
+        try:
+            resp = requests.post(endpoint, json=payload, headers=headers, timeout=10)
+            app.logger.info(
+                "IndexNow %s status=%s urls=%d",
+                endpoint,
+                resp.status_code,
+                len(payload["urlList"]),
+            )
+        except Exception:
+            app.logger.debug("IndexNow submit failed for %s", endpoint, exc_info=True)
+
+
+def _submit_indexnow_urls_async(urls: List[str]) -> None:
+    with app.app_context():
+        _submit_indexnow_urls(urls)
+
+
+def _queue_indexnow_for_domain(host_ascii: str) -> None:
+    if not app.config.get("INDEXNOW_ENABLED"):
+        return
+    debounce_s = max(300, int(app.config.get("INDEXNOW_DEBOUNCE_S", 1800)))
+    debounce_key = f"dt:indexnow:sent:{host_ascii}"
+    try:
+        if not r.set(debounce_key, "1", nx=True, ex=debounce_s):
+            return
+    except Exception:
+        app.logger.debug("IndexNow debounce check failed for %s", host_ascii)
+    urls = _indexnow_urls_for_domain(host_ascii)
+    if not urls:
+        return
+    try:
+        _INDEXNOW_POOL.submit(_submit_indexnow_urls_async, urls)
+    except Exception:
+        app.logger.debug("IndexNow queue failed for %s", host_ascii, exc_info=True)
+
+
+def _is_indexable_domain_host(host_ascii: str) -> bool:
+    host = (host_ascii or "").strip().lower()
+    if not host or "." not in host:
+        return False
+    try:
+        ipaddress.ip_address(host)
+        return False
+    except Exception:
+        return True
+
+
 def _track_domain_for_seo(domain: str) -> None:
-    """Track validated domains to build dynamic SEO sitemap entries."""
+    """Track validated domains for dynamic sitemap entries and IndexNow pings."""
     q = (domain or "").strip().lower()
     if not q:
         return
     host_ascii, err = _normalize_domain_query(q)
-    if err or not host_ascii:
+    if err or not host_ascii or not _is_indexable_domain_host(host_ascii):
         return
     now = int(time.time())
     meta_key = f"{SEO_DOMAIN_META_NS}:{host_ascii}"
@@ -488,6 +604,7 @@ def _track_domain_for_seo(domain: str) -> None:
         p.execute()
     except Exception:
         app.logger.debug("SEO domain tracking failed for %s", host_ascii)
+    _queue_indexnow_for_domain(host_ascii)
 
 
 def _report_job_key(job_id: str) -> str:
@@ -1504,7 +1621,7 @@ def country_flag(cc: str) -> str:
 def jinja_more_globals():
     return {
         "country_flag": country_flag,
-        "site_root": request.url_root.rstrip("/"),
+        "site_root": _canonical_site_root(),
     }
 
 # регистрируем фильтр *явно* (поверх декораторов/блюпринтов)
@@ -1627,10 +1744,15 @@ def robots():
         "Allow: /",
         "Allow: /api/v1/",
         "Allow: /llms.txt",
+        "Disallow: /history/",
         "",
         f"Sitemap: {url_for('sitemap', _external=True)}",
         "",
     ]
+    idx_key = (app.config.get("INDEXNOW_KEY") or "").strip()
+    if idx_key and app.config.get("INDEXNOW_ENABLED"):
+        root = _canonical_site_root()
+        lines.insert(-1, f"# IndexNow key: {root}/{idx_key}.txt")
     return Response("\n".join(lines), mimetype="text/plain")
 
 @app.get("/sitemap.xml")
@@ -1684,7 +1806,7 @@ def sitemap():
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">',
     ]
-    root = request.url_root.rstrip("/")
+    root = _canonical_site_root()
     now_iso = datetime.now(timezone.utc).date().isoformat()
 
     def _append_url(path: str, priority: str, changefreq: str) -> None:
@@ -1801,8 +1923,9 @@ def _derive_check_status(report: Dict[str, object]) -> Dict[str, object]:
     }
 
 
-def _lookup_landing_context(clean: str, ascii_domain: str) -> Dict[str, object]:
-    _track_domain_for_seo(ascii_domain)
+def _lookup_landing_context(clean: str, ascii_domain: str, *, track_seo: bool = True) -> Dict[str, object]:
+    if track_seo:
+        _track_domain_for_seo(ascii_domain)
     label, tld = _split_fqdn(clean)
     return {
         "domain": clean,
@@ -1879,7 +2002,6 @@ def domain_check(domain: str):
             **ctx,
         ), 429
 
-    _track_domain_for_seo(ascii_domain)
     error = None
     one = None
     check_status = None
@@ -1901,12 +2023,13 @@ def domain_check(domain: str):
             if hid:
                 one["permalink"] = f"/history/report/{hid}"
             check_status = _derive_check_status(one)
+            _track_domain_for_seo(ascii_domain)
     except Exception:
         app.logger.exception("Domain check dashboard failed for %s", clean)
         error = _("Failed to build domain report.")
         return redirect(url_for("domain_report", q=clean), code=302)
 
-    ctx = _lookup_landing_context(clean, ascii_domain)
+    ctx = _lookup_landing_context(clean, ascii_domain, track_seo=False)
     return render_template(
         "check.html",
         one=one,
@@ -2153,6 +2276,7 @@ def _execute_report_job(job_id: str, domains: List[str], source_input: str) -> N
             if hid:
                 report["permalink"] = f"/history/report/{hid}"
             reports.append(report)
+            _track_domain_for_seo(d)
         _save_report_job(job_id, {"status": "done", "domains": domains, "source_input": source_input, "reports": reports})
     except Exception as e:
         _save_report_job(job_id, {"status": "failed", "domains": domains, "source_input": source_input, "error": str(e)})
@@ -2215,9 +2339,6 @@ def domain_report():
                     if err or not host_ascii:
                         raise ValueError(err or _("Invalid domain name."))
                     normalized.append(host_ascii)
-                for d in normalized:
-                    _track_domain_for_seo(d)
-
                 client_ip = _client_ip()
                 limit = _report_limit_for_ip(client_ip)
                 if _endpoint_ip_rate_limited("report", client_ip, limit):
@@ -2560,6 +2681,15 @@ def domain_search():
                         tlds_for_check = selected_tlds[:max_tlds]
 
                     items = _check_candidates(label, tlds_for_check)
+                    if items:
+                        seen_fqdn: set[str] = set()
+                        for row in items:
+                            fqdn = (row.get("puny") or row.get("fqdn") or "").strip().lower()
+                            if fqdn and fqdn not in seen_fqdn:
+                                seen_fqdn.add(fqdn)
+                                _track_domain_for_seo(fqdn)
+                            if len(seen_fqdn) >= 12:
+                                break
                 except Exception:
                     app.logger.exception("Domain search failed", extra={"query": query})
                     error = _("Не удалось выполнить подбор доменов. Попробуйте ещё раз.")
@@ -3232,7 +3362,8 @@ def whois_lookup():
         data = cache_json(cache_key, ttl, _compute_whois)
 
         hid = save_history("whois", q, data)
-        _track_domain_for_seo(q)
+        if data:
+            _track_domain_for_seo(q)
         permalink = url_for("history_view", kind="whois", hid=hid, _external=True) if hid else None
 
     except ValueError as ve:
@@ -3323,7 +3454,8 @@ def geo_lookup():
             cache_key = f"cache:geo:{ip}"
             result = cache_json(cache_key, 300, _compute_geo)
             hid = save_history("geo", query, result)
-            _track_domain_for_seo(query)
+            if result:
+                _track_domain_for_seo(query)
             permalink = url_for("history_view", kind="geo", hid=hid, _external=True) if hid else None
 
         except Exception:
@@ -3834,6 +3966,15 @@ def export_result(kind: str, hid: str, fmt: str):
                         headers={"Content-Disposition": f'attachment; filename="{fn}"'})
 
     abort(404)
+
+# ---------- IndexNow key (must stay after robots.txt / sitemap.xml) ----------
+@app.get("/<indexnow_key>.txt")
+def indexnow_key_file(indexnow_key: str):
+    expected = (app.config.get("INDEXNOW_KEY") or "").strip()
+    if not expected or indexnow_key != expected:
+        abort(404)
+    return Response(f"{expected}\n", mimetype="text/plain")
+
 
 # ---------- ЧПУ для WHOIS ----------
 @app.route("/whois/<path:domain>", methods=["GET", "POST"])

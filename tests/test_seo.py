@@ -26,10 +26,10 @@ class SeoTests(unittest.TestCase):
         html = self.client.get("/history").get_data(as_text=True)
         self.assertIn('name="robots" content="noindex, follow"', html)
 
-    def test_jsonld_uses_request_host_not_hardcoded_domain(self):
+    def test_jsonld_uses_canonical_site_root(self):
         html = self.client.get("/", base_url="https://python.domaintools.site").get_data(as_text=True)
-        self.assertIn("https://python.domaintools.site/", html)
-        self.assertNotIn("https://domaintools.site/", html)
+        self.assertIn("https://domaintools.site/", html)
+        self.assertIn('rel="canonical" href="https://domaintools.site/', html)
 
     def test_dns_h1_is_keyword_rich(self):
         html = self.client.get("/dns").get_data(as_text=True)

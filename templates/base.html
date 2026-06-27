@@ -34,11 +34,10 @@
   <meta property="og:locale" content="{{ 'ru_RU' if get_locale() == 'ru' else 'en_US' }}">
   <meta property="og:locale:alternate" content="{{ 'en_US' if get_locale() == 'ru' else 'ru_RU' }}">
 
-  {% set _site_root = request.url_root.rstrip('/') %}
-  <link rel="canonical" href="{{ _site_root }}{{ request.path }}?lang={{ get_locale() }}">
-  <link rel="alternate" hreflang="ru" href="{{ _site_root }}{{ request.path }}?lang=ru">
-  <link rel="alternate" hreflang="en" href="{{ _site_root }}{{ request.path }}?lang=en">
-  <link rel="alternate" hreflang="x-default" href="{{ _site_root }}{{ request.path }}">
+  <link rel="canonical" href="{{ site_root }}{{ request.path }}?lang={{ get_locale() }}">
+  <link rel="alternate" hreflang="ru" href="{{ site_root }}{{ request.path }}?lang=ru">
+  <link rel="alternate" hreflang="en" href="{{ site_root }}{{ request.path }}?lang=en">
+  <link rel="alternate" hreflang="x-default" href="{{ site_root }}{{ request.path }}">
 
   <!-- CSS -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
