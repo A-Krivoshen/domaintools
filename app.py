@@ -418,6 +418,16 @@ def persist_lang_cookie(resp: Response):
 # -------------------------------------------------
 cache = Cache(app)
 
+def _json_default(obj: object) -> str:
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
+
+
+def _json_dumps(obj: object) -> str:
+    return json.dumps(obj, ensure_ascii=False, default=_json_default)
+
+
 def cache_json(key: str, ttl: int, compute_fn):
     try:
         data = r.get(key)
@@ -430,7 +440,7 @@ def cache_json(key: str, ttl: int, compute_fn):
             pass
     val = compute_fn()
     try:
-        r.setex(key, ttl, json.dumps(val, ensure_ascii=False))
+        r.setex(key, ttl, _json_dumps(val))
     except Exception:
         pass
     return val
@@ -467,7 +477,7 @@ def save_history(kind: str, query: str, result: Dict) -> str:
         "ts": int(time.time()),
     }
     try:
-        r.set(f"{HIST_NS}:{kind}:{hid}", json.dumps(doc, ensure_ascii=False))
+        r.set(f"{HIST_NS}:{kind}:{hid}", _json_dumps(doc))
         r.zadd(HIST_ZSET, {f"{kind}:{hid}": doc["ts"]})
         # trim
         total = r.zcard(HIST_ZSET)
@@ -542,6 +552,38 @@ def _seo_page_url(lang: str) -> str:
     if "?lang=" in canon:
         return canon.rsplit("?lang=", 1)[0] + f"?lang={lang}"
     return f"{canon}?lang={lang}"
+
+
+_CRAWLER_UA_MARKERS = (
+    "bingbot",
+    "googlebot",
+    "yandexbot",
+    "duckduckbot",
+    "slurp",
+    "baiduspider",
+    "facebot",
+    "ia_archiver",
+    "petalbot",
+    "semrushbot",
+    "ahrefsbot",
+    "dotbot",
+)
+
+
+def _is_crawler_request() -> bool:
+    ua = (request.headers.get("User-Agent") or "").lower()
+    return any(marker in ua for marker in _CRAWLER_UA_MARKERS)
+
+
+def _report_cache_get(host_ascii: str) -> Optional[Dict]:
+    try:
+        raw = r.get(f"cache:report:full:{host_ascii}")
+        if not raw:
+            return None
+        data = json.loads(raw)
+        return data if isinstance(data, dict) else None
+    except Exception:
+        return None
 
 
 def _seo_noindex_auto() -> bool:
@@ -2158,9 +2200,12 @@ def domain_check(domain: str):
     if not clean:
         abort(404)
 
+    force_run = (request.args.get("run") or "").strip().lower() in {"1", "true", "yes"}
+    cached_one = _report_cache_get(ascii_domain)
+
     client_ip = _client_ip()
     limit = _report_limit_for_ip(client_ip)
-    if _endpoint_ip_rate_limited("check", client_ip, limit):
+    if force_run and _endpoint_ip_rate_limited("check", client_ip, limit):
         ctx = _lookup_landing_context(clean, ascii_domain)
         ctx["domain_availability"] = None
         ctx["whois_expiry_urgency"] = None
@@ -2170,8 +2215,23 @@ def domain_check(domain: str):
             error=_("Too many report requests. Please try again later."),
             one=None,
             check_status=None,
+            preview_mode=not cached_one,
             **ctx,
         ), 429
+
+    # SEO/crawler fast path: never block workers on cold-cache full reports.
+    if not force_run and (cached_one is None or _is_crawler_request()):
+        ctx = _lookup_landing_context(clean, ascii_domain, track_seo=not _is_crawler_request())
+        one = cached_one
+        check_status = _derive_check_status(one) if one else None
+        return render_template(
+            "check.html",
+            one=one,
+            check_status=check_status,
+            error=None,
+            preview_mode=one is None,
+            **ctx,
+        )
 
     error = None
     one = None
@@ -2206,6 +2266,7 @@ def domain_check(domain: str):
         one=one,
         check_status=check_status,
         error=error,
+        preview_mode=False,
         **ctx,
     )
 
@@ -2516,7 +2577,7 @@ def domain_report():
                     raise ValueError(_("Too many report requests. Please try again later."))
 
                 if len(normalized) == 1:
-                    return redirect(url_for("domain_check", domain=normalized[0]))
+                    return redirect(url_for("domain_check", domain=normalized[0], run=1))
 
                 job_id = uuid.uuid4().hex
                 if not _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query}):
