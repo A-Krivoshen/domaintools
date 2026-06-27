@@ -12,6 +12,16 @@
       </nav>
     </div>
 
+    {% set recaptcha_active = (config.get('FORM_RECAPTCHA_ENABLED') or config.get('SECURITY_RECAPTCHA_ENABLED')) and config.get('SECURITY_RECAPTCHA_SITE_KEY') %}
+    {% if recaptcha_active %}
+    <p class="footer-recaptcha small text-muted mb-2 mb-md-0">
+      {{ tr(
+        'Этот сайт защищён reCAPTCHA. Применяются <a class="text-muted" href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">Политика конфиденциальности</a> и <a class="text-muted" href="https://policies.google.com/terms" rel="noopener noreferrer" target="_blank">Условия использования</a> Google.',
+        'This site is protected by reCAPTCHA and the Google <a class="text-muted" href="https://policies.google.com/privacy" rel="noopener noreferrer" target="_blank">Privacy Policy</a> and <a class="text-muted" href="https://policies.google.com/terms" rel="noopener noreferrer" target="_blank">Terms of Service</a> apply.'
+      )|safe }}
+    </p>
+    {% endif %}
+
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 footer-bottom pt-2">
       <span class="footer-analytics-label">{{ tr('Аналитика посещаемости', 'Traffic analytics') }}</span>
       <!-- Yandex.Metrika informer -->

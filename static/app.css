@@ -849,6 +849,20 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
   color: var(--text-secondary);
 }
 
+.site-footer .footer-recaptcha {
+  line-height: 1.45;
+  max-width: 52rem;
+}
+
+.site-footer .footer-recaptcha a {
+  text-decoration: underline;
+  text-underline-offset: .12em;
+}
+
+.site-footer .footer-recaptcha a:hover {
+  color: var(--bs-primary) !important;
+}
+
 .site-footer .footer-nav .nav-link {
   font-size: .9rem;
 }
@@ -1545,6 +1559,13 @@ body.has-mobile-nav.has-domain-sticky-cta {
   .domain-available-banner__actions .btn {
     width: 100%;
   }
+}
+
+/* reCAPTCHA v3 badge: hide per Google policy when disclosure is shown in footer */
+.grecaptcha-badge {
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 /* ===== Scroll to top ===== */
