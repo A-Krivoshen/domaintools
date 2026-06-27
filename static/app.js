@@ -548,14 +548,23 @@
     const btn = document.getElementById('scrollToTop');
     if (!btn) return;
 
+    // Mobile/touch: rely on native browser scroll (avoids duplicate arrows with Safari/Chrome UI).
+    const mobileScrollMq = window.matchMedia('(max-width: 991.98px), (pointer: coarse)');
     const threshold = 320;
     const label = body?.dataset.i18nScrollTop || 'Back to top';
     btn.setAttribute('aria-label', label);
     btn.setAttribute('title', label);
 
     let ticking = false;
+    let desktopBound = false;
 
     function updateVisibility() {
+      if (mobileScrollMq.matches) {
+        btn.classList.remove('is-visible');
+        btn.hidden = true;
+        ticking = false;
+        return;
+      }
       const y = window.scrollY || document.documentElement.scrollTop || 0;
       const show = y > threshold;
       btn.classList.toggle('is-visible', show);
@@ -569,14 +578,32 @@
       requestAnimationFrame(updateVisibility);
     }
 
-    btn.addEventListener('click', () => {
+    function onClick() {
       const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
       window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
       btn.blur();
-    });
+    }
 
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll, { passive: true });
-    updateVisibility();
+    function bindDesktop() {
+      if (desktopBound || mobileScrollMq.matches) return;
+      desktopBound = true;
+      btn.addEventListener('click', onClick);
+      window.addEventListener('scroll', onScroll, { passive: true });
+      window.addEventListener('resize', onScroll, { passive: true });
+    }
+
+    function applyScrollPolicy() {
+      btn.classList.toggle('scroll-to-top--disabled-mobile', mobileScrollMq.matches);
+      if (mobileScrollMq.matches) {
+        btn.classList.remove('is-visible');
+        btn.hidden = true;
+        return;
+      }
+      bindDesktop();
+      updateVisibility();
+    }
+
+    applyScrollPolicy();
+    mobileScrollMq.addEventListener('change', applyScrollPolicy);
   })();
 })();

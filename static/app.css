@@ -89,6 +89,13 @@ body {
   text-rendering: optimizeLegibility;
   overflow-x: clip;
   max-width: 100%;
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
+}
+
+.min-vh-100 {
+  min-height: 100vh;
+  min-height: -webkit-fill-available;
 }
 
 :where(pre, .table-responsive, .command-palette__list) {
@@ -1176,6 +1183,18 @@ body.command-palette-open {
   body.has-mobile-nav .site-footer {
     margin-bottom: .5rem;
   }
+
+  /* Prevent iOS Safari zoom-on-focus for search inputs */
+  .form-control,
+  .form-select,
+  textarea.form-control {
+    font-size: 16px;
+  }
+
+  .mobile-bottom-nav__item {
+    min-height: 2.75rem;
+    min-width: 2.75rem;
+  }
 }
 
 .mobile-bottom-nav {
@@ -1664,7 +1683,18 @@ body.has-mobile-nav.has-domain-sticky-cta {
   border-color: var(--bs-primary);
 }
 
-@media (max-width: 991.98px) {
+@media (max-width: 991.98px), (pointer: coarse) {
+  .scroll-to-top,
+  .scroll-to-top.is-visible,
+  .scroll-to-top--disabled-mobile {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+}
+
+@media (min-width: 992px) and (pointer: fine) {
   body.has-mobile-nav .scroll-to-top {
     bottom: calc(4.35rem + env(safe-area-inset-bottom, 0px));
   }
@@ -1680,13 +1710,17 @@ body.has-mobile-nav.has-domain-sticky-cta {
   }
 }
 
-/* Yandex floorAd leftover tab/arrow (if cached script still injects DOM) */
+/* Yandex ad tabs/arrows that clash with scroll UX on touch */
 :where(
   [class*="yandex_rtb"][class*="floor"],
   [class*="ya-unit-floor"],
   [id*="yandex_rtb_floor"],
   [class*="floor-ad"],
-  [class*="rtb-floor"]
+  [class*="rtb-floor"],
+  [class*="yandex_rtb"][class*="fullscreen"],
+  [id*="yandex_rtb_fullscreen"],
+  [class*="ya-fullscreen"],
+  [class*="rtb-fullscreen"]
 ) :where(button, [role="button"], a) {
   display: none !important;
 }
@@ -1694,9 +1728,29 @@ body.has-mobile-nav.has-domain-sticky-cta {
 :where(
   [class*="yandex_rtb"][class*="floor"],
   [class*="ya-unit-floor"],
-  [id*="yandex_rtb_floor"]
+  [id*="yandex_rtb_floor"],
+  [class*="yandex_rtb"][class*="fullscreen"],
+  [id*="yandex_rtb_fullscreen"]
 ) {
   display: none !important;
+}
+
+@media (max-width: 991.98px), (pointer: coarse) {
+  /* Fullscreen RTB touch platform often injects a side collapse tab — hide on mobile */
+  :where(
+    [id^="yandex_rtb"],
+    [class*="yandex_rtb"],
+    [class*="ya-unit"],
+    [class*="rtb-"]
+  ) :where(
+    [class*="collapse"],
+    [class*="tab"],
+    [class*="arrow"],
+    [class*="sticky"]
+  ) {
+    display: none !important;
+    pointer-events: none !important;
+  }
 }
 
 /* ---------- Hosting / VPS funnel ---------- */
