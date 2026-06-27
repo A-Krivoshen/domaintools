@@ -519,4 +519,44 @@
       navigateToSelected();
     });
   })();
+
+  document.querySelectorAll('[data-domain-sticky-cta]').forEach((el) => {
+    document.body.classList.add('has-domain-sticky-cta');
+  });
+
+  (function initScrollToTop() {
+    const btn = document.getElementById('scrollToTop');
+    if (!btn) return;
+
+    const threshold = 320;
+    const label = body?.dataset.i18nScrollTop || 'Back to top';
+    btn.setAttribute('aria-label', label);
+    btn.setAttribute('title', label);
+
+    let ticking = false;
+
+    function updateVisibility() {
+      const y = window.scrollY || document.documentElement.scrollTop || 0;
+      const show = y > threshold;
+      btn.classList.toggle('is-visible', show);
+      btn.hidden = !show;
+      ticking = false;
+    }
+
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(updateVisibility);
+    }
+
+    btn.addEventListener('click', () => {
+      const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      window.scrollTo({ top: 0, behavior: reduceMotion ? 'auto' : 'smooth' });
+      btn.blur();
+    });
+
+    window.addEventListener('scroll', onScroll, { passive: true });
+    window.addEventListener('resize', onScroll, { passive: true });
+    updateVisibility();
+  })();
 })();

@@ -51,6 +51,8 @@ class UIToolPagesSmokeTests(unittest.TestCase):
             'command-palette-data',
             'data-command-palette-open',
             'mobile-bottom-nav',
+            'scrollToTop',
+            'scroll-to-top',
         ):
             self.assertIn(marker, html)
 
