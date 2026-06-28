@@ -1294,22 +1294,10 @@
       mobileOpen.addEventListener('click', () => offcanvas.show());
     }
 
-    const globalToggle = dock.querySelector('[data-qa-show-global-history]');
-    const globalWrap = dock.querySelector('[data-qa-history-global-wrap]');
-    const GLOBAL_HIST_KEY = 'dt:show-global-history';
-    if (globalToggle) {
-      globalToggle.checked = localStorage.getItem(GLOBAL_HIST_KEY) === '1';
-      if (globalWrap) globalWrap.classList.toggle('d-none', !globalToggle.checked);
-      globalToggle.addEventListener('change', () => {
-        localStorage.setItem(GLOBAL_HIST_KEY, globalToggle.checked ? '1' : '0');
-        if (globalWrap) globalWrap.classList.toggle('d-none', !globalToggle.checked);
-        if (typeof window.dtRefreshPanelHistory === 'function') window.dtRefreshPanelHistory();
-      });
-    }
-
-    const clearBtn = dock.querySelector('[data-qa-clear-history]');
-    if (clearBtn) {
-      clearBtn.addEventListener('click', async () => {
+    document.addEventListener('click', async (e) => {
+      const clearBtn = e.target.closest('[data-qa-clear-history]');
+      if (clearBtn) {
+        e.preventDefault();
         if (!confirmAction(body?.dataset?.i18nConfirmClearHistory)) return;
         try {
           const resp = await fetch('/api/history/user/clear', { method: 'POST', headers: { Accept: 'application/json' } });
@@ -1317,12 +1305,13 @@
         } catch (err) {
           /* noop */
         }
-      });
-    }
+        return;
+      }
 
-    dock.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-qa-action]');
       if (!btn) return;
+      const qaRoot = btn.closest('[data-quick-actions-dock], #mobileQuickActions');
+      if (!qaRoot) return;
       e.preventDefault();
       const action = btn.getAttribute('data-qa-action');
       const copyTarget = btn.getAttribute('data-qa-copy-target');
@@ -1392,14 +1381,52 @@
     });
   })();
 
+  // ===== Global history preference (navbar + panel toggles) =====
+  (function initGlobalHistoryPreference() {
+    const GLOBAL_HIST_KEY = 'dt:show-global-history';
+
+    function toggles() {
+      return document.querySelectorAll('[data-qa-show-global-history], [data-qa-show-global-history-nav]');
+    }
+
+    function globalWraps() {
+      return document.querySelectorAll('[data-qa-history-global-wrap]');
+    }
+
+    function applyVisible(show) {
+      globalWraps().forEach((wrap) => wrap.classList.toggle('d-none', !show));
+    }
+
+    function setGlobalHistory(show, { refresh = true } = {}) {
+      localStorage.setItem(GLOBAL_HIST_KEY, show ? '1' : '0');
+      toggles().forEach((el) => {
+        el.checked = show;
+      });
+      applyVisible(show);
+      if (refresh && typeof window.dtRefreshPanelHistory === 'function') {
+        window.dtRefreshPanelHistory();
+      }
+    }
+
+    const initial = localStorage.getItem(GLOBAL_HIST_KEY) === '1';
+    toggles().forEach((el) => {
+      el.checked = initial;
+    });
+    applyVisible(initial);
+
+    document.addEventListener('change', (e) => {
+      const target = e.target;
+      if (!target.matches('[data-qa-show-global-history], [data-qa-show-global-history-nav]')) return;
+      setGlobalHistory(target.checked);
+    });
+  })();
+
   // ===== Panel history — live refresh inside Quick Actions =====
   (function initPanelHistoryRefresh() {
     const dock = document.querySelector('[data-quick-actions-dock]');
     if (!dock) return;
     const POLL_MS = 12000;
     const GLOBAL_HIST_KEY = 'dt:show-global-history';
-    const userList = dock.querySelector('[data-qa-history-user]');
-    const globalList = dock.querySelector('[data-qa-history-global]');
     let inflight = false;
     let fingerprint = '';
 
@@ -1432,9 +1459,10 @@
       </a>`;
     }
 
-    function renderList(el, items) {
-      if (!el) return;
-      el.innerHTML = (items || []).map(renderChip).join('');
+    function renderLists(selector, items) {
+      document.querySelectorAll(selector).forEach((el) => {
+        el.innerHTML = (items || []).map(renderChip).join('');
+      });
     }
 
     async function refreshPanelHistory() {
@@ -1443,6 +1471,9 @@
       inflight = true;
       try {
         const showGlobal = localStorage.getItem(GLOBAL_HIST_KEY) === '1';
+        document.querySelectorAll('[data-qa-history-global-wrap]').forEach((wrap) => {
+          wrap.classList.toggle('d-none', !showGlobal);
+        });
         const url = `/api/history/dock?lang=${encodeURIComponent(pageLang())}${showGlobal ? '&global=1' : ''}`;
         const resp = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
         if (!resp.ok) return;
@@ -1450,8 +1481,8 @@
         const fp = JSON.stringify(data);
         if (fp === fingerprint) return;
         fingerprint = fp;
-        renderList(userList, data.user?.items || []);
-        if (showGlobal) renderList(globalList, data.global?.items || []);
+        renderLists('[data-qa-history-user]', data.user?.items || []);
+        if (showGlobal) renderLists('[data-qa-history-global]', data.global?.items || []);
       } catch (err) {
         /* noop */
       } finally {

@@ -188,7 +188,6 @@
 
   {% endif %}
 
-{% if not query %}
 {% set faq_id = 'dns-tool-faq' %}
 {% set faq_items = [
   {'q': tr('Какие DNS-записи можно проверить?', 'Which DNS record types are supported?'),
@@ -198,6 +197,10 @@
   {'q': tr('DNS не найден — что дальше?', 'No DNS records — what next?'),
    'a': tr('Проверьте WHOIS и срок домена: возможно, домен не делегирован или истёк.', 'Check WHOIS and expiry — the domain may be undelegated or expired.')},
 ] %}
+{% if result %}
+{% set faq_compact = true %}
+{% include '_faq_section.html' %}
+{% elif not query %}
 {% include '_faq_section.html' %}
 {% include '_faq_jsonld.html' %}
 {% endif %}

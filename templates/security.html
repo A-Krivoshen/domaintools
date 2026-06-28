@@ -222,7 +222,6 @@
 {% endif %}
 {{ tool_page_dock_close(tr, qa_bundle) }}
 
-{% if not host and not wp_url_raw and not job_id %}
 {% set faq_id = 'security-faq' %}
 {% set faq_items = [
   {'q': tr('Законно ли сканировать порты?', 'Is port scanning legal?'),
@@ -230,6 +229,10 @@
   {'q': tr('Какие порты проверяются?', 'Which ports are scanned?'),
    'a': tr('Список в форме (по умолчанию популярные: 22, 80, 443…), максимум ограничен настройкой.', 'As listed in the form (defaults: 22, 80, 443…), max limited by config.')},
 ] %}
+{% if has_security_result %}
+{% set faq_compact = true %}
+{% include '_faq_section.html' %}
+{% elif not host and not wp_url_raw and not job_id %}
 {% include '_faq_section.html' %}
 {% include '_faq_jsonld.html' %}
 {% endif %}

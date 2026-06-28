@@ -28,7 +28,7 @@
   </div>
   {% endif %}
   {% endif %}
-  <a class="hosting-offer-card__cta btn {% if offer.badge == 'recommended' %}btn-primary{% elif offer.badge == 'enterprise' %}btn-primary hosting-offer-card__cta--premium{% else %}btn-outline-primary{% endif %}"
+  <a class="hosting-offer-card__cta btn {% if offer.badge == 'recommended' %}btn-outline-primary{% elif offer.badge == 'enterprise' %}btn-outline-secondary hosting-offer-card__cta--premium{% else %}btn-outline-secondary{% endif %}"
      href="{{ offer.url }}"
      target="_blank"
      rel="nofollow noopener sponsored"

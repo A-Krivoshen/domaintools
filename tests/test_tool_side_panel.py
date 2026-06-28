@@ -248,6 +248,26 @@ class ToolSidePanelTests(unittest.TestCase):
         self.assertIn('tool-faq-wrap', html)
         self.assertIn('tool-faq card-soft p-4', html)
 
+    def test_navbar_contains_global_history_toggle(self):
+        html = self.client.get('/?lang=ru').get_data(as_text=True)
+        nav_end = html.split('</nav>', 1)[0]
+        self.assertIn('data-qa-show-global-history-nav', nav_end)
+        self.assertIn('Показать общую историю', nav_end)
+
+    def test_dns_compact_faq_when_result_shown(self):
+        with patch.object(app_module.dns.resolver, 'resolve', side_effect=Exception('no records')):
+            with patch.object(app_module, '_evaluate_domain_availability', return_value=None):
+                with self._tool_request_patches():
+                    html = self.client.get('/dns?q=example.com&types=A&lang=ru').get_data(as_text=True)
+        self.assertIn('tool-faq-wrap--compact', html)
+        self.assertIn('FAQ / Частые вопросы', html)
+
+    def test_dns_idle_page_has_no_compact_faq_wrap(self):
+        html = self.client.get('/dns?lang=ru').get_data(as_text=True)
+        self.assertIn('tool-faq-wrap', html)
+        self.assertNotIn('tool-faq-wrap--compact', html)
+        self.assertIn('tool-faq card-soft p-4', html)
+
 
 if __name__ == '__main__':
     unittest.main()

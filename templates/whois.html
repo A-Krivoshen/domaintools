@@ -130,7 +130,6 @@
     {% include "_cards_under_tools.html" %}
   {% endif %}
 
-{% if not query %}
 {% set faq_id = 'whois-tool-faq' %}
 {% set faq_items = [
   {'q': tr('Что такое WHOIS?', 'What is WHOIS?'),
@@ -140,6 +139,10 @@
   {'q': tr('Как узнать срок действия домена?', 'How do I see domain expiry?'),
    'a': tr('В результатах ищите поле «Истекает» / Expiration date.', 'In results, look for Expiration date / «Истекает».')},
 ] %}
+{% if result %}
+{% set faq_compact = true %}
+{% include '_faq_section.html' %}
+{% elif not query %}
 {% include '_faq_section.html' %}
 {% include '_faq_jsonld.html' %}
 {% endif %}

@@ -163,8 +163,10 @@
         class="mobile-qa-fab d-xl-none"
         data-mobile-qa-open
         aria-controls="mobileQuickActions"
-        aria-label="{{ tr('Действия', 'Actions') }}">
-  <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+        aria-haspopup="dialog"
+        aria-label="{{ tr('Быстрые действия и история', 'Quick actions and history') }}">
+  <i class="fa-solid fa-bolt mobile-qa-fab__icon" aria-hidden="true"></i>
+  <span class="mobile-qa-fab__label">{{ tr('Действия', 'Actions') }}</span>
 </button>
 
 <div class="offcanvas offcanvas-end mobile-qa-offcanvas d-xl-none"
@@ -182,16 +184,45 @@
         {{ _quick_action_item(tr, item) }}
       {% endfor %}
     </nav>
-    {% if _user_items and _user_items|length %}
-    <div class="quick-actions-dock__section quick-actions-dock__section--history mt-3">
-      <span class="quick-actions-dock__section-label">{{ tr('Мои запросы', 'My queries') }}</span>
-      <div class="quick-actions-dock__history-list">
-        {% for item in _user_items %}
-          {{ _history_chip(tr, item) }}
-        {% endfor %}
+
+    <div class="quick-actions-dock__scroll quick-actions-dock__scroll--history mt-3"
+         data-qa-history-panel-mobile
+         aria-live="polite">
+      <div class="quick-actions-dock__section quick-actions-dock__section--history">
+        <span class="quick-actions-dock__section-label">{{ tr('Мои запросы', 'My queries') }}</span>
+        <p class="quick-actions-dock__privacy-note small text-muted mb-2">
+          {{ tr('История сохраняется в cookie браузера на этом устройстве.', 'History is stored in a browser cookie on this device.') }}
+        </p>
+        <div class="quick-actions-dock__history-list" data-qa-history-user>
+          {% for item in _user_items %}
+            {{ _history_chip(tr, item) }}
+          {% endfor %}
+        </div>
+        <div class="quick-actions-dock__history-actions">
+          {% if _user_hist.get('has_more') %}
+          <a class="quick-actions-dock__history-more" href="{{ _user_hist.get('history_url') }}">
+            {{ tr('Вся история', 'All history') }}
+          </a>
+          {% endif %}
+          <button type="button" class="quick-actions-dock__history-clear" data-qa-clear-history>
+            {{ tr('Очистить', 'Clear') }}
+          </button>
+        </div>
       </div>
+
+      <div class="quick-actions-dock__section quick-actions-dock__section--global d-none" data-qa-history-global-wrap>
+        <span class="quick-actions-dock__section-label">{{ tr('Общая история', 'Site history') }}</span>
+        <p class="quick-actions-dock__privacy-note small text-muted mb-2">
+          {{ tr('Запросы других пользователей сайта.', 'Queries from other visitors on this site.') }}
+        </p>
+        <div class="quick-actions-dock__history-list" data-qa-history-global></div>
+      </div>
+
+      <label class="quick-actions-dock__global-toggle small text-muted">
+        <input type="checkbox" class="form-check-input me-1" data-qa-show-global-history>
+        {{ tr('Показать общую историю', 'Show site-wide history') }}
+      </label>
     </div>
-    {% endif %}
   </div>
 </div>
 {% endmacro %}

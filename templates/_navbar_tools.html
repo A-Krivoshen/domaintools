@@ -20,6 +20,24 @@
     <a class="btn btn-outline-secondary {% if get_locale() == 'ru' %}active{% endif %}" href="{{ lang_url('ru') }}">RU</a>
     <a class="btn btn-outline-secondary {% if get_locale() == 'en' %}active{% endif %}" href="{{ lang_url('en') }}">EN</a>
   </div>
+  <div class="dropdown navbar-tools-settings">
+    <button type="button"
+            class="btn btn-sm btn-outline-secondary dropdown-toggle navbar-tools-settings__toggle"
+            data-bs-toggle="dropdown"
+            aria-expanded="false"
+            aria-label="{{ tr('Настройки', 'Settings') }}"
+            title="{{ tr('Настройки', 'Settings') }}">
+      <i class="fa-solid fa-gear" aria-hidden="true"></i>
+    </button>
+    <ul class="dropdown-menu dropdown-menu-end navbar-tools-settings__menu">
+      <li>
+        <label class="dropdown-item navbar-tools-settings__item">
+          <input type="checkbox" class="form-check-input me-2" data-qa-show-global-history-nav>
+          <span>{{ tr('Показать общую историю', 'Show site-wide history') }}</span>
+        </label>
+      </li>
+    </ul>
+  </div>
   <button
     class="btn btn-sm btn-outline-secondary theme-toggle-btn"
     type="button"

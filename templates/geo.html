@@ -109,6 +109,26 @@
 
   {% else %}
     {% include "_cards_under_tools.html" %}
-    {% include '_faq_section.html' %}
+  {% endif %}
+
+  {% if not query %}
+  {% set faq_id = 'geo-faq' %}
+  {% set faq_items = [
+    {'q': tr('Что такое GeoIP?', 'What is GeoIP?'),
+     'a': tr('Определение страны, ASN и провайдера по IP домена или IP-адресу.', 'Country, ASN, and provider for a domain or IP.')},
+    {'q': tr('Насколько точна геолокация?', 'How accurate is geolocation?'),
+     'a': tr('Показывает расположение сети провайдера, не физический адрес сервера.', 'Shows network/provider location, not exact server street address.')},
+  ] %}
+  {% include '_faq_section.html' %}
+  {% elif result %}
+  {% set faq_id = 'geo-faq' %}
+  {% set faq_items = [
+    {'q': tr('Что такое GeoIP?', 'What is GeoIP?'),
+     'a': tr('Определение страны, ASN и провайдера по IP домена или IP-адресу.', 'Country, ASN, and provider for a domain or IP.')},
+    {'q': tr('Насколько точна геолокация?', 'How accurate is geolocation?'),
+     'a': tr('Показывает расположение сети провайдера, не физический адрес сервера.', 'Shows network/provider location, not exact server street address.')},
+  ] %}
+  {% set faq_compact = true %}
+  {% include '_faq_section.html' %}
   {% endif %}
 {% endblock %}

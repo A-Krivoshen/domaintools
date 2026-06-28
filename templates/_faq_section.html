@@ -1,5 +1,35 @@
-{# expects: faq_items = [{'q': ..., 'a': ...}, ...], faq_id = 'page-faq' #}
+{# expects: faq_items = [{'q': ..., 'a': ...}, ...], faq_id = 'page-faq', faq_compact = false #}
 {% if faq_items and faq_items|length %}
+{% set _faq_compact = faq_compact|default(false) %}
+{% if _faq_compact %}
+<details class="tool-faq-wrap tool-faq-wrap--compact mb-3">
+  <summary class="tool-faq-wrap__summary">{{ tr('FAQ / Частые вопросы', 'FAQ / Frequently asked questions') }}</summary>
+  <section class="tool-faq tool-faq--compact card-soft p-3" aria-labelledby="{{ faq_id }}">
+    <h2 id="{{ faq_id }}" class="tool-faq__title h6 mb-2">{{ tr('Частые вопросы', 'FAQ') }}</h2>
+    <div class="accordion tool-faq__accordion" id="{{ faq_id }}-acc">
+      {% for item in faq_items %}
+      <div class="accordion-item tool-faq__item">
+        <h3 class="accordion-header">
+          <button class="accordion-button tool-faq__btn collapsed"
+                  type="button"
+                  data-bs-toggle="collapse"
+                  data-bs-target="#{{ faq_id }}-{{ loop.index }}"
+                  aria-expanded="false"
+                  aria-controls="{{ faq_id }}-{{ loop.index }}">
+            {{ item.q }}
+          </button>
+        </h3>
+        <div id="{{ faq_id }}-{{ loop.index }}"
+             class="accordion-collapse collapse"
+             data-bs-parent="#{{ faq_id }}-acc">
+          <div class="accordion-body tool-faq__body">{{ item.a }}</div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+</details>
+{% else %}
 <div class="tool-faq-wrap mb-3">
 <section class="tool-faq card-soft p-4" aria-labelledby="{{ faq_id }}">
   <h2 id="{{ faq_id }}" class="tool-faq__title page-section-title">{{ tr('Частые вопросы', 'FAQ') }}</h2>
@@ -26,4 +56,5 @@
   </div>
 </section>
 </div>
+{% endif %}
 {% endif %}
