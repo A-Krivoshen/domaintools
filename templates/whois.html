@@ -82,8 +82,11 @@
       </div>
     </div>
     {% include "_action_bar_hint.html" %}
-    <div class="table-responsive">
-      <table class="table table-striped table-sm align-middle">
+    <div class="result-card mb-3">
+      <div class="result-card__head">{{ tr('Регистрация', 'Registration') }}</div>
+      <div class="result-card__body p-0">
+    <div class="table-responsive mb-0">
+      <table class="table table-striped table-sm align-middle mb-0">
         <tbody>
           {% if result.registrar %}<tr><th style="width:240px" class="text-muted">{{ tr('Регистратор', 'Registrar') }}</th><td>{{ result.registrar }}</td></tr>{% endif %}
           {% if result.whois_server %}<tr><th class="text-muted">{{ tr('WHOIS сервер', 'WHOIS server') }}</th><td><code>{{ result.whois_server }}</code></td></tr>{% endif %}
@@ -99,6 +102,8 @@
           {% if result.org or result.name %}<tr><th class="text-muted">{{ tr('Владелец', 'Owner') }}</th><td>{{ result.org or result.name }}</td></tr>{% endif %}
         </tbody>
       </table>
+    </div>
+      </div>
     </div>
 
     {% set data = result %}

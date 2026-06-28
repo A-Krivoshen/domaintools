@@ -1640,6 +1640,82 @@ body.onboarding-open {
   margin-top: .35rem;
 }
 
+.result-card--flush .result-card__body {
+  padding: 0;
+}
+
+/* Unified chip system */
+.dt-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .25rem;
+  padding: .28rem .65rem;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-2);
+  font-size: .82rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  transition: background .12s ease, border-color .12s ease, color .12s ease;
+}
+
+.dt-chip--muted {
+  color: var(--bs-secondary-color);
+  font-weight: 700;
+  font-size: .72rem;
+  letter-spacing: .02em;
+}
+
+.dt-chip--idea {
+  color: var(--bs-primary);
+}
+
+.dt-chip--idea:hover {
+  background: rgba(var(--bs-primary-rgb), .1);
+  border-color: rgba(var(--bs-primary-rgb), .35);
+}
+
+.dt-chip--active {
+  background: rgba(var(--bs-primary-rgb), .14);
+  border-color: rgba(var(--bs-primary-rgb), .45);
+  color: var(--bs-primary);
+  cursor: default;
+}
+
+.dt-chip--zone {
+  cursor: pointer;
+}
+
+.tool-form--compact {
+  margin-bottom: .75rem !important;
+}
+
+.tool-form--compact .form-text {
+  display: none;
+}
+
+.domain-search-results {
+  margin-bottom: .5rem;
+}
+
+.domain-zone-settings__summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: .92rem;
+  color: var(--bs-body-color);
+  list-style-position: outside;
+}
+
+.domain-zone-settings__summary::-webkit-details-marker {
+  color: var(--bs-secondary-color);
+}
+
+.domain-results-table tbody tr.table-success,
+.domain-results-table tbody tr.table-danger {
+  --bs-table-bg: transparent;
+}
+
 /* ===== Homepage hero ===== */
 .hero-home {
   position: relative;
@@ -2587,28 +2663,7 @@ a.domain-available-banner__chip:focus-visible {
 }
 
 .domain-name-generator__chip {
-  display: inline-flex;
-  padding: .32rem .7rem;
-  border-radius: var(--radius-pill);
-  border: 1px solid var(--border-subtle);
-  background: var(--surface-2);
-  color: var(--bs-primary);
-  font-weight: 600;
   font-size: .84rem;
-  text-decoration: none;
-  transition: background .12s ease, border-color .12s ease;
-}
-
-.domain-name-generator__chip:hover {
-  background: rgba(var(--bs-primary-rgb), .1);
-  border-color: rgba(var(--bs-primary-rgb), .35);
-}
-
-.domain-name-generator__chip--active {
-  background: rgba(var(--bs-primary-rgb), .14);
-  border-color: rgba(var(--bs-primary-rgb), .45);
-  color: var(--bs-primary);
-  cursor: default;
 }
 
 .domain-zone-audience {

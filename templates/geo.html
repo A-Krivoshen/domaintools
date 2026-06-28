@@ -65,8 +65,11 @@
     </div>
   </div>
   {% include "_action_bar_hint.html" %}
-  <div class="table-responsive">
-    <table class="table table-sm align-middle">
+  <div class="result-card mb-3">
+    <div class="result-card__head">GeoIP</div>
+    <div class="result-card__body p-0">
+  <div class="table-responsive mb-0">
+    <table class="table table-sm align-middle mb-0">
       <tbody>
         <tr><th class="text-muted" style="width:220px">IP</th><td><span class="code-badge">{{ result.ip }}</span></td></tr>
         <tr><th class="text-muted">ASN</th><td>{{ result.asn or '—' }}</td></tr>
@@ -80,6 +83,8 @@
         </tr>
       </tbody>
     </table>
+  </div>
+    </div>
   </div>
 
   <details class="mt-3">

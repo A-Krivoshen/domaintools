@@ -193,6 +193,30 @@ class DomainAvailabilityTests(unittest.TestCase):
         self.assertEqual(payload.get("available_count"), 2)
         self.assertEqual(payload.get("domain"), "brand.shop")
 
+    def test_domain_availability_from_search_items_taken_fqdn(self):
+        items = [{"fqdn": "taken.example", "available": False}]
+        with self.app.test_request_context("/"):
+            payload = app_module._domain_availability_from_search_items(items, fqdn_mode=True)
+        self.assertEqual("taken", payload.get("status"))
+        self.assertEqual("taken.example", payload.get("domain"))
+
+    def test_domain_search_results_surface_primary_before_zone_settings(self):
+        items = [{"fqdn": "free.test", "available": True, "puny": "free.test"}]
+        with patch.object(app_module, "_check_candidates", return_value=items):
+            with patch.object(app_module, "_verify_form_recaptcha_if_needed", return_value=None):
+                with patch.object(app_module, "_tool_rate_limited", return_value=None):
+                    with patch.object(app_module, "_track_domain_for_seo"):
+                        resp = self.client.post(
+                            "/domains",
+                            data={"query": "free", "zone_preset": "defaults"},
+                        )
+        html = resp.get_data(as_text=True)
+        self.assertEqual(200, resp.status_code)
+        self.assertIn("data-domain-search-results", html)
+        self.assertIn("data-domain-zone-settings", html)
+        self.assertLess(html.index("data-domain-search-results"), html.index("data-domain-zone-settings"))
+        self.assertIn("tool-form--compact", html)
+
     def test_dns_page_renders_availability_banner_markers(self):
         availability = {
             "status": "available",

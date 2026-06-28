@@ -1,0 +1,46 @@
+{# Zone presets + checkbox list for domain search. Expects parent context vars. #}
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+  <div class="d-flex flex-wrap align-items-center gap-2">
+    <span class="small text-muted">{{ tr('Зоны для проверки:', 'Zones to check:') }}</span>
+    {% if zone_audience == 'ru' %}
+    <span class="domain-zone-audience dt-chip dt-chip--muted">{{ tr('Россия', 'Russia') }}</span>
+    {% else %}
+    <span class="domain-zone-audience dt-chip dt-chip--muted">{{ tr('Международные', 'International') }}</span>
+    {% endif %}
+  </div>
+  <div class="d-flex flex-wrap gap-2">
+    <button type="submit" name="zone_preset" value="defaults" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Популярные', 'Popular') }}</button>
+    <button type="submit" name="zone_preset" value="ru" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('Для России', 'For Russia') }}</button>
+    <button type="submit" name="zone_preset" value="global" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Международные', 'International') }}</button>
+    <span class="d-none d-inline-flex flex-wrap gap-2 ux-expert-only">
+      <button type="submit" name="zone_preset" value="newgtld" class="btn btn-sm btn-outline-secondary" data-zone-action="newgtld">{{ tr('New gTLD', 'New gTLD') }}</button>
+      <button type="submit" name="zone_preset" value="all" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
+      <button type="submit" name="zone_preset" value="none" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
+    </span>
+  </div>
+</div>
+<div class="small mb-2" data-zone-count-wrap>
+  <span class="text-muted" data-zone-count
+        data-selected-label-ru="Выбрано"
+        data-selected-label-en="Selected"
+        data-limit-label-ru="Рекомендованный лимит"
+        data-limit-label-en="Recommended limit"
+        data-over-limit-ru="Слишком много зон — поиск может быть медленнее."
+        data-over-limit-en="Too many zones selected — search may be slower."
+  ></span>
+</div>
+<div class="d-flex flex-wrap gap-2 zones-list zones-list--compact" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
+     data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
+     data-group-global="{{ (tld_groups.global or [])|join(',') }}"
+     data-group-new="{{ (tld_groups.new or [])|join(',') }}">
+  {% for tld in all_tlds %}
+  <label class="btn btn-sm btn-outline-secondary dt-chip dt-chip--zone" data-zone-group="{{ tld_group_map.get(tld, 'all') }}"{% if tld not in default_tlds %} data-zone-extra{% endif %}>
+    <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
+    .{{ tld }}
+  </label>
+  {% endfor %}
+</div>
+<button type="button" class="btn btn-sm btn-link px-0 mt-2" data-zones-expand aria-expanded="false"
+        data-collapse-label="{{ tr('Скрыть лишние зоны', 'Show fewer zones') }}">
+  {{ tr('Показать все зоны', 'Show all zones') }}
+</button>

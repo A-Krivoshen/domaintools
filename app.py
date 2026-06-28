@@ -2658,9 +2658,22 @@ def _evaluate_domain_availability(
     return None
 
 
-def _domain_availability_from_search_items(items: List[Dict]) -> Optional[Dict[str, object]]:
+def _domain_availability_from_search_items(
+    items: List[Dict],
+    *,
+    fqdn_mode: bool = False,
+) -> Optional[Dict[str, object]]:
     available = [it for it in (items or []) if it.get("available") and it.get("fqdn")]
     if not available:
+        taken = [it for it in (items or []) if it.get("fqdn")]
+        if taken and (fqdn_mode or len(taken) == 1):
+            first_taken = taken[0]
+            if not first_taken.get("available"):
+                return _build_domain_availability(
+                    str(first_taken["fqdn"]),
+                    status="taken",
+                    source="domains",
+                )
         return None
     first = available[0]
     payload = _build_domain_availability(str(first["fqdn"]), status="available", source="domains")
@@ -4782,7 +4795,11 @@ def domain_search():
     if query:
         permalink = url_for("domain_search", query=query, zones=selected_tlds)
 
-    domain_availability = _domain_availability_from_search_items(items) if items and not error else None
+    domain_availability = (
+        _domain_availability_from_search_items(items, fqdn_mode=fqdn_mode)
+        if items and not error
+        else None
+    )
 
     return render_template(
         "domains.html",

@@ -37,7 +37,9 @@
 </section>
 {% endif %}
 
-<form method="post" action="{{ url_for('domain_search') }}" class="tool-form mb-3" autocomplete="off" data-zones-controls data-domain-progress data-smart-query-form data-query-context="domains">
+{% set has_domain_results = items and not error %}
+
+<form method="post" action="{{ url_for('domain_search') }}" class="tool-form mb-3{% if has_domain_results %} tool-form--compact{% endif %}" autocomplete="off" data-zones-controls data-domain-progress data-smart-query-form data-query-context="domains">
   <div class="input-group input-group-lg search-command">
     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
     <input type="text"
@@ -56,56 +58,13 @@
   {% with query_context='domains' %}
   {% include '_smart_query_intent.html' %}
   {% endwith %}
+  {% if not has_domain_results %}
   <p id="domainSearchHint" class="form-text mb-2">
     <i class="fa-solid fa-wand-magic-sparkles me-1 text-primary" aria-hidden="true"></i>
     {{ tr('Домен с точкой — проверяем только его. Одно слово — подбор по зонам. Несколько слов — идеи и проверка лучшего варианта.', 'A domain with a dot — we check only that name. One word — search across zones. Multiple words — ideas plus the best match.') }}
   </p>
-
-  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-    <div class="d-flex flex-wrap align-items-center gap-2">
-      <span class="small text-muted">{{ tr('Зоны для проверки:', 'Zones to check:') }}</span>
-      {% if zone_audience == 'ru' %}
-      <span class="domain-zone-audience badge text-bg-light border">{{ tr('Россия', 'Russia') }}</span>
-      {% else %}
-      <span class="domain-zone-audience badge text-bg-light border">{{ tr('Международные', 'International') }}</span>
-      {% endif %}
-    </div>
-    <div class="d-flex flex-wrap gap-2">
-      <button type="submit" name="zone_preset" value="defaults" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Популярные', 'Popular') }}</button>
-      <button type="submit" name="zone_preset" value="ru" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('Для России', 'For Russia') }}</button>
-      <button type="submit" name="zone_preset" value="global" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Международные', 'International') }}</button>
-      <span class="d-none d-inline-flex flex-wrap gap-2 ux-expert-only">
-        <button type="submit" name="zone_preset" value="newgtld" class="btn btn-sm btn-outline-secondary" data-zone-action="newgtld">{{ tr('New gTLD', 'New gTLD') }}</button>
-        <button type="submit" name="zone_preset" value="all" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
-        <button type="submit" name="zone_preset" value="none" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
-      </span>
-    </div>
-  </div>
-  <div class="small mb-2" data-zone-count-wrap>
-    <span class="text-muted" data-zone-count
-          data-selected-label-ru="Выбрано"
-          data-selected-label-en="Selected"
-          data-limit-label-ru="Рекомендованный лимит"
-          data-limit-label-en="Recommended limit"
-          data-over-limit-ru="Слишком много зон — поиск может быть медленнее."
-          data-over-limit-en="Too many zones selected — search may be slower."
-    ></span>
-  </div>
-  <div class="d-flex flex-wrap gap-2 zones-list zones-list--compact" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
-       data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
-       data-group-global="{{ (tld_groups.global or [])|join(',') }}"
-       data-group-new="{{ (tld_groups.new or [])|join(',') }}">
-    {% for tld in all_tlds %}
-    <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}"{% if tld not in default_tlds %} data-zone-extra{% endif %}>
-      <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
-      .{{ tld }}
-    </label>
-    {% endfor %}
-  </div>
-  <button type="button" class="btn btn-sm btn-link px-0 mt-2" data-zones-expand aria-expanded="false"
-          data-collapse-label="{{ tr('Скрыть лишние зоны', 'Show fewer zones') }}">
-    {{ tr('Показать все зоны', 'Show all zones') }}
-  </button>
+  {% include '_domain_zone_picker.html' %}
+  {% endif %}
 
   {% if suggestions and suggestions|length %}
     <div class="form-text mt-1">
@@ -127,13 +86,22 @@
   </div>
 </form>
 
-{% set show_tool_layout = q or error or (items and not error) %}
+{% set show_tool_layout = q or error or has_domain_results %}
 
 {% if show_tool_layout %}
 {{ tool_page_dock_open() }}
 
 {% if error %}
 <div class="alert alert-danger tool-page-alert mb-3" role="alert">{{ error }}</div>
+{% endif %}
+
+{% if has_domain_results %}
+<section class="domain-search-results" data-domain-search-results>
+  {% include '_domain_availability_banner.html' %}
+  {% with placement='domains-search' %}
+  {% include '_domain_launch_bundle.html' %}
+  {% endwith %}
+</section>
 {% endif %}
 
 {% if idea_mode and name_ideas and name_ideas|length and searched_label %}
@@ -153,10 +121,10 @@
   <div class="domain-name-generator__chips">
     {% for idea in name_ideas %}
       {% if idea != searched_label %}
-      <a class="domain-name-generator__chip"
+      <a class="domain-name-generator__chip dt-chip dt-chip--idea"
          href="{{ url_for('domain_search', query=idea, zones=selected_tlds) }}">{{ idea }}</a>
       {% else %}
-      <span class="domain-name-generator__chip domain-name-generator__chip--active">{{ idea }}</span>
+      <span class="domain-name-generator__chip dt-chip dt-chip--idea dt-chip--active">{{ idea }}</span>
       {% endif %}
     {% endfor %}
   </div>
@@ -165,13 +133,20 @@
 <p class="small text-muted mb-3">{{ tr('Не удалось сгенерировать идеи — попробуйте другое описание.', 'Could not generate ideas — try a different description.') }}</p>
 {% endif %}
 
-{% if items and not error %}
-{% include '_domain_availability_banner.html' %}
-{% with placement='domains-search' %}
-{% include '_domain_launch_bundle.html' %}
-{% endwith %}
-<div class="table-responsive">
-  <table class="table align-middle">
+{% if has_domain_results %}
+<div class="result-panel mb-2">
+  <div class="result-panel__head">
+    <h2 class="result-panel__title h6 mb-0">
+      {{ tr('Проверка по зонам', 'Zone availability') }}
+      {% if q %}<span class="result-panel__query">{{ q }}</span>{% endif %}
+    </h2>
+    <span class="small text-muted">{{ items|length }} {{ tr('зон', 'zones') }}</span>
+  </div>
+</div>
+<div class="result-card result-card--flush mb-3">
+  <div class="result-card__body p-0">
+<div class="table-responsive mb-0">
+  <table class="table align-middle mb-0 domain-results-table">
     <thead class="table-light">
       <tr>
         <th style="min-width:260px">{{ tr('Домен', 'Domain') }}</th>
@@ -210,6 +185,22 @@
     </tbody>
   </table>
 </div>
+  </div>
+</div>
+
+<details class="domain-zone-settings card-soft p-3 mb-3" data-domain-zone-settings>
+  <summary class="domain-zone-settings__summary">
+    <i class="fa-solid fa-sliders me-1 text-muted" aria-hidden="true"></i>
+    {{ tr('Настройки зон и фильтры', 'Zone settings and filters') }}
+  </summary>
+  <form method="post" action="{{ url_for('domain_search') }}" class="mt-3" autocomplete="off" data-zones-controls>
+    <input type="hidden" name="query" value="{{ q or '' }}">
+    {% include '_domain_zone_picker.html' %}
+    <button type="submit" class="btn btn-sm btn-outline-primary mt-2">
+      {{ tr('Проверить выбранные зоны', 'Check selected zones') }}
+    </button>
+  </form>
+</details>
 
 <div class="tool-actions tool-actions--fallback d-flex flex-wrap gap-3 small mt-2 d-xl-none">
   {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
@@ -219,7 +210,7 @@
 </div>
 {% endif %}
 
-{% if items and not error %}
+{% if has_domain_results %}
 {% set qa_bundle = quick_actions_bundle_domains(q, items, permalink, none, has_result=true) %}
 {% elif error and q %}
 {% set qa_bundle = quick_actions_bundle_domains(q, none, permalink, none, has_result=false) %}
