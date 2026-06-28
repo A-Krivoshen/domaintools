@@ -10,6 +10,7 @@ import logging
 import io
 import csv
 import subprocess
+import shutil
 import uuid
 import random
 from urllib.parse import urlencode, urlparse, urljoin, quote
@@ -228,6 +229,586 @@ NEW_GTLD_PRIORITY_TLDS = {
 }
 
 
+FOREIGN_DEFAULT_NEW_TLDS = {
+    "io", "ai", "app", "dev", "site", "online", "store", "shop", "blog", "tech", "co",
+}
+
+
+def _visitor_country_code() -> str | None:
+    for h in ("CF-IPCountry", "X-AppEngine-Country", "X-Country-Code", "CloudFront-Viewer-Country"):
+        cc = (request.headers.get(h) or "").strip().upper()
+        if not cc or cc in {"XX", "T1", "UNKNOWN"}:
+            continue
+        return cc
+    return _country_code_from_remote_ip()
+
+
+def _domain_zone_audience() -> str:
+    cc = _visitor_country_code()
+    if cc == "RU":
+        return "ru"
+    if cc:
+        return "global"
+    try:
+        if str(babel_get_locale() or "ru").startswith("ru"):
+            return "ru"
+    except RuntimeError:
+        pass
+    return "global"
+
+
+def _default_tlds_for_audience(
+    all_tlds: List[str],
+    tld_groups: Dict[str, List[str]],
+) -> List[str]:
+    audience = _domain_zone_audience()
+    if audience == "ru":
+        tlds = [t for t in tld_groups.get("ru", []) if t in all_tlds]
+    else:
+        global_tlds = [t for t in tld_groups.get("global", []) if t in all_tlds]
+        new_tlds = [
+            t for t in tld_groups.get("new", [])
+            if t in all_tlds and t in FOREIGN_DEFAULT_NEW_TLDS
+        ]
+        tlds = list(dict.fromkeys(global_tlds + new_tlds))
+    if tlds:
+        return tlds
+    fallback = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
+    return [t for t in fallback if t in all_tlds] or all_tlds[:12]
+
+
+def _idn_part_to_unicode(part: str) -> str:
+    part = (part or "").strip()
+    if not part:
+        return part
+    if part.isascii() and part.startswith("xn--"):
+        try:
+            return idna.decode(part.encode("ascii"))
+        except Exception:
+            return part
+    return part
+
+
+def _known_tld_lookup(all_tlds: List[str]) -> set[str]:
+    out: set[str] = set()
+    for raw in all_tlds:
+        t = raw.strip().lstrip(".").lower()
+        if not t:
+            continue
+        out.add(t)
+        try:
+            if not t.isascii():
+                out.add(idna.encode(t, uts46=True).decode("ascii"))
+            else:
+                out.add(idna.decode(t.encode("ascii")))
+        except Exception:
+            pass
+    return out
+
+
+def _canonical_tld_from_suffix(suffix: str, all_tlds: List[str]) -> str:
+    suffix = (suffix or "").strip().lstrip(".").lower()
+    if not suffix:
+        return suffix
+    ordered = [t.strip().lstrip(".").lower() for t in all_tlds if (t or "").strip()]
+    if suffix in ordered:
+        return suffix
+    try:
+        suffix_ascii = (
+            idna.encode(suffix, uts46=True).decode("ascii")
+            if not suffix.isascii()
+            else suffix
+        )
+    except Exception:
+        suffix_ascii = suffix
+    for candidate in ordered:
+        try:
+            cand_ascii = (
+                idna.encode(candidate, uts46=True).decode("ascii")
+                if not candidate.isascii()
+                else candidate
+            )
+        except Exception:
+            cand_ascii = candidate
+        if cand_ascii == suffix_ascii:
+            return candidate
+    return _idn_part_to_unicode(suffix)
+
+
+def _strip_www_prefix(hostname: str) -> str:
+    host = (hostname or "").strip().lower().rstrip(".")
+    if host.startswith("www."):
+        return host[4:]
+    return host
+
+
+def _split_hostname_label_tld(hostname: str, known_tlds: set[str]) -> Optional[Tuple[str, str]]:
+    host = (hostname or "").strip().lower().rstrip(".")
+    if "." not in host:
+        return None
+    parts = host.split(".")
+    for i in range(1, len(parts)):
+        suffix = ".".join(parts[i:])
+        if suffix in known_tlds:
+            label = ".".join(parts[:i])
+            if label:
+                return label, suffix
+        try:
+            suffix_ascii = (
+                idna.encode(suffix, uts46=True).decode("ascii")
+                if not suffix.isascii()
+                else suffix
+            )
+            if suffix_ascii in known_tlds:
+                label = ".".join(parts[:i])
+                if label:
+                    return label, suffix
+        except Exception:
+            pass
+    return None
+
+
+def _fqdn_classification(
+    label: str,
+    tld: str,
+    *,
+    all_tlds: List[str],
+) -> Dict[str, object]:
+    label = _idn_part_to_unicode(label)
+    tld = _canonical_tld_from_suffix(tld, all_tlds)
+    fqdn = f"{label}.{tld}"
+    return {
+        "mode": "fqdn",
+        "label": label,
+        "tld": tld,
+        "fqdn": fqdn,
+        "display_fqdn": _to_unicode(fqdn),
+    }
+
+
+def _classify_domain_search_query(text: str, all_tlds: List[str]) -> Dict[str, object]:
+    """Различает полный домен, свободное описание и голую метку."""
+    raw = (text or "").strip()
+    if not raw:
+        return {"mode": "empty"}
+
+    if re.search(r"\s", raw):
+        return {"mode": "ideas", "seed": raw}
+
+    q = raw.lower().rstrip(".")
+    if any(q.startswith(p) for p in ("http://", "https://")):
+        try:
+            from urllib.parse import urlparse
+            q = (urlparse(q).hostname or q).lower().rstrip(".")
+        except Exception:
+            pass
+    q = _strip_www_prefix(q)
+
+    known_tlds = _known_tld_lookup(all_tlds)
+
+    if "." in q:
+        ascii_q = q
+        try:
+            if not q.isascii():
+                ascii_q = idna.encode(q, uts46=True).decode("ascii")
+        except Exception:
+            ascii_q = q
+
+        if DOMAIN_RE.match(ascii_q):
+            split = _split_hostname_label_tld(q, known_tlds) or _split_hostname_label_tld(ascii_q, known_tlds)
+            if split:
+                label, tld = split
+                return _fqdn_classification(label, tld, all_tlds=all_tlds)
+            label, tld = ascii_q.rsplit(".", 1)
+            return _fqdn_classification(label, tld, all_tlds=all_tlds)
+
+        try:
+            idna.encode(q, uts46=True)
+            split = _split_hostname_label_tld(q, known_tlds)
+            if split:
+                label, tld = split
+                return _fqdn_classification(label, tld, all_tlds=all_tlds)
+        except Exception:
+            pass
+
+        tokens = re.findall(r"[\w\u0400-\u04FF]+", raw)
+        if len(tokens) >= 2:
+            return {"mode": "ideas", "seed": raw}
+
+    return {"mode": "label", "label": q}
+
+
+def _all_configured_tlds() -> List[str]:
+    all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
+    return list(dict.fromkeys(all_tlds))
+
+
+def _extract_email_domain(text: str) -> Optional[str]:
+    raw = (text or "").strip()
+    if "@" not in raw or re.search(r"\s", raw):
+        return None
+    _, _, domain_part = raw.partition("@")
+    domain_part = domain_part.strip().lower().rstrip(".")
+    return domain_part if "." in domain_part else None
+
+
+def _parse_batch_domains(text: str) -> List[str]:
+    raw = (text or "").strip()
+    if not raw or not re.search(r"[,;\n]", raw):
+        return []
+    domains: List[str] = []
+    for part in re.split(r"[,;\n]+", raw):
+        part = part.strip()
+        if not part:
+            continue
+        clean, _ascii = _sanitize_lookup_domain(part)
+        if clean:
+            domains.append(clean)
+    return list(dict.fromkeys(domains))
+
+
+def _msg(ru_text: str, en_text: str, **kwargs) -> str:
+    """Locale-aware UI string (mirrors template tr() — not dependent on .po catalogs)."""
+    try:
+        loc = str(babel_get_locale() or "ru")
+    except RuntimeError:
+        loc = "ru"
+    template = en_text if loc.startswith("en") else ru_text
+    if not kwargs:
+        return template
+    try:
+        return template % kwargs
+    except Exception:
+        return template
+
+
+def _resolve_query_alternatives(
+    *,
+    display: str,
+    ascii_value: Optional[str],
+    include_domains: bool = False,
+    include_report: bool = False,
+) -> List[Dict[str, str]]:
+    host = display or ascii_value or ""
+    alts: List[Dict[str, str]] = []
+    if not host:
+        return alts
+    alts.append({"label": "WHOIS", "url": url_for("whois_lookup", query=host)})
+    alts.append({"label": "DNS", "url": url_for("dns_lookup", q=host)})
+    if include_domains:
+        alts.append({"label": _msg("Подбор доменов", "Domain search"), "url": url_for("domain_search", query=host)})
+    if include_report:
+        alts.append({"label": _msg("Полная проверка", "Full report"), "url": url_for("domain_report", q=host)})
+    return alts
+
+
+def _default_zone_hint() -> str:
+    try:
+        return ".ru, .рф" if _domain_zone_audience() == "ru" else ".com, .net"
+    except RuntimeError:
+        try:
+            return ".ru, .рф" if str(babel_get_locale() or "ru").startswith("ru") else ".com, .net"
+        except RuntimeError:
+            return ".ru, .рф"
+
+
+def _default_audience_tlds(all_tlds: List[str]) -> List[str]:
+    tld_groups, _group_map = _build_tld_groups(all_tlds, [])
+    return _default_tlds_for_audience(all_tlds, tld_groups)
+
+
+def resolve_user_query(text: str, context: str = "global") -> Dict[str, object]:
+    """Единый резолвер ввода: домен, имя, описание, IP, пакет."""
+    raw = (text or "").strip()
+    ctx = (context or "global").strip().lower() or "global"
+    zone_hint = _default_zone_hint()
+
+    empty_payload: Dict[str, object] = {
+        "kind": "empty",
+        "display": "",
+        "ascii": None,
+        "confidence": 0.0,
+        "default_url": url_for("domain_report"),
+        "action_label": _msg("Проверить", "Check"),
+        "intent_label": _msg("Введите домен, имя или IP", "Enter a domain, name, or IP"),
+        "intent_icon": "fa-magnifying-glass",
+        "alternatives": [],
+        "zones": None,
+        "query": raw,
+        "context": ctx,
+    }
+    if not raw:
+        return empty_payload
+
+    email_domain = _extract_email_domain(raw)
+    if email_domain:
+        resolved = resolve_user_query(email_domain, context=ctx)
+        resolved["query"] = raw
+        resolved["intent_label"] = _msg(
+            "Проверить домен из email: %(domain)s",
+            "Check domain from email: %(domain)s",
+            domain=resolved.get("display") or email_domain,
+        )
+        return resolved
+
+    batch_domains = _parse_batch_domains(raw)
+    if len(batch_domains) >= 2:
+        return {
+            "kind": "batch",
+            "display": ", ".join(batch_domains[:3]) + ("…" if len(batch_domains) > 3 else ""),
+            "ascii": None,
+            "confidence": 0.92,
+            "default_url": url_for("domain_report", q=raw),
+            "action_label": _msg("Полная проверка списка", "Run batch report"),
+            "intent_label": _msg(
+                "Пакетная проверка: %(count)s доменов",
+                "Batch check: %(count)s domains",
+                count=len(batch_domains),
+            ),
+            "intent_icon": "fa-file-lines",
+            "alternatives": [{"label": _msg("Проверить первый", "Check first"), "url": url_for("domain_check", domain=batch_domains[0])}],
+            "zones": None,
+            "query": raw,
+            "context": ctx,
+            "batch_domains": batch_domains,
+        }
+
+    ip_candidate = raw.lower().rstrip(".")
+    if any(ip_candidate.startswith(p) for p in ("http://", "https://")):
+        try:
+            from urllib.parse import urlparse
+            ip_candidate = (urlparse(ip_candidate).hostname or ip_candidate).lower().rstrip(".")
+        except Exception:
+            pass
+    try:
+        ip_val = str(ipaddress.ip_address(ip_candidate))
+        default_url = url_for("reverse_lookup", query=ip_val) if ctx == "reverse" else url_for("geo_lookup", query=ip_val)
+        return {
+            "kind": "ip",
+            "display": ip_val,
+            "ascii": ip_val,
+            "confidence": 0.98,
+            "default_url": default_url,
+            "action_label": _msg("Проверить IP", "Look up IP"),
+            "intent_label": _msg("GeoIP и сеть для %(ip)s", "GeoIP and network for %(ip)s", ip=ip_val),
+            "intent_icon": "fa-globe",
+            "alternatives": [
+                {"label": _msg("Reverse DNS", "Reverse DNS"), "url": url_for("reverse_lookup", query=ip_val)},
+                {"label": "GeoIP", "url": url_for("geo_lookup", query=ip_val)},
+            ],
+            "zones": None,
+            "query": raw,
+            "context": ctx,
+        }
+    except Exception:
+        pass
+
+    all_tlds = _all_configured_tlds()
+    classified = _classify_domain_search_query(raw, all_tlds)
+    mode = classified.get("mode")
+
+    if mode == "fqdn":
+        display = str(classified.get("display_fqdn") or classified.get("fqdn") or raw)
+        ascii_domain = display
+        try:
+            if not display.isascii():
+                ascii_domain = idna.encode(display, uts46=True).decode("ascii")
+        except Exception:
+            ascii_domain = display
+        if ctx == "whois":
+            default_url = url_for("whois_lookup", query=display)
+            action = _msg("WHOIS", "WHOIS lookup")
+            intent = _msg("Регистратор и даты для %(domain)s", "Registrar and dates for %(domain)s", domain=display)
+            icon = "fa-address-card"
+        elif ctx == "dns":
+            default_url = url_for("dns_lookup", q=display)
+            action = _msg("DNS", "DNS lookup")
+            intent = _msg("DNS-записи для %(domain)s", "DNS records for %(domain)s", domain=display)
+            icon = "fa-database"
+        elif ctx == "domains":
+            default_url = url_for("domain_search", query=display)
+            action = _msg("Проверить домен", "Check domain")
+            intent = _msg("Доступность только %(domain)s", "Availability for %(domain)s only", domain=display)
+            icon = "fa-magnifying-glass"
+        elif ctx == "report":
+            default_url = url_for("domain_check", domain=display, run=1)
+            action = _msg("Полная проверка", "Full check")
+            intent = _msg("Полный отчёт по %(domain)s", "Full report for %(domain)s", domain=display)
+            icon = "fa-file-lines"
+        else:
+            default_url = url_for("domain_check", domain=display)
+            action = _msg("Проверить %(domain)s", "Check %(domain)s", domain=display)
+            intent = _msg("Сводка по домену %(domain)s", "Domain dashboard for %(domain)s", domain=display)
+            icon = "fa-globe"
+        if raw.strip().lower() != display.strip().lower() and ctx in ("home", "check"):
+            default_url = f"{default_url}{'&' if '?' in default_url else '?'}{urlencode({'q': raw.strip()})}"
+        return {
+            "kind": "fqdn",
+            "display": display,
+            "ascii": ascii_domain,
+            "confidence": 0.97,
+            "default_url": default_url,
+            "action_label": action,
+            "intent_label": intent,
+            "intent_icon": icon,
+            "alternatives": _resolve_query_alternatives(
+                display=display,
+                ascii_value=ascii_domain,
+                include_domains=(ctx not in ("domains",)),
+                include_report=(ctx not in ("report", "check", "home")),
+            ),
+            "zones": [str(classified.get("tld") or "").strip().lstrip(".")],
+            "query": raw,
+            "context": ctx,
+            "tld": classified.get("tld"),
+        }
+
+    if mode == "ideas":
+        seed = str(classified.get("seed") or raw)
+        default_url = url_for("domain_search", query=seed)
+        mismatch = ctx in ("whois", "dns", "geo", "reverse")
+        intent = (
+            _msg("Похоже на описание проекта — подберём имена", "This looks like a project description — we'll suggest names")
+            if not mismatch
+            else _msg("Описание лучше проверить в подборе доменов", "Description detected — domain search fits better than this tool")
+        )
+        return {
+            "kind": "ideas",
+            "display": seed,
+            "ascii": None,
+            "confidence": 0.88,
+            "default_url": default_url,
+            "action_label": _msg("Подобрать имена", "Generate ideas"),
+            "intent_label": intent,
+            "intent_icon": "fa-wand-magic-sparkles",
+            "alternatives": [{"label": _msg("Подбор доменов", "Domain search"), "url": default_url}],
+            "zones": _default_audience_tlds(all_tlds)[:6],
+            "query": raw,
+            "context": ctx,
+        }
+
+    if mode == "label":
+        label = str(classified.get("label") or raw)
+        if ctx in ("home", "check") and any("а" <= ch <= "я" or ch == "ё" for ch in label.lower()):
+            for primary_tld in ("рф", "ru", "рус"):
+                if primary_tld not in all_tlds:
+                    continue
+                try:
+                    candidate = f"{label}.{primary_tld}"
+                    idna.encode(candidate, uts46=True)
+                    sub = _classify_domain_search_query(candidate, all_tlds)
+                    if sub.get("mode") == "fqdn":
+                        display = str(sub.get("display_fqdn") or sub.get("fqdn") or candidate)
+                        ascii_domain = display
+                        try:
+                            if not display.isascii():
+                                ascii_domain = idna.encode(display, uts46=True).decode("ascii")
+                        except Exception:
+                            ascii_domain = display
+                        return {
+                            "kind": "fqdn",
+                            "display": display,
+                            "ascii": ascii_domain,
+                            "confidence": 0.86,
+                            "default_url": url_for("domain_check", domain=display, q=label),
+                            "action_label": _msg("Проверить %(domain)s", "Check %(domain)s", domain=display),
+                            "intent_label": _msg(
+                                "Проверяем %(domain)s — вы ввели %(label)s",
+                                "Checking %(domain)s — entered as %(label)s",
+                                domain=display,
+                                label=label,
+                            ),
+                            "intent_icon": "fa-globe",
+                            "alternatives": _resolve_query_alternatives(
+                                display=display,
+                                ascii_value=ascii_domain,
+                                include_domains=True,
+                            ),
+                            "zones": [primary_tld],
+                            "query": raw,
+                            "context": ctx,
+                            "tld": primary_tld,
+                            "source_label": label,
+                        }
+                except Exception:
+                    continue
+        default_url = url_for("domain_search", query=label)
+        mismatch = ctx in ("whois", "dns", "geo", "reverse")
+        intent = (
+            _msg(
+                "Проверка доступности в зонах (%(zones)s…)",
+                "Search availability across zones (%(zones)s…)",
+                zones=zone_hint,
+            )
+            if not mismatch
+            else _msg("Имя без зоны — лучше подбор доменов", "Name without a zone — domain search fits better")
+        )
+        label_action = (
+            _msg("Проверить домены", "Check domains")
+            if ctx == "domains"
+            else _msg("Найти домены", "Find domains")
+        )
+        return {
+            "kind": "label",
+            "display": label,
+            "ascii": None,
+            "confidence": 0.9,
+            "default_url": default_url,
+            "action_label": label_action,
+            "intent_label": intent,
+            "intent_icon": "fa-magnifying-glass",
+            "alternatives": [{"label": _msg("Подбор доменов", "Domain search"), "url": default_url}],
+            "zones": _default_audience_tlds(all_tlds)[:6],
+            "query": raw,
+            "context": ctx,
+        }
+
+    return {
+        "kind": "invalid",
+        "display": raw,
+        "ascii": None,
+        "confidence": 0.2,
+        "default_url": url_for("domain_report", q=raw),
+        "action_label": _msg("Проверить", "Check"),
+        "intent_label": _msg(
+            "Не удалось разобрать — введите домен (example.com) или имя (mybrand)",
+            "Could not parse — try a domain like example.com or a name like mybrand",
+        ),
+        "intent_icon": "fa-circle-question",
+        "alternatives": [
+            {"label": _msg("Подбор доменов", "Domain search"), "url": url_for("domain_search", query=raw)},
+        ],
+        "zones": None,
+        "query": raw,
+        "context": ctx,
+        "error": _msg("Не удалось понять запрос.", "Could not understand the query."),
+    }
+
+
+def _smart_redirect_from_query(query: str, context: str = "home"):
+    resolved = resolve_user_query(query, context=context)
+    kind = resolved.get("kind")
+    if kind in ("empty", "invalid"):
+        return None
+    return redirect(str(resolved.get("default_url") or url_for("domain_report")))
+
+
+def _primary_domain_label_from_query(
+    query: str,
+    ideas: Optional[List[str]] = None,
+    *,
+    classified: Optional[Dict[str, object]] = None,
+) -> str:
+    if classified and classified.get("mode") == "fqdn":
+        return str(classified.get("display_fqdn") or classified.get("fqdn") or "")
+    if ideas:
+        return ideas[0]
+    if classified and classified.get("mode") == "label":
+        return str(classified.get("label") or "")
+    q = (query or "").strip()
+    return q
+
+
 def _build_tld_groups(all_tlds: List[str], default_tlds: List[str]) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
     ordered = [t for t in all_tlds if t]
     ru_group = [t for t in ordered if t in RU_PRIORITY_TLDS]
@@ -267,7 +848,11 @@ app.config.setdefault("REDIS_URL", os.getenv("REDIS_URL", "redis://127.0.0.1:637
 r = redis.from_url(app.config["REDIS_URL"], decode_responses=True)
 HIST_NS = "dt:history"
 HIST_ZSET = "dt:history:index"
+HIST_USER_ZSET_PREFIX = "dt:history:user:"
 HIST_LIMIT = 5000
+HIST_USER_LIMIT = 50
+VISITOR_COOKIE = "dt_vid"
+DOCK_HISTORY_KINDS = ["report", "dns", "whois", "geo", "reverse", "security"]
 SEO_DOMAIN_ZSET = "dt:seo:domains"
 SEO_DOMAIN_META_NS = "dt:seo:domainmeta"
 SITEMAP_DYNAMIC_DOMAIN_LIMIT = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_LIMIT", "1000"))
@@ -364,6 +949,743 @@ def _select_locale():
 
 babel = Babel(app, locale_selector=_select_locale)
 
+
+def _qa_item(ru: str, en: str, **extra):
+    return {"label_ru": ru, "label_en": en, **extra}
+
+
+def _qa_quick_links_for_query(query: str):
+    from urllib.parse import quote
+
+    q = quote(query or "")
+    return [
+        {"label": "GeoIP", "href": f"{url_for('geo_lookup')}?query={q}"},
+        {"label": "Reverse", "href": f"{url_for('reverse_lookup')}?query={q}"},
+        {
+            "label_ru": "Полная проверка",
+            "label_en": "Full check",
+            "href": f"{url_for('domain_report')}?q={q}",
+        },
+    ]
+
+
+def quick_actions_bundle_dns(
+    query: str,
+    records,
+    affiliate_domain_search_url: str = None,
+    has_result: bool = True,
+):
+    from urllib.parse import quote
+
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result:
+        actions.extend(
+            [
+                _qa_item("Скопировать все записи", "Copy all records", type="button", action="copy", icon="fa-copy"),
+                _qa_item("Экспорт JSON / CSV", "Export JSON / CSV", type="export", icon="fa-file-code"),
+            ]
+        )
+    actions.extend(
+        [
+            _qa_item(
+                "Открыть в WHOIS",
+                "Open in WHOIS",
+                type="link",
+                icon="fa-address-card",
+                href=f"{url_for('whois_lookup')}?query={quote(query or '')}",
+            ),
+            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+        ]
+    )
+    if affiliate_domain_search_url:
+        actions.insert(
+            -1,
+            _qa_item(
+                "Проверить доступность домена",
+                "Check domain availability",
+                type="link",
+                icon="fa-magnifying-glass",
+                href=affiliate_domain_search_url,
+            ),
+        )
+    return {
+        "actions": actions,
+        "quick_links": _qa_quick_links_for_query(query),
+        "context": {
+            "kind": "dns",
+            "domain": query,
+            "payload": records or {},
+            "share_url": request.url,
+        },
+    }
+
+
+def quick_actions_bundle_whois(
+    query: str,
+    permalink: str = None,
+    affiliate_domain_search_url: str = None,
+    domain_name: str = None,
+    has_result: bool = True,
+):
+    from urllib.parse import quote
+
+    host = domain_name or query or ""
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result:
+        actions.append(
+            _qa_item(
+                "Скопировать WHOIS",
+                "Copy WHOIS",
+                type="button",
+                action="copy",
+                icon="fa-copy",
+                copy_target="#raw-whois",
+            )
+        )
+    actions.extend(
+        [
+            _qa_item(
+                "Открыть DNS",
+                "Open DNS",
+                type="link",
+                icon="fa-database",
+                href=f"{url_for('dns_lookup')}?q={quote(host)}",
+            ),
+            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+        ]
+    )
+    if affiliate_domain_search_url:
+        actions.insert(
+            -1,
+            _qa_item(
+                "Проверить доступность домена",
+                "Check domain availability",
+                type="link",
+                icon="fa-magnifying-glass",
+                href=affiliate_domain_search_url,
+            ),
+        )
+    secondary = []
+    if has_result and permalink:
+        hid = permalink.rstrip("/").split("/")[-1]
+        secondary.extend(
+            [
+                _qa_item(
+                    "Постоянная ссылка",
+                    "Permalink",
+                    type="link",
+                    icon="fa-link",
+                    href=permalink,
+                    group="secondary",
+                ),
+                _qa_item(
+                    "Экспорт JSON",
+                    "Export JSON",
+                    type="link",
+                    icon="fa-file-code",
+                    href=f"/export/whois/{hid}.json",
+                    group="secondary",
+                ),
+                _qa_item(
+                    "Экспорт CSV",
+                    "Export CSV",
+                    type="link",
+                    icon="fa-file-csv",
+                    href=f"/export/whois/{hid}.csv",
+                    group="secondary",
+                ),
+            ]
+        )
+    return {
+        "actions": actions + secondary,
+        "quick_links": _qa_quick_links_for_query(host),
+        "context": {
+            "kind": "whois",
+            "domain": host,
+            "payload": {},
+            "share_url": request.url,
+        },
+    }
+
+
+def quick_actions_bundle_geo(query: str, result, permalink: str = None, has_result: bool = True):
+    from urllib.parse import quote
+
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result:
+        actions.append(
+            _qa_item("Скопировать результат", "Copy result", type="button", action="copy", icon="fa-copy")
+        )
+    actions.extend(
+        [
+            _qa_item(
+                "Открыть WHOIS",
+                "Open in WHOIS",
+                type="link",
+                icon="fa-address-card",
+                href=f"{url_for('whois_lookup')}?query={quote(query or '')}",
+            ),
+            _qa_item(
+                "Открыть DNS",
+                "Open DNS",
+                type="link",
+                icon="fa-database",
+                href=f"{url_for('dns_lookup')}?q={quote(query or '')}",
+            ),
+            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+        ]
+    )
+    if has_result and permalink:
+        hid = permalink.rstrip("/").split("/")[-1]
+        actions.extend(
+            [
+                _qa_item(
+                    "Экспорт JSON",
+                    "Export JSON",
+                    type="link",
+                    icon="fa-file-code",
+                    href=f"/export/geo/{hid}.json",
+                    group="secondary",
+                ),
+                _qa_item(
+                    "Экспорт CSV",
+                    "Export CSV",
+                    type="link",
+                    icon="fa-file-csv",
+                    href=f"/export/geo/{hid}.csv",
+                    group="secondary",
+                ),
+            ]
+        )
+    return {
+        "actions": actions,
+        "quick_links": _qa_quick_links_for_query(query),
+        "context": {
+            "kind": "geo",
+            "domain": query,
+            "payload": result or {},
+            "share_url": request.url,
+        },
+    }
+
+
+def quick_actions_bundle_reverse(query: str, result=None, permalink: str = None, has_result: bool = True):
+    from urllib.parse import quote
+
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result:
+        actions.append(
+            _qa_item("Скопировать результат", "Copy result", type="button", action="copy", icon="fa-copy")
+        )
+    actions.extend(
+        [
+            _qa_item(
+                "Открыть WHOIS",
+                "Open in WHOIS",
+                type="link",
+                icon="fa-address-card",
+                href=f"{url_for('whois_lookup')}?query={quote(query or '')}",
+            ),
+            _qa_item(
+                "GeoIP",
+                "GeoIP",
+                type="link",
+                icon="fa-globe",
+                href=f"{url_for('geo_lookup')}?query={quote(query or '')}",
+            ),
+            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+        ]
+    )
+    if has_result and permalink:
+        actions.append(
+            _qa_item(
+                "Постоянная ссылка",
+                "Permalink",
+                type="link",
+                icon="fa-link",
+                href=permalink,
+                group="secondary",
+            )
+        )
+    return {
+        "actions": actions,
+        "quick_links": [
+            {
+                "label": "DNS",
+                "href": f"{url_for('dns_lookup')}?q={quote(query or '')}",
+            },
+            {
+                "label_ru": "Полная проверка",
+                "label_en": "Full check",
+                "href": f"{url_for('domain_report')}?q={quote(query or '')}",
+            },
+        ],
+        "context": {
+            "kind": "reverse",
+            "domain": query,
+            "payload": result or {},
+            "share_url": request.url,
+        },
+    }
+
+
+def _history_repeat_url(kind: str, q: str) -> Optional[str]:
+    q = (q or "").strip()
+    if not q:
+        return None
+    if kind == "dns":
+        return url_for("dns_lookup", q=q)
+    if kind == "whois":
+        return url_for("whois_lookup", query=q)
+    if kind == "geo":
+        return url_for("geo_lookup", query=q)
+    if kind == "reverse":
+        return url_for("reverse_lookup", q=q)
+    if kind == "security":
+        if q.startswith("ports:"):
+            host_part = q.split(":", 2)[1] if ":" in q else ""
+            ports_part = q.split(":", 2)[2] if q.count(":") >= 2 else ""
+            return url_for("security_tools", host=host_part, ports=ports_part, scan="ports")
+        if q.startswith("wp:"):
+            wp_target = q.split(":", 1)[1] if ":" in q else ""
+            return url_for("security_tools", wp_url=wp_target, scan="wp")
+        return url_for("security_tools")
+    if kind == "report":
+        return url_for("domain_report", q=q)
+    return None
+
+
+def _plaque_summary_from_history(kind_k: str, doc: Dict) -> Dict[str, object]:
+    """Compact left-column plaque labels: domain, availability, DNS."""
+    q = (doc.get("query") or "").strip()
+    res = doc.get("result") if isinstance(doc.get("result"), dict) else {}
+    domain = _extract_affiliate_domain(q, kind_k) or q
+    summary: Dict[str, object] = {
+        "domain_display": domain,
+        "status_tone": "ok",
+        "status_label_ru": "",
+        "status_label_en": "",
+        "availability_label_ru": "",
+        "availability_label_en": "",
+        "dns_label_ru": "",
+        "dns_label_en": "",
+        "kind_label": kind_k.upper(),
+    }
+
+    if kind_k == "report":
+        check = _derive_check_status(res)
+        summary.update(
+            {
+                "domain_display": check.get("domain_display") or domain,
+                "status_tone": check.get("status") or "ok",
+                "status_label_ru": check.get("label_ru") or "",
+                "status_label_en": check.get("label_en") or "",
+            }
+        )
+        dns = res.get("dns") if isinstance(res.get("dns"), dict) else {}
+        has_dns = bool(dns.get("has_records"))
+        summary["dns_label_ru"] = "DNS настроен" if has_dns else "Нет DNS"
+        summary["dns_label_en"] = "DNS configured" if has_dns else "No DNS"
+        whois = res.get("whois") if isinstance(res.get("whois"), dict) else {}
+        if whois.get("registrar") or whois.get("domain"):
+            summary["availability_label_ru"] = "Занят"
+            summary["availability_label_en"] = "Taken"
+        elif not has_dns:
+            summary["availability_label_ru"] = "Свободен?"
+            summary["availability_label_en"] = "Possibly free"
+    elif kind_k == "dns":
+        has_dns = isinstance(res, dict) and any(vals for vals in res.values() if vals)
+        summary["status_tone"] = "ok" if has_dns else "warning"
+        summary["status_label_ru"] = "DNS настроен" if has_dns else "Нет DNS"
+        summary["status_label_en"] = "DNS configured" if has_dns else "No DNS"
+        summary["dns_label_ru"] = summary["status_label_ru"]
+        summary["dns_label_en"] = summary["status_label_en"]
+        summary["availability_label_ru"] = "Проверен"
+        summary["availability_label_en"] = "Checked"
+    elif kind_k == "whois":
+        summary["status_tone"] = "ok"
+        summary["status_label_ru"] = "Занят"
+        summary["status_label_en"] = "Taken"
+        summary["availability_label_ru"] = "Занят"
+        summary["availability_label_en"] = "Taken"
+    elif kind_k == "geo":
+        country = res.get("country_name") or res.get("country_code") or ""
+        ip = res.get("ip") or q
+        summary["domain_display"] = ip
+        summary["status_label_ru"] = str(country or "GeoIP")
+        summary["status_label_en"] = str(country or "GeoIP")
+    elif kind_k == "reverse":
+        ptr = ", ".join(res.get("ptr") or []) if isinstance(res.get("ptr"), list) else ""
+        summary["domain_display"] = res.get("ip") or q
+        summary["status_label_ru"] = ptr or "Reverse DNS"
+        summary["status_label_en"] = ptr or "Reverse DNS"
+    elif kind_k == "security":
+        summary["domain_display"] = domain if domain != q else q
+        summary["status_label_ru"] = "Security"
+        summary["status_label_en"] = "Security"
+    return summary
+
+
+def _history_chip_kind_label(kind_k: str) -> str:
+    en = _hosting_locale_en()
+    labels = {
+        "dns": ("DNS", "DNS"),
+        "whois": ("WHOIS", "WHOIS"),
+        "geo": ("GeoIP", "GeoIP"),
+        "reverse": ("Reverse", "Reverse"),
+        "report": ("Проверка", "Check"),
+        "security": ("Security", "Security"),
+    }
+    pair = labels.get(kind_k, (kind_k.upper(), kind_k.upper()))
+    return pair[1 if en else 0]
+
+
+def _recent_history_item(kind_k: str, hid: str, doc: Dict) -> Dict:
+    q = (doc.get("query") or "").strip()
+    item = {
+        "query": q,
+        "kind": kind_k,
+        "ts": doc.get("ts"),
+        "repeat_url": _history_repeat_url(kind_k, q),
+        "view_url": url_for("history_view", kind=kind_k, hid=hid),
+        "chip_kind_label": _history_chip_kind_label(kind_k),
+    }
+    item.update(_plaque_summary_from_history(kind_k, doc))
+    return item
+
+
+def recent_history_for_kind(kind: str, limit: int = 10) -> Dict:
+    """Recent saved checks for a single tool kind."""
+    return recent_history_for_kinds([kind], limit=limit)
+
+
+def _empty_history_dock() -> Dict:
+    return {"items": [], "total": 0, "has_more": False, "history_url": url_for("history_list")}
+
+
+def _valid_visitor_id(vid: str) -> bool:
+    try:
+        uuid.UUID(str(vid or "").strip())
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def _visitor_id() -> Optional[str]:
+    try:
+        vid = (request.cookies.get(VISITOR_COOKIE) or "").strip()
+        return vid if _valid_visitor_id(vid) else None
+    except RuntimeError:
+        return None
+
+
+def _user_hist_zset(vid: str) -> str:
+    return f"{HIST_USER_ZSET_PREFIX}{vid}"
+
+
+def recent_history_global_dock(limit: int = 10) -> Dict:
+    """Site-wide recent checks for the right status-chip dock."""
+    return recent_history_for_kinds(DOCK_HISTORY_KINDS, limit=limit, zset_key=HIST_ZSET)
+
+
+def recent_history_user_dock(limit: int = 10) -> Dict:
+    """Visitor's own recent checks (cookie-scoped) for the left dock."""
+    vid = _visitor_id()
+    if not vid:
+        return _empty_history_dock()
+    return recent_history_for_kinds(
+        DOCK_HISTORY_KINDS,
+        limit=limit,
+        zset_key=_user_hist_zset(vid),
+    )
+
+
+def recent_history_dock(limit: int = 10) -> Dict:
+    """Backward-compatible alias for the global dock."""
+    return recent_history_global_dock(limit=limit)
+
+
+def history_dock_api_payload(limit: int = 10) -> Dict:
+    """JSON payload for live status-chip dock refresh."""
+    return {
+        "user": recent_history_user_dock(limit=limit),
+        "global": recent_history_global_dock(limit=limit),
+        "labels": {
+            "user": _msg("Мои запросы", "My queries"),
+            "global": _msg("Общая история", "Site history"),
+            "all_history": _msg("Вся история", "All history"),
+        },
+    }
+
+
+def recent_history_for_kinds(kinds, limit: int = 10, *, zset_key: str = HIST_ZSET) -> Dict:
+    """Recent saved checks filtered by one or more history kinds."""
+    kinds_set = {k for k in (kinds or []) if k}
+    items: List[Dict] = []
+    total_matched = 0
+    if not kinds_set:
+        return _empty_history_dock()
+    try:
+        keys = r.zrevrange(zset_key, 0, 499)
+    except Exception:
+        app.logger.warning("Recent history Redis unavailable", exc_info=True)
+        return _empty_history_dock()
+
+    for s in keys:
+        pair = _split_kind_id(s)
+        if not pair or pair[0] not in kinds_set:
+            continue
+        total_matched += 1
+        kind_k, hid = pair
+        if len(items) >= limit:
+            continue
+        doc = load_history(kind_k, hid)
+        if not doc:
+            continue
+        items.append(_recent_history_item(kind_k, hid, doc))
+
+    return {
+        "items": items,
+        "total": total_matched,
+        "has_more": total_matched > limit,
+        "history_url": url_for("history_list"),
+    }
+
+
+def quick_actions_bundle_domains(
+    query: str,
+    items=None,
+    permalink: str = None,
+    affiliate_domain_search_url: str = None,
+    has_result: bool = True,
+):
+    from urllib.parse import quote
+
+    q = query or ""
+    rows = items or []
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result and rows:
+        actions.extend(
+            [
+                _qa_item("Скопировать список", "Copy list", type="button", action="copy", icon="fa-copy"),
+                _qa_item("Экспорт JSON / CSV", "Export JSON / CSV", type="export", icon="fa-file-code"),
+            ]
+        )
+    actions.extend(
+        [
+            _qa_item(
+                "Открыть WHOIS",
+                "Open in WHOIS",
+                type="link",
+                icon="fa-address-card",
+                href=f"{url_for('whois_lookup')}?query={quote(q)}",
+            ),
+            _qa_item(
+                "Открыть DNS",
+                "Open DNS",
+                type="link",
+                icon="fa-database",
+                href=f"{url_for('dns_lookup')}?q={quote(q)}",
+            ),
+            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+        ]
+    )
+    if affiliate_domain_search_url and not has_result:
+        actions.insert(
+            -1,
+            _qa_item(
+                "Проверить доступность домена",
+                "Check domain availability",
+                type="link",
+                icon="fa-magnifying-glass",
+                href=affiliate_domain_search_url,
+            ),
+        )
+    secondary = []
+    if permalink:
+        secondary.append(
+            _qa_item(
+                "Постоянная ссылка",
+                "Permalink",
+                type="link",
+                icon="fa-link",
+                href=permalink,
+                group="secondary",
+            )
+        )
+    return {
+        "actions": actions + secondary,
+        "quick_links": _qa_quick_links_for_query(q),
+        "context": {
+            "kind": "domains",
+            "domain": q,
+            "payload": rows,
+            "share_url": request.url,
+        },
+    }
+
+
+def quick_actions_bundle_report(
+    domain: str,
+    report=None,
+    permalink: str = None,
+    affiliate_domain_search_url: str = None,
+    has_result: bool = True,
+):
+    from urllib.parse import quote
+
+    host = domain or ""
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result and report:
+        actions.append(
+            _qa_item("Скопировать сводку", "Copy summary", type="button", action="copy", icon="fa-copy")
+        )
+        actions.append(
+            _qa_item("Экспорт JSON / CSV", "Export JSON / CSV", type="export", icon="fa-file-code")
+        )
+    actions.extend(
+        [
+            _qa_item(
+                "Открыть WHOIS",
+                "Open in WHOIS",
+                type="link",
+                icon="fa-address-card",
+                href=f"{url_for('whois_lookup')}?query={quote(host)}",
+            ),
+            _qa_item(
+                "Открыть DNS",
+                "Open DNS",
+                type="link",
+                icon="fa-database",
+                href=f"{url_for('dns_lookup')}?q={quote(host)}",
+            ),
+            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+        ]
+    )
+    if affiliate_domain_search_url:
+        actions.insert(
+            -1,
+            _qa_item(
+                "Проверить доступность домена",
+                "Check domain availability",
+                type="link",
+                icon="fa-magnifying-glass",
+                href=affiliate_domain_search_url,
+            ),
+        )
+    secondary = []
+    if has_result and permalink:
+        secondary.append(
+            _qa_item(
+                "Постоянная ссылка",
+                "Permalink",
+                type="link",
+                icon="fa-link",
+                href=permalink,
+                group="secondary",
+            )
+        )
+    return {
+        "actions": actions + secondary,
+        "quick_links": _qa_quick_links_for_query(host),
+        "context": {
+            "kind": "report",
+            "domain": host,
+            "payload": report or {},
+            "share_url": request.url,
+        },
+    }
+
+
+def quick_actions_bundle_security(
+    host: str = "",
+    active_scan: str = "ports",
+    result=None,
+    permalink: str = None,
+    has_result: bool = True,
+):
+    from urllib.parse import quote
+
+    target = (host or "").strip()
+    actions = [
+        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+    ]
+    if has_result and result:
+        actions.append(
+            _qa_item("Скопировать результат", "Copy result", type="button", action="copy", icon="fa-copy")
+        )
+        actions.append(
+            _qa_item("Экспорт JSON / CSV", "Export JSON / CSV", type="export", icon="fa-file-code")
+        )
+    if target:
+        actions.extend(
+            [
+                _qa_item(
+                    "Открыть WHOIS",
+                    "Open in WHOIS",
+                    type="link",
+                    icon="fa-address-card",
+                    href=f"{url_for('whois_lookup')}?query={quote(target)}",
+                ),
+                _qa_item(
+                    "Открыть DNS",
+                    "Open DNS",
+                    type="link",
+                    icon="fa-database",
+                    href=f"{url_for('dns_lookup')}?q={quote(target)}",
+                ),
+            ]
+        )
+    actions.append(
+        _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star")
+    )
+    secondary = []
+    if has_result and permalink:
+        secondary.append(
+            _qa_item(
+                "Постоянная ссылка",
+                "Permalink",
+                type="link",
+                icon="fa-link",
+                href=permalink,
+                group="secondary",
+            )
+        )
+    quick_links = []
+    if target:
+        quick_links = [
+            {"label": "GeoIP", "href": f"{url_for('geo_lookup')}?query={quote(target)}"},
+            {
+                "label_ru": "Полная проверка",
+                "label_en": "Full check",
+                "href": f"{url_for('domain_report')}?q={quote(target)}",
+            },
+        ]
+    return {
+        "actions": actions + secondary,
+        "quick_links": quick_links,
+        "context": {
+            "kind": "security",
+            "domain": target,
+            "payload": result or {},
+            "share_url": request.url,
+            "scan": active_scan,
+        },
+    }
+
+
 # Пробросить get_locale() в шаблоны Jinja (для base.html и др.)
 @app.context_processor
 def inject_babel_helpers():
@@ -403,14 +1725,39 @@ def inject_babel_helpers():
         "hosting_setup": _hosting_setup_offer(),
         "hosting_vps_landing_url": HOSTING_VPS_LANDING_URL,
         "dns_suggests_hosting": _dns_suggests_hosting,
+        "registrar_offers": _registrar_offers,
+        "registrar_offers_featured": (lambda: _registrar_offers(featured_only=True)),
+        "registrar_buy_url": _registrar_buy_url,
+        "registrar_default_id": REGISTRAR_DEFAULT_ID,
+        "quick_actions_bundle_dns": quick_actions_bundle_dns,
+        "quick_actions_bundle_whois": quick_actions_bundle_whois,
+        "quick_actions_bundle_geo": quick_actions_bundle_geo,
+        "quick_actions_bundle_reverse": quick_actions_bundle_reverse,
+        "quick_actions_bundle_domains": quick_actions_bundle_domains,
+        "quick_actions_bundle_report": quick_actions_bundle_report,
+        "quick_actions_bundle_security": quick_actions_bundle_security,
+        "recent_history_for_kind": recent_history_for_kind,
+        "recent_history_for_kinds": recent_history_for_kinds,
+        "recent_history_dock": recent_history_dock,
+        "recent_history_user_dock": recent_history_user_dock,
+        "recent_history_global_dock": recent_history_global_dock,
     }
 
 
 @app.after_request
-def persist_lang_cookie(resp: Response):
+def persist_visitor_and_lang_cookies(resp: Response):
     lang = (request.args.get("lang") or "").strip().lower()
     if lang in {"ru", "en"}:
         resp.set_cookie("lang", lang, max_age=60 * 60 * 24 * 365, samesite="Lax")
+    vid = (request.cookies.get(VISITOR_COOKIE) or "").strip()
+    if not _valid_visitor_id(vid):
+        resp.set_cookie(
+            VISITOR_COOKIE,
+            str(uuid.uuid4()),
+            max_age=60 * 60 * 24 * 365,
+            samesite="Lax",
+            httponly=True,
+        )
     return resp
 
 # -------------------------------------------------
@@ -445,6 +1792,82 @@ def cache_json(key: str, ttl: int, compute_fn):
         pass
     return val
 
+
+def _whois_has_core_fields(data: Optional[dict]) -> bool:
+    if not isinstance(data, dict):
+        return False
+    return all((data.get(k) or "").strip() for k in ("registrar", "creation_date", "expiration_date"))
+
+
+def _whois_missing_core_fields(data: Optional[dict]) -> bool:
+    return not _whois_has_core_fields(data)
+
+
+def _normalize_whois_host_ascii(host: str) -> str:
+    host_ascii = (host or "").strip().lower().rstrip(".")
+    if not host_ascii:
+        return host_ascii
+    try:
+        if not host_ascii.isascii():
+            host_ascii = idna.encode(host_ascii, uts46=True).decode("ascii")
+    except Exception:
+        pass
+    return host_ascii
+
+
+def _report_cache_put(host_ascii: str, report: Dict[str, object], *, ttl: int = REPORT_FULL_TTL_S) -> None:
+    if not host_ascii or not isinstance(report, dict):
+        return
+    try:
+        r.setex(f"cache:report:full:{host_ascii}", ttl, _json_dumps(report))
+    except Exception:
+        pass
+
+
+def _cached_whois_summary(host_ascii: str) -> Dict[str, object]:
+    host_ascii = _normalize_whois_host_ascii(host_ascii)
+    key = f"cache:report:whois:{host_ascii}"
+    try:
+        data = r.get(key)
+        if data:
+            parsed = json.loads(data)
+            if isinstance(parsed, dict) and _whois_has_core_fields(parsed):
+                return parsed
+    except Exception:
+        pass
+    val = _report_whois_summary(host_ascii)
+    try:
+        if _whois_has_core_fields(val):
+            r.setex(key, REPORT_WHOIS_TTL_S, _json_dumps(val))
+        else:
+            r.delete(key)
+    except Exception:
+        pass
+    return val
+
+
+def _annotate_check_report(report: Optional[Dict[str, object]]) -> Optional[Dict[str, object]]:
+    if not isinstance(report, dict):
+        return report
+    out = dict(report)
+    whois_block = out.get("whois") if isinstance(out.get("whois"), dict) else {}
+    out["whois_pending"] = _whois_missing_core_fields(whois_block)
+    return out
+
+
+def _refresh_report_if_whois_incomplete(
+    report: Optional[Dict[str, object]],
+    host_ascii: str,
+    source_input: str,
+) -> Dict[str, object]:
+    host_ascii = _normalize_whois_host_ascii(host_ascii)
+    whois_block = (report or {}).get("whois") if isinstance(report, dict) else {}
+    if isinstance(report, dict) and not _whois_missing_core_fields(whois_block):
+        return report
+    fresh = _build_domain_report(host_ascii, source_input)
+    _report_cache_put(host_ascii, fresh)
+    return fresh
+
 # -------------------------------------------------
 # Helpers
 # -------------------------------------------------
@@ -455,7 +1878,7 @@ DOMAIN_RE = re.compile(
 
 def validate_domain(domain: str) -> None:
     if not DOMAIN_RE.match(domain):
-        raise ValueError(_("Invalid domain name."))
+        raise ValueError(_msg("Некорректное имя домена.", "Invalid domain name."))
 
 def resolve_records(domain: str, qtype: str, timeout: float = 3.0) -> List[str]:
     resolver = dns.resolver.Resolver()
@@ -466,6 +1889,27 @@ def resolve_records(domain: str, qtype: str, timeout: float = 3.0) -> List[str]:
 def make_id(kind: str, query: str) -> str:
     h = hashlib.sha1(f"{kind}|{query}|{time.time()}".encode("utf-8")).hexdigest()
     return h[:12]
+
+def _trim_history_zset(zset_key: str, limit: int) -> None:
+    total = r.zcard(zset_key)
+    if total and total > limit:
+        to_rem = r.zrange(zset_key, 0, total - limit - 1)
+        if to_rem:
+            r.zrem(zset_key, *to_rem)
+
+
+def _track_user_history(kind: str, hid: str, ts: int) -> None:
+    vid = _visitor_id()
+    if not vid:
+        return
+    entry = f"{kind}:{hid}"
+    zset = _user_hist_zset(vid)
+    try:
+        r.zadd(zset, {entry: ts})
+        _trim_history_zset(zset, HIST_USER_LIMIT)
+    except Exception:
+        app.logger.warning("User history track failed", exc_info=True)
+
 
 def save_history(kind: str, query: str, result: Dict) -> str:
     hid = make_id(kind, query)
@@ -478,13 +1922,10 @@ def save_history(kind: str, query: str, result: Dict) -> str:
     }
     try:
         r.set(f"{HIST_NS}:{kind}:{hid}", _json_dumps(doc))
-        r.zadd(HIST_ZSET, {f"{kind}:{hid}": doc["ts"]})
-        # trim
-        total = r.zcard(HIST_ZSET)
-        if total and total > HIST_LIMIT:
-            to_rem = r.zrange(HIST_ZSET, 0, total - HIST_LIMIT - 1)
-            if to_rem:
-                r.zrem(HIST_ZSET, *to_rem)
+        entry = f"{kind}:{hid}"
+        r.zadd(HIST_ZSET, {entry: doc["ts"]})
+        _trim_history_zset(HIST_ZSET, HIST_LIMIT)
+        _track_user_history(kind, hid, doc["ts"])
         return hid
     except Exception:
         app.logger.exception("History save failed")
@@ -813,7 +2254,7 @@ def _tool_rate_limited(tool: str) -> Optional[str]:
     cfg_key, default = limits.get(tool, ("TOOL_RATE_LIMIT_PER_MIN", 20))
     limit = int(app.config.get(cfg_key, default))
     if _endpoint_ip_rate_limited(tool, _client_ip(), limit):
-        return _("Too many requests. Please try again later.")
+        return _msg("Слишком много запросов. Попробуйте позже.", "Too many requests. Please try again later.")
     return None
 
 
@@ -925,17 +2366,17 @@ def _normalize_domain_query(q: str) -> Tuple[Optional[str], Optional[str]]:
         pass
 
     if "." not in q:
-        return None, _("Invalid domain name.")
+        return None, _msg("Некорректное имя домена.", "Invalid domain name.")
 
     # Приводим к punycode (ascii)
     try:
         if not q.isascii():
             q = idna.encode(q, uts46=True).decode("ascii")
     except Exception:
-        return None, _("Invalid domain name.")
+        return None, _msg("Некорректное имя домена.", "Invalid domain name.")
 
     if not DOMAIN_RE.match(q):
-        return None, _("Invalid domain name.")
+        return None, _msg("Некорректное имя домена.", "Invalid domain name.")
     return q, None
 
 
@@ -956,8 +2397,13 @@ def _affiliate_buy_base() -> str:
 
 def _affiliate_buy_url(domain: str) -> str:
     d = (domain or "").strip().lower().rstrip(".")
+    if not d:
+        return ""
+    url = _default_registrar_buy_url(d)
+    if url:
+        return url
     base = _affiliate_buy_base()
-    if not d or not base:
+    if not base:
         return ""
     try:
         return base.format(domain=d)
@@ -1008,6 +2454,7 @@ def _affiliate_actions_for_domain(domain: str) -> Dict[str, str]:
         "affiliate_domain": d,
         "affiliate_buy_url": buy_url,
         "affiliate_domain_search_url": url_for("domain_search", query=label),
+        "registrar_offers": _registrar_offers(featured_only=True),
     }
 
 
@@ -1106,6 +2553,9 @@ def _domain_availability_from_search_items(items: List[Dict]) -> Optional[Dict[s
 # ---------- Hosting / VPS referrals (vps.krivoshein.site) ----------
 HOSTING_VPS_LANDING_URL = os.environ.get("HOSTING_VPS_LANDING_URL", "https://vps.krivoshein.site/").strip()
 HOSTING_SETUP_URL = os.environ.get("HOSTING_SETUP_URL", "https://krivoshein.site/contacts/").strip()
+ULTRAVDS_URL = os.environ.get("ULTRAVDS_URL", "https://krivoshein.site/ultravds").strip()
+
+
 HOSTING_SETUP_PRICE_RUB = int(os.environ.get("HOSTING_SETUP_PRICE_RUB", "10000"))
 
 _HOSTING_OFFERS_RAW: List[Dict[str, object]] = [
@@ -1167,12 +2617,25 @@ _HOSTING_OFFERS_RAW: List[Dict[str, object]] = [
         "price_rub": 990,
         "url": "https://krivoshein.site/yandexcloud",
         "icon": "fa-database",
+        "badge": "enterprise",
+        "accent": "#ea580c",
+        "desc_ru": "Премиальное облако с интеграцией в экосистему Яндекса — для масштабируемых и корпоративных проектов.",
+        "desc_en": "Premium cloud integrated with the Yandex ecosystem — for scalable and enterprise workloads.",
+        "tags_ru": ["Enterprise", "Облако"],
+        "tags_en": ["Enterprise", "Cloud"],
+    },
+    {
+        "id": "ultravds",
+        "name": "UltraVDS",
+        "price_rub": 249,
+        "url": ULTRAVDS_URL,
+        "icon": "fa-server",
         "badge": None,
-        "accent": "#f59e0b",
-        "desc_ru": "Мощное облако с интеграцией в экосистему Яндекса.",
-        "desc_en": "Powerful cloud integrated with the Yandex ecosystem.",
-        "tags_ru": ["Enterprise"],
-        "tags_en": ["Enterprise"],
+        "accent": "#ec4899",
+        "desc_ru": "Windows VPS и выделенные серверы — конфигурации для сайтов, ботов и API.",
+        "desc_en": "Windows VPS and dedicated servers — setups for sites, bots, and APIs.",
+        "tags_ru": ["VPS", "Root"],
+        "tags_en": ["VPS", "Root"],
     },
 ]
 
@@ -1193,6 +2656,7 @@ def _localize_hosting_offer(raw: Dict[str, object]) -> Dict[str, object]:
         "recommended": ("Рекомендую", "Recommended"),
         "ddos": ("DDoS-защита", "DDoS shield"),
         "ecosystem": ("Домен + VPS", "Domain + VPS"),
+        "enterprise": ("Enterprise", "Enterprise"),
     }
     badge_text = ""
     if badge and badge in badge_labels:
@@ -1248,6 +2712,170 @@ def _dns_suggests_hosting(
         if vals:
             return False
     return True
+
+
+# ---------- Domain registrar referrals ----------
+REGISTRAR_DEFAULT_ID = (os.environ.get("REGISTRAR_DEFAULT_ID") or "beget").strip() or "beget"
+
+_REGISTRAR_OFFERS_RAW: List[Dict[str, object]] = [
+    {
+        "id": "beget",
+        "name": "Beget",
+        "price_rub": 179,
+        "buy_url_ru": "https://beget.com/p754742/ru/domains/search/{domain}#search-form-section",
+        "buy_url_en": "https://beget.com/p754742/en/domains/search/{domain}#search-form-section",
+        "search_url_ru": "https://beget.com/p754742/ru/domains/",
+        "search_url_en": "https://beget.com/p754742/en/domains/",
+        "icon": "fa-cloud",
+        "badge": "recommended",
+        "accent": "#0ea5e9",
+        "desc_ru": "Домен и хостинг в одной панели — удобно сразу после подбора на DomainTools.",
+        "desc_en": "Domain and hosting in one panel — handy right after your DomainTools search.",
+        "tags_ru": ["Домен + VPS", "IDN"],
+        "tags_en": ["Domain + VPS", "IDN"],
+    },
+    {
+        "id": "regru",
+        "name": "REG.RU",
+        "price_rub": 199,
+        "buy_url": "https://www.reg.ru/domain/new?domain={domain}&rlink=reflink-11522689",
+        "search_url": "https://www.reg.ru/domain/new?rlink=reflink-11522689",
+        "icon": "fa-certificate",
+        "badge": "popular",
+        "accent": "#2563eb",
+        "desc_ru": "Крупнейший регистратор в РФ: .ru, .рф, перенос и продление в одном кабинете.",
+        "desc_en": "Major Russian registrar: .ru, .рф, transfers and renewals in one account.",
+        "tags_ru": [".ru / .рф", "Перенос"],
+        "tags_en": [".ru / .рф", "Transfer"],
+    },
+    {
+        "id": "sweb",
+        "name": "SpaceWeb",
+        "price_rub": 189,
+        "buy_url": "https://sweb.ru/domains/?d={domain}&utm_term=siehpehi",
+        "search_url": "https://sweb.ru/domains/?utm_term=siehpehi",
+        "icon": "fa-shield-halved",
+        "badge": "bundle",
+        "accent": "#6366f1",
+        "desc_ru": "Регистрация домена и VPS у одного провайдера — быстрый старт проекта.",
+        "desc_en": "Domain registration and VPS from one provider — quick project launch.",
+        "tags_ru": ["Домен + VPS", "RU"],
+        "tags_en": ["Domain + VPS", "RU"],
+    },
+]
+
+REGISTRAR_FEATURED_IDS = ("beget", "regru", "sweb")
+
+
+def _registrar_locale_en() -> bool:
+    try:
+        return str(babel_get_locale() or "ru").startswith("en")
+    except RuntimeError:
+        return False
+
+
+def _registrar_buy_template(raw: Dict[str, object]) -> str:
+    en = _registrar_locale_en()
+    if en:
+        return str(
+            raw.get("buy_url_en")
+            or raw.get("buy_url")
+            or raw.get("buy_url_ru")
+            or ""
+        ).strip()
+    return str(
+        raw.get("buy_url_ru")
+        or raw.get("buy_url")
+        or raw.get("buy_url_en")
+        or ""
+    ).strip()
+
+
+def _registrar_search_url(raw: Dict[str, object]) -> str:
+    en = _registrar_locale_en()
+    if en:
+        return str(
+            raw.get("search_url_en")
+            or raw.get("search_url")
+            or raw.get("search_url_ru")
+            or ""
+        ).strip()
+    return str(
+        raw.get("search_url_ru")
+        or raw.get("search_url")
+        or raw.get("search_url_en")
+        or ""
+    ).strip()
+
+
+def _localize_registrar_offer(raw: Dict[str, object]) -> Dict[str, object]:
+    en = _registrar_locale_en()
+    badge = raw.get("badge")
+    badge_labels = {
+        "recommended": ("Рекомендую", "Recommended"),
+        "popular": ("Популярный", "Popular"),
+        "bundle": ("Домен + VPS", "Domain + VPS"),
+    }
+    badge_text = ""
+    if badge and badge in badge_labels:
+        badge_text = badge_labels[badge][1 if en else 0]
+    return {
+        "id": raw["id"],
+        "name": raw["name"],
+        "price_rub": raw["price_rub"],
+        "url": _registrar_search_url(raw),
+        "icon": raw.get("icon") or "fa-globe",
+        "badge": badge,
+        "badge_text": badge_text,
+        "accent": raw.get("accent") or "#6366f1",
+        "desc": raw["desc_en"] if en else raw["desc_ru"],
+        "tags": list(raw["tags_en"] if en else raw["tags_ru"]),
+    }
+
+
+def _registrar_offers(*, featured_only: bool = False) -> List[Dict[str, object]]:
+    rows = [_localize_registrar_offer(o) for o in _REGISTRAR_OFFERS_RAW]
+    if featured_only:
+        featured = set(REGISTRAR_FEATURED_IDS)
+        rows = [o for o in rows if o["id"] in featured]
+        order = {k: i for i, k in enumerate(REGISTRAR_FEATURED_IDS)}
+        rows.sort(key=lambda x: order.get(x["id"], 99))
+    return rows
+
+
+def _registrar_domain_for_url(domain: str) -> str:
+    """Normalize domain for registrar deep-links (unicode label, lowercase)."""
+    d = (domain or "").strip().lower().rstrip(".")
+    if not d:
+        return ""
+    try:
+        d = idna.decode(d)
+    except Exception:
+        pass
+    return d
+
+
+def _registrar_buy_url(registrar_id: str, domain: str) -> str:
+    rid = (registrar_id or "").strip().lower()
+    d = _registrar_domain_for_url(domain)
+    if not rid or not d:
+        return ""
+    encoded = quote(d, safe="")
+    for raw in _REGISTRAR_OFFERS_RAW:
+        if raw.get("id") != rid:
+            continue
+        tmpl = _registrar_buy_template(raw)
+        if not tmpl:
+            return ""
+        try:
+            return tmpl.format(domain=encoded)
+        except Exception:
+            return ""
+    return ""
+
+
+def _default_registrar_buy_url(domain: str) -> str:
+    return _registrar_buy_url(REGISTRAR_DEFAULT_ID, domain)
 
 
 WHOIS_EXPIRY_NOTICE_DAYS = 90
@@ -1639,13 +3267,27 @@ def _parse_ru_whois_text(text: str) -> Dict:
     return out
 
 # --- WHOIS low-level helpers --------------------------------------------------
+def _whois_executable() -> str:
+    for candidate in (
+        shutil.which("whois"),
+        "/usr/bin/whois",
+        "/bin/whois",
+    ):
+        if candidate and os.path.isfile(candidate) and os.access(candidate, os.X_OK):
+            return candidate
+    return "whois"
+
+
 def _whois_call(cmd: List[str], timeout: int) -> str:
     """
     Запуск системной утилиты `whois`. Возвращает stdout (может быть пустым).
     """
+    argv = list(cmd)
+    if argv and argv[0] == "whois":
+        argv[0] = _whois_executable()
     try:
         out = subprocess.run(
-            cmd,
+            argv,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
@@ -1802,6 +3444,7 @@ def favicon():
 def track_buy_click():
     payload = request.get_json(silent=True) or {}
     tld = re.sub(r"[^a-zа-яё0-9-]", "", str(payload.get("tld") or "").strip().lower())[:32]
+    registrar = re.sub(r"[^a-z0-9_-]", "", str(payload.get("registrar") or "").strip().lower())[:24]
     locale = str(payload.get("locale") or "").strip().lower()[:8]
     if locale not in {"ru", "en"}:
         locale = "other"
@@ -1810,9 +3453,10 @@ def track_buy_click():
 
     day_key = datetime.now(timezone.utc).strftime("%Y%m%d")
     redis_key = f"dt:analytics:buy_clicks:{day_key}:{locale}"
+    field = f"{registrar}:{tld}" if registrar else tld
     try:
         with r.pipeline() as pipe:
-            pipe.hincrby(redis_key, tld, 1)
+            pipe.hincrby(redis_key, field, 1)
             pipe.expire(redis_key, 86400 * 45)
             pipe.execute()
     except Exception:
@@ -1830,7 +3474,7 @@ def track_ref_click():
     locale = str(payload.get("locale") or "").strip().lower()[:8]
     if locale not in {"ru", "en"}:
         locale = "other"
-    if ref_type not in {"hosting", "setup", "vps_landing"} or not ref_id:
+    if ref_type not in {"hosting", "setup", "vps_landing", "registrar"} or not ref_id:
         return jsonify(ok=False, error="bad_ref"), 400
 
     day_key = datetime.now(timezone.utc).strftime("%Y%m%d")
@@ -1960,6 +3604,7 @@ def sitemap():
     static_pages = [
         (url_for("index"), "1.0", "daily"),
         (url_for("domain_search"), "0.9", "daily"),
+        (url_for("registrars_landing"), "0.89", "weekly"),
         (url_for("hosting_landing"), "0.88", "weekly"),
         (url_for("domain_report"), "0.85", "weekly"),
         (url_for("domain_check_query"), "0.9", "daily"),
@@ -2055,6 +3700,14 @@ def hosting_landing():
     return render_template(
         "hosting.html",
         hosting_all_offers=_hosting_offers(),
+    )
+
+
+@app.get("/registrars")
+def registrars_landing():
+    return render_template(
+        "registrars.html",
+        registrar_all_offers=_registrar_offers(),
     )
 
 
@@ -2188,10 +3841,41 @@ def lookup_domain(domain: str):
 @app.get("/check")
 def domain_check_query():
     query = (request.args.get("q") or request.args.get("query") or "").strip()
-    clean, _ascii_domain = _sanitize_lookup_domain(query)
-    if clean:
-        return redirect(url_for("domain_check", domain=clean))
-    return redirect(url_for("domain_report"))
+    if not query:
+        return redirect(url_for("domain_report"))
+    smart = _smart_redirect_from_query(query, context="check")
+    if smart is not None:
+        return smart
+    return redirect(url_for("domain_report", q=query))
+
+
+@app.get("/go")
+def smart_go():
+    query = (request.args.get("q") or request.args.get("query") or "").strip()
+    if not query:
+        return redirect(url_for("index"))
+    smart = _smart_redirect_from_query(query, context="home")
+    if smart is not None:
+        return smart
+    return redirect(url_for("domain_report", q=query))
+
+
+@app.get("/api/resolve")
+def api_resolve_query():
+    query = (request.args.get("q") or request.args.get("query") or "").strip()
+    context = (request.args.get("context") or "global").strip().lower() or "global"
+    resolved = resolve_user_query(query, context=context)
+    payload = dict(resolved)
+    payload.pop("batch_domains", None)
+    return jsonify(payload)
+
+
+@app.get("/api/history/dock")
+def api_history_dock():
+    """Live refresh for left (user) and right (global) status-chip docks."""
+    resp = jsonify(history_dock_api_payload())
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.get("/check/<path:domain>")
@@ -2202,6 +3886,8 @@ def domain_check(domain: str):
 
     force_run = (request.args.get("run") or "").strip().lower() in {"1", "true", "yes"}
     cached_one = _report_cache_get(ascii_domain)
+    if cached_one and _whois_missing_core_fields((cached_one or {}).get("whois")):
+        cached_one = _refresh_report_if_whois_incomplete(cached_one, ascii_domain, clean)
 
     client_ip = _client_ip()
     limit = _report_limit_for_ip(client_ip)
@@ -2212,7 +3898,7 @@ def domain_check(domain: str):
         ctx["related_tld_links"] = []
         return render_template(
             "check.html",
-            error=_("Too many report requests. Please try again later."),
+            error=_msg("Слишком много запросов отчётов. Попробуйте позже.", "Too many report requests. Please try again later."),
             one=None,
             check_status=None,
             preview_mode=not cached_one,
@@ -2222,7 +3908,7 @@ def domain_check(domain: str):
     # SEO/crawler fast path: never block workers on cold-cache full reports.
     if not force_run and (cached_one is None or _is_crawler_request()):
         ctx = _lookup_landing_context(clean, ascii_domain, track_seo=not _is_crawler_request())
-        one = cached_one
+        one = _annotate_check_report(cached_one)
         check_status = _derive_check_status(one) if one else None
         return render_template(
             "check.html",
@@ -2242,13 +3928,8 @@ def domain_check(domain: str):
             REPORT_FULL_TTL_S,
             lambda: _build_domain_report(ascii_domain, clean),
         )
-        whois_block = (one or {}).get("whois") if isinstance(one, dict) else {}
-        whois_missing_core = any(
-            not (whois_block or {}).get(k)
-            for k in ("registrar", "creation_date", "expiration_date")
-        )
-        if whois_missing_core:
-            one = _build_domain_report(ascii_domain, clean)
+        one = _refresh_report_if_whois_incomplete(one, ascii_domain, clean)
+        one = _annotate_check_report(one)
         if isinstance(one, dict):
             hid = save_history("report", ascii_domain, one)
             if hid:
@@ -2257,7 +3938,7 @@ def domain_check(domain: str):
             _track_domain_for_seo(ascii_domain)
     except Exception:
         app.logger.exception("Domain check dashboard failed for %s", clean)
-        error = _("Failed to build domain report.")
+        error = _msg("Не удалось собрать отчёт по домену.", "Failed to build domain report.")
         return redirect(url_for("domain_report", q=clean), code=302)
 
     ctx = _lookup_landing_context(clean, ascii_domain, track_seo=False)
@@ -2317,6 +3998,7 @@ def _report_dns_summary(host_ascii: str) -> Dict[str, object]:
 
 
 def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
+    host_ascii = _normalize_whois_host_ascii(host_ascii)
     data: Dict[str, object] = {}
     maybe_text = _whois_call(["whois", "-H", host_ascii], timeout=12)
     source_flags = {
@@ -2379,7 +4061,7 @@ def _report_whois_summary(host_ascii: str) -> Dict[str, object]:
 
 def _report_geo_summary(ip: str | None) -> Dict[str, object]:
     if not ip:
-        return {"ip": None, "error": _("No IP available for GeoIP lookup.")}
+        return {"ip": None, "error": _msg("Нет IP для GeoIP-запроса.", "No IP available for GeoIP lookup.")}
     try:
         who = IPWhois(ip).lookup_rdap()
         country_code = (who.get("asn_country_code") or "").upper()
@@ -2390,12 +4072,12 @@ def _report_geo_summary(ip: str | None) -> Dict[str, object]:
             "country_name": who.get("network", {}).get("country", "") or country_code,
         }
     except Exception:
-        return {"ip": ip, "error": _("GeoIP lookup failed.")}
+        return {"ip": ip, "error": _msg("Не удалось выполнить GeoIP-запрос.", "GeoIP lookup failed.")}
 
 
 def _report_reverse_summary(ip: str | None) -> Dict[str, object]:
     if not ip:
-        return {"ip": None, "ptr": [], "fcrdns_ok": False, "error": _("No IP available for reverse lookup.")}
+        return {"ip": None, "ptr": [], "fcrdns_ok": False, "error": _msg("Нет IP для reverse DNS.", "No IP available for reverse lookup.")}
     row = {"ip": ip, "ptr": [], "fcrdns_ok": False, "forward_of_ptr": {}}
     try:
         rev = dns.reversename.from_address(ip)
@@ -2437,19 +4119,9 @@ def _build_domain_report(
     _progress("dns")
     dns_part = cache_json(f"cache:report:dns:{host_ascii}", REPORT_DNS_TTL_S, lambda: _report_dns_summary(host_ascii))
     _progress("whois")
-    whois_part = cache_json(f"cache:report:whois:{host_ascii}", REPORT_WHOIS_TTL_S, lambda: _report_whois_summary(host_ascii))
-    whois_missing_core = any(
-        not (whois_part or {}).get(k)
-        for k in ("registrar", "creation_date", "expiration_date")
-    )
-    if whois_missing_core:
-        fresh_whois = _report_whois_summary(host_ascii)
-        if fresh_whois:
-            merged = dict(whois_part or {})
-            for k, v in fresh_whois.items():
-                if v and not merged.get(k):
-                    merged[k] = v
-            whois_part = merged
+    whois_part = _cached_whois_summary(host_ascii)
+    if _whois_missing_core_fields(whois_part):
+        whois_part = _report_whois_summary(host_ascii)
     first_ip = (dns_part.get("ips") or [None])[0]
     _progress("geo")
     geo_part = cache_json(
@@ -2550,45 +4222,62 @@ def domain_report():
                     reports = list(job.get("reports") or [])
                     report = reports[0] if reports else None
                 elif job_status == "failed":
-                    error = str(job.get("error") or _("Failed to build domain report."))
+                    error = str(job.get("error") or _msg("Не удалось собрать отчёт по домену.", "Failed to build domain report."))
 
     should_run = bool(query and not job_id and request.method == "POST")
     if should_run:
-        captcha_error = _verify_form_recaptcha_if_needed()
-        if captcha_error:
-            error = captcha_error
+        resolved = resolve_user_query(query, context="home")
+        kind = str(resolved.get("kind") or "")
+        if kind in ("fqdn", "label", "ideas", "ip"):
+            return redirect(str(resolved.get("default_url") or url_for("domain_report")))
+        if kind == "invalid":
+            error = str(resolved.get("error") or _msg("Не удалось понять запрос.", "Could not understand the query."))
+        elif kind != "batch":
+            error = _msg("Не удалось понять запрос.", "Could not understand the query.")
         else:
-            try:
-                raw_items = re.split(r"[\s,;]+", query)
-                uniq_items = [x for x in dict.fromkeys(i.strip() for i in raw_items if i.strip())]
-                if not uniq_items:
-                    raise ValueError(_("Invalid domain name."))
-                if len(uniq_items) > REPORT_MAX_BATCH:
-                    raise ValueError(_("Too many domains in batch."))
-                normalized: List[str] = []
-                for item in uniq_items:
-                    host_ascii, err = _normalize_domain_query(item)
-                    if err or not host_ascii:
-                        raise ValueError(err or _("Invalid domain name."))
-                    normalized.append(host_ascii)
-                client_ip = _client_ip()
-                limit = _report_limit_for_ip(client_ip)
-                if _endpoint_ip_rate_limited("report", client_ip, limit):
-                    raise ValueError(_("Too many report requests. Please try again later."))
+            captcha_error = _verify_form_recaptcha_if_needed()
+            if captcha_error:
+                error = captcha_error
+            else:
+                try:
+                    batch_domains = list(resolved.get("batch_domains") or [])
+                    if not batch_domains:
+                        raw_items = re.split(r"[\s,;]+", query)
+                        batch_domains = [x for x in dict.fromkeys(i.strip() for i in raw_items if i.strip())]
+                    if not batch_domains:
+                        raise ValueError(_msg("Некорректное имя домена.", "Invalid domain name."))
+                    if len(batch_domains) > REPORT_MAX_BATCH:
+                        raise ValueError(_msg("Слишком много доменов в списке.", "Too many domains in batch."))
+                    normalized: List[str] = []
+                    for item in batch_domains:
+                        host_ascii, err = _normalize_domain_query(item)
+                        if err or not host_ascii:
+                            clean, ascii_domain = _sanitize_lookup_domain(item)
+                            if clean and ascii_domain:
+                                normalized.append(ascii_domain)
+                                continue
+                            raise ValueError(err or _msg("Некорректное имя домена.", "Invalid domain name."))
+                        normalized.append(host_ascii)
+                    client_ip = _client_ip()
+                    limit = _report_limit_for_ip(client_ip)
+                    if _endpoint_ip_rate_limited("report", client_ip, limit):
+                        raise ValueError(_msg("Слишком много запросов отчётов. Попробуйте позже.", "Too many report requests. Please try again later."))
 
-                if len(normalized) == 1:
-                    return redirect(url_for("domain_check", domain=normalized[0], run=1))
+                    if len(normalized) == 1:
+                        display = str(resolved.get("display") or normalized[0])
+                        clean, _ascii = _sanitize_lookup_domain(display)
+                        return redirect(url_for("domain_check", domain=clean or display, run=1))
 
-                job_id = uuid.uuid4().hex
-                if not _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query}):
-                    raise RuntimeError("report job storage unavailable")
-                _REPORT_ASYNC_POOL.submit(_execute_report_job, job_id, normalized, query)
-                return redirect(url_for("domain_report", job=job_id, q=query))
-            except ValueError as ve:
-                error = str(ve)
-            except Exception:
-                app.logger.exception("Domain report queue error")
-                error = _("Failed to queue domain report.")
+                    job_id = uuid.uuid4().hex
+                    if not _save_report_job(job_id, {"status": "queued", "domains": normalized, "source_input": query}):
+                        raise RuntimeError("report job storage unavailable")
+                    _REPORT_ASYNC_POOL.submit(_execute_report_job, job_id, normalized, query)
+                    return redirect(url_for("domain_report", job=job_id, q=query))
+                except ValueError as ve:
+                    error = str(ve)
+                except Exception:
+                    app.logger.exception("Domain report queue error")
+                    error = _msg("Не удалось поставить отчёт в очередь.", "Failed to queue domain report.")
 
     return render_template(
         "report.html",
@@ -2676,7 +4365,7 @@ def dns_lookup():
             "dns.html",
             meta=meta,
             result=None,
-            error=_("Invalid domain name."),
+            error=_msg("Некорректное имя домена.", "Invalid domain name."),
             query=query,
             selected_types=selected_types,
             dns_type_options=dns_type_options,
@@ -2763,9 +4452,9 @@ def _normalize_label(label: str) -> str:
     label = "".join(ch for ch in label if ch.isalnum() or ch == "-")
     label = re.sub(r"-{2,}", "-", label).strip("-")
     if not label:
-        raise ValueError(_("Введите корректное имя"))
+        raise ValueError(_msg("Введите корректное имя", "Enter a valid name"))
     if len(label) > 63:
-        raise ValueError(_("Метка домена слишком длинная"))
+        raise ValueError(_msg("Метка домена слишком длинная", "Domain label is too long"))
     return label
 
 def _is_available_via_dns(fqdn_ascii: str) -> bool:
@@ -2835,22 +4524,25 @@ def domain_search():
         else (request.args.get("query") or request.args.get("q") or "")
     )
     query = (query or "").strip()
+    idea_seed = (request.args.get("idea") or "").strip()
+    if not query and idea_seed:
+        query = idea_seed
     items = []
     error = None
     suggestions = []
     permalink = None
-    idea_seed = (request.args.get("idea") or "").strip()
     name_ideas: List[str] = []
-    if not is_post and idea_seed and request.args.get("generate", "").strip().lower() in {"1", "true", "yes", "on"}:
-        name_ideas = _generate_domain_name_ideas(idea_seed)
+    idea_mode = False
+    fqdn_mode = False
+    query_classification: Dict[str, object] = {"mode": "empty"}
 
     all_tlds = [t.strip().lstrip(".") for t in app.config.get("TLD_LIST", []) if (t or "").strip()]
     # Убираем дубли, сохраняя порядок
     all_tlds = list(dict.fromkeys(all_tlds))
 
-    default_tlds_cfg = [t.strip().lstrip(".") for t in app.config.get("DOMAIN_DEFAULT_TLDS", []) if (t or "").strip()]
-    default_tlds = [t for t in default_tlds_cfg if t in all_tlds] or all_tlds[:20]
-    tld_groups, tld_group_map = _build_tld_groups(all_tlds, default_tlds)
+    tld_groups, tld_group_map = _build_tld_groups(all_tlds, [])
+    default_tlds = _default_tlds_for_audience(all_tlds, tld_groups)
+    zone_audience = _domain_zone_audience()
     max_tlds = max(1, int(app.config.get("DOMAIN_CHECK_MAX_TLDS", 80)))
 
     selected_source = request.form if is_post else request.args
@@ -2872,8 +4564,22 @@ def domain_search():
         selected_tlds = [t for t in all_tlds if t in set(selected_from_req)] if selected_from_req else default_tlds
 
     if query:
+        query_classification = _classify_domain_search_query(query, all_tlds)
+        idea_mode = query_classification.get("mode") == "ideas"
+        fqdn_mode = query_classification.get("mode") == "fqdn"
+        if idea_mode:
+            name_ideas = _generate_domain_name_ideas(str(query_classification.get("seed") or query))
+        if fqdn_mode:
+            fqdn_tld = str(query_classification.get("tld") or "").strip().lstrip(".")
+            if fqdn_tld:
+                selected_tlds = [t for t in all_tlds if t == fqdn_tld] or [fqdn_tld]
+        search_label = _primary_domain_label_from_query(
+            query,
+            name_ideas if idea_mode else None,
+            classified=query_classification,
+        )
         if not selected_tlds:
-            error = _("Выберите хотя бы одну зону для проверки.")
+            error = _msg("Выберите хотя бы одну зону для проверки.", "Select at least one zone to check.")
             return render_template(
                 "domains.html",
                 q=query,
@@ -2889,7 +4595,9 @@ def domain_search():
                 tld_group_map=tld_group_map,
                 permalink=permalink,
                 name_ideas=name_ideas,
-                idea_seed=idea_seed,
+                idea_mode=idea_mode,
+                fqdn_mode=fqdn_mode,
+                zone_audience=zone_audience,
             )
         captcha_error = _verify_form_recaptcha_if_needed() if is_post else None
         if captcha_error:
@@ -2900,19 +4608,22 @@ def domain_search():
                 error = rate_error
             else:
                 try:
-                    if "." in query:
-                        query = query.split(".")[0]
-                    label = _normalize_label(query)
-                    if any("а" <= ch <= "я" or ch == "ё" for ch in label):
-                        translit = _translit_ru(label)
-                        suggestions = sorted(set([
-                            translit,
-                            translit.replace("sch", "sh").replace("ya", "a"),
-                        ]))
-
-                    tlds_for_check = selected_tlds
-                    if not selected_from_req:
-                        tlds_for_check = selected_tlds[:max_tlds]
+                    if fqdn_mode:
+                        label = str(query_classification.get("label") or "")
+                        label = _normalize_label(label)
+                        tlds_for_check = [str(query_classification.get("tld") or "").strip().lstrip(".")]
+                        suggestions = []
+                    else:
+                        label = _normalize_label(search_label)
+                        if any("а" <= ch <= "я" or ch == "ё" for ch in label):
+                            translit = _translit_ru(label)
+                            suggestions = sorted(set([
+                                translit,
+                                translit.replace("sch", "sh").replace("ya", "a"),
+                            ]))
+                        tlds_for_check = selected_tlds
+                        if not selected_from_req and not preset:
+                            tlds_for_check = selected_tlds[:max_tlds]
 
                     items = _check_candidates(label, tlds_for_check)
                     if items:
@@ -2926,7 +4637,7 @@ def domain_search():
                                 break
                 except Exception:
                     app.logger.exception("Domain search failed", extra={"query": query})
-                    error = _("Не удалось выполнить подбор доменов. Попробуйте ещё раз.")
+                    error = _msg("Не удалось выполнить подбор доменов. Попробуйте ещё раз.", "Domain search failed. Please try again.")
 
     locale = str(babel_get_locale() or "ru")
     buy_base = app.config.get("AFFILIATE_BUY_BASE_EN") if locale.startswith("en") else app.config.get("AFFILIATE_BUY_BASE_RU")
@@ -2951,7 +4662,14 @@ def domain_search():
         permalink=permalink,
         domain_availability=domain_availability,
         name_ideas=name_ideas,
-        idea_seed=idea_seed,
+        idea_mode=idea_mode,
+        fqdn_mode=fqdn_mode,
+        zone_audience=zone_audience,
+        searched_label=_primary_domain_label_from_query(
+            query,
+            name_ideas if idea_mode else None,
+            classified=query_classification,
+        ) if query else "",
     )
 
 
@@ -2989,25 +4707,16 @@ def _is_public_ip(ip: str) -> bool:
         return False
 
 
-def _tr_no_req(msg: str, **kwargs) -> str:
-    """gettext-safe helper that also works in background jobs without request context."""
-    try:
-        return _(msg, **kwargs)
-    except RuntimeError:
-        # No request context (e.g., async worker thread): return source text.
-        if kwargs:
-            try:
-                return msg % kwargs
-            except Exception:
-                return msg
-        return msg
+def _tr_no_req(ru_text: str, en_text: str | None = None, **kwargs) -> str:
+    """Locale-aware string for security/background paths (mirrors _msg)."""
+    return _msg(ru_text, en_text if en_text is not None else ru_text, **kwargs)
 
 
 def _normalize_security_host_input(host: str) -> Tuple[str | None, str | None]:
     """Accept either a hostname/IP or a full URL and return a scanner-safe host."""
     raw = (host or '').strip()
     if not raw:
-        return None, _tr_no_req('Empty host')
+        return None, _tr_no_req('Пустой хост', 'Empty host')
 
     # Operators often paste a URL from the address bar into the port scanner.
     # Keep the actual target host and ignore scheme, path, query, and URL port.
@@ -3020,18 +4729,18 @@ def _normalize_security_host_input(host: str) -> Tuple[str | None, str | None]:
             parsed = urlparse(parsed_text)
             candidate = parsed.hostname or raw
         except Exception:
-            return None, _tr_no_req('Invalid URL')
+            return None, _tr_no_req('Некорректный URL', 'Invalid URL')
 
     candidate = (candidate or '').strip().strip('[]').rstrip('.')
     if not candidate:
-        return None, _tr_no_req('Empty host')
+        return None, _tr_no_req('Пустой хост', 'Empty host')
 
     # Normalize IDN domains to ASCII before validation/resolution.
     if not re.fullmatch(r'[0-9A-Fa-f:.]+', candidate):
         try:
             candidate = idna.encode(candidate).decode('ascii')
         except Exception:
-            return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
+            return None, _tr_no_req('Некорректный формат хоста. Укажите домен или публичный IP.', 'Host format is invalid. Use domain or public IP.')
 
     return candidate.lower(), None
 
@@ -3043,13 +4752,13 @@ def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
 
     # Simple hostname format pre-check to avoid noisy resolver errors
     if not re.match(r'^[A-Za-z0-9.-]+$', host):
-        return None, _tr_no_req('Host format is invalid. Use domain or public IP.')
+        return None, _tr_no_req('Некорректный формат хоста. Укажите домен или публичный IP.', 'Host format is invalid. Use domain or public IP.')
 
     # direct IP input
     try:
         ipaddress.ip_address(host)
         if not _is_public_ip(host):
-            return None, _tr_no_req('Only public IP targets are allowed.')
+            return None, _tr_no_req('Разрешены только публичные IP-адреса.', 'Only public IP targets are allowed.')
         return host, None
     except Exception:
         pass
@@ -3064,10 +4773,10 @@ def _resolve_public_target_ip(host: str) -> Tuple[str | None, str | None]:
                 ips.append(ip)
         public_ips = [ip for ip in ips if _is_public_ip(ip)]
         if not public_ips:
-            return None, _tr_no_req('Resolved host does not have a public IP.')
+            return None, _tr_no_req('У хоста нет публичного IP.', 'Resolved host does not have a public IP.')
         return public_ips[0], None
     except Exception:
-        return None, _tr_no_req('Could not resolve host.')
+        return None, _tr_no_req('Не удалось разрешить хост.', 'Could not resolve host.')
 
 
 def _parse_ports(raw_ports: str, max_ports: int) -> Tuple[List[int], str | None]:
@@ -3083,26 +4792,26 @@ def _parse_ports(raw_ports: str, max_ports: int) -> Tuple[List[int], str | None]
         if '-' in p:
             a, b = p.split('-', 1)
             if not (a.strip().isdigit() and b.strip().isdigit()):
-                return [], _tr_no_req('Ports format is invalid.')
+                return [], _tr_no_req('Некорректный формат портов.', 'Ports format is invalid.')
             start, end = int(a), int(b)
             if start > end:
                 start, end = end, start
             if start < 1 or end > 65535:
-                return [], _tr_no_req('Ports must be in range 1..65535.')
+                return [], _tr_no_req('Порты должны быть в диапазоне 1..65535.', 'Ports must be in range 1..65535.')
             ports.extend(range(start, end + 1))
         else:
             if not p.isdigit():
-                return [], _tr_no_req('Ports format is invalid.')
+                return [], _tr_no_req('Некорректный формат портов.', 'Ports format is invalid.')
             port = int(p)
             if port < 1 or port > 65535:
-                return [], _tr_no_req('Ports must be in range 1..65535.')
+                return [], _tr_no_req('Порты должны быть в диапазоне 1..65535.', 'Ports must be in range 1..65535.')
             ports.append(port)
 
     ports = sorted(set(ports))
     if not ports:
-        return [], _tr_no_req('Please select at least one port.')
+        return [], _tr_no_req('Выберите хотя бы один порт.', 'Please select at least one port.')
     if len(ports) > max_ports:
-        return [], _tr_no_req('Too many ports selected. Limit is %(n)s.', n=max_ports)
+        return [], _tr_no_req('Слишком много портов. Лимит: %(n)s.', 'Too many ports selected. Limit is %(n)s.', n=max_ports)
     return ports, None
 
 
@@ -3160,16 +4869,16 @@ def _normalize_wp_target(raw: str) -> Tuple[str | None, str | None, str | None]:
     """Return (normalized_url, host, error)."""
     txt = (raw or "").strip()
     if not txt:
-        return None, None, _tr_no_req('Empty host')
+        return None, None, _tr_no_req('Пустой хост', 'Empty host')
     if not re.match(r"^https?://", txt, re.I):
         txt = f"https://{txt}"
     try:
         u = urlparse(txt)
     except Exception:
-        return None, None, _tr_no_req('Invalid URL')
+        return None, None, _tr_no_req('Некорректный URL', 'Invalid URL')
     host = (u.hostname or "").strip()
     if not host:
-        return None, None, _tr_no_req('Invalid URL')
+        return None, None, _tr_no_req('Некорректный URL', 'Invalid URL')
     return txt, host, None
 
 
@@ -3177,12 +4886,12 @@ def _safe_http_url_host(url: str) -> Tuple[str | None, str | None]:
     try:
         parsed = urlparse(url)
     except Exception:
-        return None, _tr_no_req('Invalid URL')
+        return None, _tr_no_req('Некорректный URL', 'Invalid URL')
     if parsed.scheme.lower() not in {'http', 'https'}:
-        return None, _tr_no_req('Only HTTP and HTTPS URLs are allowed.')
+        return None, _tr_no_req('Разрешены только HTTP и HTTPS URL.', 'Only HTTP and HTTPS URLs are allowed.')
     host = (parsed.hostname or '').strip()
     if not host:
-        return None, _tr_no_req('Invalid URL')
+        return None, _tr_no_req('Некорректный URL', 'Invalid URL')
     _, err = _resolve_public_target_ip(host)
     if err:
         return None, err
@@ -3222,7 +4931,7 @@ def _safe_get_text(url: str, timeout_s: float = 4.0) -> Tuple[int, str, Dict[str
             encoding = resp.encoding or 'utf-8'
             text = b''.join(chunks).decode(encoding, errors='replace')
             return resp.status_code, text, dict(resp.headers), None
-        return 0, "", {}, _tr_no_req('Too many redirects.')
+        return 0, "", {}, _tr_no_req('Слишком много перенаправлений.', 'Too many redirects.')
     except Exception as e:
         return 0, "", {}, str(e)
 
@@ -3378,7 +5087,7 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 hid = save_history("security", f"wp:{payload.get('wp_url_raw', '')}", result)
                 permalink = f"/history/security/{hid}" if hid and load_history("security", hid) else None
             else:
-                raise ValueError(_tr_no_req("Unsupported scan type."))
+                raise ValueError(_tr_no_req("Неподдерживаемый тип сканирования.", "Unsupported scan type."))
 
             _save_security_job(job_id, {
                 "status": "done",
@@ -3414,7 +5123,7 @@ def _execute_security_job(job_id: str, job_kind: str, payload: Dict[str, str]) -
                 "finished_ts": int(time.time()),
                 "payload": payload,
                 "result": None,
-                "error": _tr_no_req("Internal scan error. Please retry later."),
+                "error": _tr_no_req("Внутренняя ошибка сканирования. Повторите позже.", "Internal scan error. Please retry later."),
                 "error_code": "internal_error",
                 "duration_ms": max(0, int((time.time() - started) * 1000)),
                 "permalink": None,
@@ -3442,9 +5151,9 @@ def _recaptcha_setup_status() -> Tuple[bool, str | None]:
         provider = "standard"
     if provider == "enterprise":
         ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT") and app.config.get("SECURITY_RECAPTCHA_API_KEY"))
-        return (ok, None if ok else _("reCAPTCHA Enterprise config is incomplete."))
+        return (ok, None if ok else _msg("Конфигурация reCAPTCHA Enterprise неполная.", "reCAPTCHA Enterprise config is incomplete."))
     ok = bool(app.config.get("SECURITY_RECAPTCHA_SITE_KEY") and app.config.get("SECURITY_RECAPTCHA_SECRET_KEY"))
-    return (ok, None if ok else _("reCAPTCHA v3 config is incomplete."))
+    return (ok, None if ok else _msg("Конфигурация reCAPTCHA v3 неполная.", "reCAPTCHA v3 config is incomplete."))
 
 def _verify_form_recaptcha_if_needed() -> str | None:
     """Validate captcha for generic data-entry forms when enabled."""
@@ -3464,7 +5173,7 @@ def _verify_form_recaptcha_if_needed() -> str | None:
     ok, err = _verify_recaptcha_token(token, action=str(app.config.get("FORM_RECAPTCHA_ACTION", "form_submit")))
     if ok:
         return None
-    return err or _("Captcha validation failed.")
+    return err or _msg("Проверка captcha не пройдена.", "Captcha validation failed.")
 
 
 def _has_any_request_value(*keys: str) -> bool:
@@ -3480,7 +5189,7 @@ def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
         return True, None
 
     if not token:
-        return False, _("Captcha token is missing.")
+        return False, _msg("Отсутствует токен captcha.", "Captcha token is missing.")
 
     provider = (app.config.get("SECURITY_RECAPTCHA_PROVIDER") or "standard").lower()
     if provider not in {"standard", "enterprise"}:
@@ -3493,7 +5202,7 @@ def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
             project = app.config.get("SECURITY_RECAPTCHA_ENTERPRISE_PROJECT")
             site_key = app.config.get("SECURITY_RECAPTCHA_SITE_KEY")
             if not (api_key and project and site_key):
-                return False, _("reCAPTCHA Enterprise is not configured.")
+                return False, _msg("reCAPTCHA Enterprise не настроен.", "reCAPTCHA Enterprise is not configured.")
 
             endpoint = f"https://recaptchaenterprise.googleapis.com/v1/projects/{project}/assessments?key={api_key}"
             payload = {
@@ -3509,17 +5218,17 @@ def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
             token_props = data.get("tokenProperties") or {}
             risk = data.get("riskAnalysis") or {}
             if not token_props.get("valid"):
-                return False, _("Captcha validation failed.")
+                return False, _msg("Проверка captcha не пройдена.", "Captcha validation failed.")
             if token_props.get("action") and token_props.get("action") != action:
-                return False, _("Captcha action mismatch.")
+                return False, _msg("Несовпадение действия captcha.", "Captcha action mismatch.")
             score = float(risk.get("score") or 0.0)
             if score < min_score:
-                return False, _("Captcha score is too low.")
+                return False, _msg("Слишком низкий score captcha.", "Captcha score is too low.")
             return True, None
 
         secret = app.config.get("SECURITY_RECAPTCHA_SECRET_KEY")
         if not secret:
-            return False, _("reCAPTCHA is not configured.")
+            return False, _msg("reCAPTCHA не настроен.", "reCAPTCHA is not configured.")
         resp = requests.post(
             "https://www.google.com/recaptcha/api/siteverify",
             data={
@@ -3531,15 +5240,15 @@ def _verify_recaptcha_token(token: str, action: str) -> Tuple[bool, str | None]:
         )
         data = resp.json() if resp.ok else {}
         if not data.get("success"):
-            return False, _("Captcha validation failed.")
+            return False, _msg("Проверка captcha не пройдена.", "Captcha validation failed.")
         if data.get("action") and data.get("action") != action:
-            return False, _("Captcha action mismatch.")
+            return False, _msg("Несовпадение действия captcha.", "Captcha action mismatch.")
         score = float(data.get("score") or 0.0)
         if score < min_score:
-            return False, _("Captcha score is too low.")
+            return False, _msg("Слишком низкий score captcha.", "Captcha score is too low.")
         return True, None
     except Exception:
-        return False, _("Captcha verification is temporarily unavailable.")
+        return False, _msg("Проверка captcha временно недоступна.", "Captcha verification is temporarily unavailable.")
 
 
 # ---------- WHOIS ----------
@@ -3604,7 +5313,7 @@ def whois_lookup():
         error = str(ve)
     except Exception:
         app.logger.exception("WHOIS error for %s", query)
-        error = _("Unexpected error during WHOIS lookup.")
+        error = _msg("Неожиданная ошибка при WHOIS-запросе.", "Unexpected error during WHOIS lookup.")
 
     affiliate_domain = (data or {}).get("domain_name") if isinstance(data, dict) else None
     affiliate_domain = affiliate_domain or _extract_affiliate_domain(query, "whois")
@@ -3670,7 +5379,7 @@ def geo_lookup():
                 ip = ips[0] if ips else None
 
             if not ip:
-                error = _("No IPs found for the host.")
+                error = _msg("IP-адреса для хоста не найдены.", "No IPs found for the host.")
                 return render_template('geo.html', result=None, error=error, query=query, permalink=None)
 
             def _compute_geo():
@@ -3694,7 +5403,7 @@ def geo_lookup():
 
         except Exception:
             app.logger.exception("GeoIP error")
-            error = _("An error occurred during GeoIP lookup.")
+            error = _msg("Ошибка при GeoIP-запросе.", "An error occurred during GeoIP lookup.")
 
     return render_template("geo.html", result=result, error=error, query=query, permalink=permalink)
 
@@ -3783,7 +5492,7 @@ def reverse_lookup():
             error = str(ve)
         except Exception:
             app.logger.exception("Reverse lookup error")
-            error = _("An unexpected error occurred during reverse lookup.")
+            error = _msg("Неожиданная ошибка при reverse DNS.", "An unexpected error occurred during reverse lookup.")
 
     return render_template("reverse.html", result=result, error=error, query=query, permalink=permalink)
 
@@ -3820,7 +5529,7 @@ def security_tools():
     job = None
     if job_id:
         if not _is_valid_security_job_id(job_id):
-            security_error = _('Invalid scan job id.')
+            security_error = _msg("Некорректный ID задачи сканирования.", "Invalid scan job id.")
             job_id = ''
         else:
             job = _load_security_job(job_id)
@@ -3839,39 +5548,39 @@ def security_tools():
                 permalink = job.get('permalink')
             elif job_status == 'failed':
                 if active_scan == 'ports':
-                    port_error = job.get('error') or _('Scan failed.')
+                    port_error = job.get('error') or _msg("Сканирование не удалось.", "Scan failed.")
                 else:
-                    wp_error = job.get('error') or _('Scan failed.')
+                    wp_error = job.get('error') or _msg("Сканирование не удалось.", "Scan failed.")
         elif job_id:
-            security_error = _('Scan job was not found. Please start the check again.')
+            security_error = _msg("Задача сканирования не найдена. Запустите проверку снова.", "Scan job was not found. Please start the check again.")
             job_id = ''
 
     # Submit new async job
     if request.method == 'POST' and not job_id:
         if active_scan == 'ports' and not host:
-            port_error = _('Please enter a host or IP.')
+            port_error = _msg("Введите хост или IP.", "Please enter a host or IP.")
         elif active_scan == 'wp' and not wp_url_raw:
-            wp_error = _('Please enter a site URL.')
+            wp_error = _msg("Введите URL сайта.", "Please enter a site URL.")
         elif len(host) > SECURITY_MAX_HOST_LEN:
-            security_error = _('Host is too long.')
+            security_error = _msg("Слишком длинный хост.", "Host is too long.")
         elif len(ports_raw) > SECURITY_MAX_PORTS_RAW_LEN:
-            security_error = _('Ports list is too long.')
+            security_error = _msg("Слишком длинный список портов.", "Ports list is too long.")
         elif len(wp_url_raw) > SECURITY_MAX_WP_URL_LEN:
-            security_error = _('WordPress URL is too long.')
+            security_error = _msg("Слишком длинный URL WordPress.", "WordPress URL is too long.")
         elif (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
-            security_error = recaptcha_setup_error or _('reCAPTCHA is not configured.')
+            security_error = recaptcha_setup_error or _msg("reCAPTCHA не настроен.", "reCAPTCHA is not configured.")
         else:
             ip = _client_ip()
             endpoint_name = f"security:{active_scan}"
             if _security_is_rate_limited(ip, int(app.config.get('SECURITY_RATE_LIMIT_PER_MIN', 15))):
                 _security_metric_inc(endpoint_name, 'blocked')
-                security_error = _('Too many security scan requests. Please retry in a minute.')
+                security_error = _msg("Слишком много запросов сканирования. Повторите через минуту.", "Too many security scan requests. Please retry in a minute.")
             else:
                 _security_metric_inc(endpoint_name, 'allowed')
                 recaptcha_token = (request.values.get('recaptcha_token') or '').strip()
                 ok, recaptcha_err = _verify_recaptcha_token(recaptcha_token, action=str(app.config.get('SECURITY_RECAPTCHA_ACTION', 'security_scan')))
                 if not ok:
-                    security_error = recaptcha_err or _('Captcha validation failed.')
+                    security_error = recaptcha_err or _msg("Проверка captcha не пройдена.", "Captcha validation failed.")
                 else:
                     job_id = uuid.uuid4().hex
                     payload = {
@@ -3891,7 +5600,7 @@ def security_tools():
                         'permalink': None,
                     })
                     if not saved:
-                        security_error = _('Scan storage is temporarily unavailable. Please retry later.')
+                        security_error = _msg("Хранилище сканирований временно недоступно. Повторите позже.", "Scan storage is temporarily unavailable. Please retry later.")
                         job_id = ''
                     else:
                         try:
@@ -3905,12 +5614,12 @@ def security_tools():
                                 'created_ts': int(time.time()),
                                 'finished_ts': int(time.time()),
                                 'result': None,
-                                'error': _tr_no_req('Internal scan error. Please retry later.'),
+                                'error': _tr_no_req('Внутренняя ошибка сканирования. Повторите позже.', 'Internal scan error. Please retry later.'),
                                 'error_code': 'internal_error',
                                 'duration_ms': 0,
                                 'permalink': None,
                             })
-                            security_error = _('Could not start scan job. Please retry.')
+                            security_error = _msg("Не удалось запустить сканирование. Повторите попытку.", "Could not start scan job. Please retry.")
                             job_id = ''
                         else:
                             return redirect(url_for('security_tools', scan=active_scan, job=job_id, host=host, ports=ports_raw, wp_url=wp_url_raw))
@@ -3991,7 +5700,7 @@ def history_list():
     except Exception:
         app.logger.warning("History Redis unavailable", exc_info=True)
         keys = []
-        history_error = _("History storage is temporarily unavailable. Please try again later.")
+        history_error = _msg("Хранилище истории временно недоступно. Попробуйте позже.", "History storage is temporarily unavailable. Please try again later.")
 
     for s in keys:
         pair = _split_kind_id(s)
@@ -4201,13 +5910,29 @@ def export_result(kind: str, hid: str, fmt: str):
 
     abort(404)
 
+def _root_verification_txt_response(key: str) -> Response | None:
+    """Serve affiliate/host verification files from static/ at the site root."""
+    path = os.path.join(app.root_path, "static", f"{key}.txt")
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            body = fh.read().strip()
+    except OSError:
+        return None
+    if body != key:
+        return None
+    return Response(f"{body}\n", mimetype="text/plain; charset=utf-8")
+
+
 # ---------- IndexNow key (must stay after robots.txt / sitemap.xml) ----------
 @app.get("/<indexnow_key>.txt")
 def indexnow_key_file(indexnow_key: str):
     expected = (app.config.get("INDEXNOW_KEY") or "").strip()
-    if not expected or indexnow_key != expected:
-        abort(404)
-    return Response(f"{expected}\n", mimetype="text/plain")
+    if expected and indexnow_key == expected:
+        return Response(f"{expected}\n", mimetype="text/plain")
+    verification = _root_verification_txt_response(indexnow_key)
+    if verification is not None:
+        return verification
+    abort(404)
 
 
 # ---------- ЧПУ для WHOIS ----------

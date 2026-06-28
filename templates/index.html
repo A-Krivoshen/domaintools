@@ -16,15 +16,27 @@
     {{ tr('Введите адрес сайта — мы покажем, кто владелец, куда ведёт домен и где находится сервер.', 'Enter a site address — we show who owns it, where it points, and where the server is.') }}
   </p>
 
-  <form method="post" action="{{ url_for('domain_report') }}" class="hero-home__form mb-3" data-loading data-onboarding-target>
+  <form method="post" action="{{ url_for('domain_report') }}" class="hero-home__form mb-3 tool-form" data-loading data-onboarding-target data-smart-query-form data-query-context="home">
     <div class="input-group input-group-lg search-command hero-home__search">
       <span class="input-group-text"><i class="fa-solid fa-globe" aria-hidden="true"></i></span>
-      <input name="q" class="form-control form-control-lg" placeholder="{{ tr('например: example.com', 'for example: example.com') }}" aria-label="{{ tr('Домен', 'Domain') }}" autofocus required>
-      {% with short_ru='Проверить', short_en='Check', long_ru='Полная проверка', long_en='Full check', btn_variant='btn-primary btn-lg' %}
+      <input name="q"
+             class="form-control form-control-lg"
+             data-smart-query
+             value="{{ request.args.get('q', '') }}"
+             placeholder="{{ tr('агнкс.рф, krivoshein.site, mybrand или 8.8.8.8', 'агнкс.рф, krivoshein.site, mybrand or 8.8.8.8') }}"
+             aria-label="{{ tr('Домен, имя или IP', 'Domain, name, or IP') }}"
+             aria-describedby="heroQueryIntent"
+             autofocus
+             required>
+      {% with short_ru='Проверить', short_en='Check', long_ru='Проверить', long_en='Check', btn_variant='btn-primary btn-lg' %}
       {% include '_search_submit_btn.html' %}
       {% endwith %}
     </div>
+    {% with query_context='home' %}
+    {% include '_smart_query_intent.html' %}
+    {% endwith %}
   </form>
+  <p id="heroQueryIntent" class="visually-hidden">{{ tr('Умный ввод: домен — проверка, имя — подбор, описание — идеи, IP — GeoIP', 'Smart input: domain — check, name — search, description — ideas, IP — GeoIP') }}</p>
 
   <div class="hero-home__pills">
     <a class="hero-pill" href="{{ url_for('domain_search') }}">

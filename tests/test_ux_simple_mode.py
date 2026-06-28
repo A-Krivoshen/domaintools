@@ -3,6 +3,21 @@ from unittest.mock import patch
 
 import app as app_module
 
+_STATUS_CHIPS_DOCK_STUB = {
+    'items': [{
+        'query': 'example.com',
+        'kind': 'dns',
+        'chip_kind_label': 'DNS',
+        'domain_display': 'example.com',
+        'repeat_url': '/dns?q=example.com',
+        'view_url': '/history/dns/x',
+        'status_tone': 'ok',
+    }],
+    'total': 1,
+    'has_more': False,
+    'history_url': '/history',
+}
+
 
 class UXSimpleModeTests(unittest.TestCase):
     def setUp(self):
@@ -99,8 +114,12 @@ class UXSimpleModeTests(unittest.TestCase):
         self.assertEqual(job.get('progress_step'), 'dns')
 
     def test_wave3_status_chip_and_ux_mode_markup(self):
-        html = self.client.get('/?lang=ru').get_data(as_text=True)
-        self.assertIn('data-status-chip', html)
+        empty = {'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}
+        with patch.object(app_module, 'recent_history_user_dock', return_value=_STATUS_CHIPS_DOCK_STUB):
+            with patch.object(app_module, 'recent_history_global_dock', return_value=empty):
+                html = self.client.get('/?lang=ru').get_data(as_text=True)
+        self.assertIn('data-status-chips-dock-user', html)
+        self.assertIn('status-chips-dock', html)
         self.assertIn('data-ux-mode-toggle', html)
         self.assertIn('data-ux-mode', html)
 
@@ -142,8 +161,9 @@ class UXSimpleModeTests(unittest.TestCase):
         }
         with patch.object(app_module, 'cache_json', return_value=sample):
             with patch.object(app_module, 'save_history', return_value=None):
-                resp = self.client.get('/check/example.com?lang=ru')
-                html = resp.get_data(as_text=True)
+                with patch.object(app_module, '_endpoint_ip_rate_limited', return_value=False):
+                    resp = self.client.get('/check/example.com?lang=ru&run=1')
+                    html = resp.get_data(as_text=True)
         self.assertEqual(resp.status_code, 200)
         self.assertIn('check-dashboard', html)
         self.assertIn('__DT_LAST_CHECK__', html)

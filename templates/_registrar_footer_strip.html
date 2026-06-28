@@ -1,0 +1,32 @@
+{% set _offers = registrar_offers_featured() %}
+{% set _locale_tag = 'en' if (get_locale()|string).startswith('en') else 'ru' %}
+{% if _offers %}
+<section class="hosting-footer-strip registrar-footer-strip" aria-label="{{ tr('Регистраторы доменов', 'Domain registrars') }}" data-monetization-slot>
+  <div class="hosting-footer-strip__label">
+    <i class="fa-solid fa-globe" aria-hidden="true"></i>
+    {{ tr('Регистраторы', 'Registrars') }}
+  </div>
+  <div class="hosting-footer-strip__pills">
+    {% for offer in _offers %}
+    <a class="hosting-footer-strip__pill"
+       href="{{ offer.url }}"
+       target="_blank"
+       rel="nofollow noopener sponsored"
+       style="--hosting-accent: {{ offer.accent }}"
+       data-ref-track
+       data-ref-type="registrar"
+       data-ref-id="{{ offer.id }}"
+       data-ref-placement="footer"
+       data-ref-locale="{{ _locale_tag }}">
+      <span class="hosting-footer-strip__pill-name">{{ offer.name }}</span>
+      <span class="hosting-footer-strip__pill-price">{{ tr('от', 'from') }} {{ offer.price_rub }} ₽</span>
+    </a>
+    {% endfor %}
+    <a class="hosting-footer-strip__pill hosting-footer-strip__pill--all"
+       href="{{ url_for('registrars_landing') }}">
+      {{ tr('Все регистраторы', 'All registrars') }}
+      <i class="fa-solid fa-arrow-right ms-1" aria-hidden="true"></i>
+    </a>
+  </div>
+</section>
+{% endif %}

@@ -1,15 +1,9 @@
-{% if affiliate_buy_url and affiliate_domain %}
+{% if affiliate_domain %}
   <a class="btn btn-sm btn-outline-secondary"
      href="{{ affiliate_domain_search_url }}">
     <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>{{ tr('Проверить доступность', 'Check availability') }}
   </a>
-  <a class="btn btn-sm btn-success"
-     href="{{ affiliate_buy_url }}"
-     target="_blank"
-     rel="nofollow noopener"
-     data-buy-track
-     data-buy-domain="{{ affiliate_domain }}"
-     data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
-    <i class="fa-solid fa-cart-shopping me-1" aria-hidden="true"></i>{{ tr('Зарегистрировать', 'Register') }}
-  </a>
+  {% with domain=affiliate_domain, placement='affiliate-actions' %}
+  {% include '_registrar_buy_buttons.html' %}
+  {% endwith %}
 {% endif %}

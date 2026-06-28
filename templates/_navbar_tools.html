@@ -1,0 +1,32 @@
+<div class="d-flex align-items-center gap-2 navbar-tools {{ tools_class|default('') }}">
+  <button type="button"
+          class="btn btn-sm btn-outline-secondary ux-mode-toggle-btn d-none d-xl-inline-flex align-items-center justify-content-center"
+          data-ux-mode-toggle
+          aria-label="{{ tr('Переключить режим', 'Toggle mode') }}"
+          title="{{ tr('Простой / специалист', 'Simple / expert') }}">
+    <span class="ux-mode-toggle-btn__glyph" aria-hidden="true">&lt;/&gt;</span>
+  </button>
+  <button type="button"
+          class="btn btn-sm btn-outline-secondary command-palette-trigger d-none d-xl-inline-flex align-items-center gap-1"
+          data-command-palette-open
+          aria-label="{{ tr('Быстрый переход (Ctrl+K)', 'Quick navigation (Ctrl+K)') }}"
+          title="{{ tr('Быстрый переход (Ctrl+K)', 'Quick navigation (Ctrl+K)') }}">
+    <span class="command-palette-trigger__label">{{ tr('Быстрый переход', 'Quick navigation') }}</span>
+    <span class="command-palette-trigger__shortcut" aria-hidden="true">
+      <kbd class="command-palette__kbd command-palette-trigger__kbd-mod" data-shortcut-mod>Ctrl</kbd><kbd class="command-palette__kbd command-palette-trigger__kbd-key">K</kbd>
+    </span>
+  </button>
+  <div class="btn-group btn-group-sm lang-switch" role="group" aria-label="Language switcher">
+    <a class="btn btn-outline-secondary {% if get_locale() == 'ru' %}active{% endif %}" href="{{ lang_url('ru') }}">RU</a>
+    <a class="btn btn-outline-secondary {% if get_locale() == 'en' %}active{% endif %}" href="{{ lang_url('en') }}">EN</a>
+  </div>
+  <button
+    class="btn btn-sm btn-outline-secondary theme-toggle-btn"
+    type="button"
+    data-theme-toggle
+    aria-label="{{ tr('Переключить тему', 'Toggle theme') }}"
+    title="{{ tr('Переключить тему', 'Toggle theme') }}"
+  >
+    <i class="fa-solid fa-moon" aria-hidden="true"></i>
+  </button>
+</div>

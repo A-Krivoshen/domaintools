@@ -1,0 +1,10 @@
+{# Live intent hint under smart-query inputs. JS fills icon/text; optional server-side initial. #}
+<p class="query-intent form-text mb-2 d-none"
+   data-query-intent
+   data-query-context="{{ query_context or 'global' }}"
+   aria-live="polite">
+  <span class="query-intent__chip">
+    <i class="fa-solid {{ intent_icon or 'fa-wand-magic-sparkles' }} query-intent__icon" data-query-intent-icon aria-hidden="true"></i>
+    <span data-query-intent-text>{% if intent_text %}{{ intent_text }}{% endif %}</span>
+  </span>
+</p>

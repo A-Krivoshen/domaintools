@@ -2,8 +2,9 @@
 {% set _offers = offers or hosting_offers_featured() %}
 {% set _placement = placement or 'grid' %}
 {% set _compact = compact|default(false) %}
+{% set _providers_grid = providers_grid|default(false) %}
 {% if _offers %}
-<section class="hosting-offers-grid{% if _compact %} hosting-offers-grid--compact{% endif %}"
+<section class="hosting-offers-grid{% if _compact %} hosting-offers-grid--compact{% endif %}{% if _providers_grid %} hosting-offers-grid--providers{% endif %}"
          aria-label="{{ tr('VPS-провайдеры', 'VPS providers') }}">
   {% if title %}
   <header class="hosting-offers-grid__head">

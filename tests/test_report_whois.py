@@ -1,4 +1,6 @@
+import os
 import unittest
+import unittest.mock
 from datetime import datetime, timezone
 
 import app as app_module
@@ -61,6 +63,28 @@ class ReportWhoisTests(unittest.TestCase):
         self.assertEqual(out.get("registrar"), "RU-CENTER-RU")
         self.assertEqual(out.get("creation_date"), "2015-03-10T12:00:00Z")
         self.assertEqual(out.get("expiration_date"), "2026-03-10T12:00:00Z")
+
+    def test_whois_executable_resolves_without_system_path(self):
+        with unittest.mock.patch.dict("os.environ", {"PATH": "/var/www/python.domaintools.site/htdocs/.venv/bin"}, clear=True):
+            exe = app_module._whois_executable()
+        self.assertTrue(exe.endswith("whois"))
+        self.assertTrue(os.path.isfile(exe))
+
+    def test_cached_whois_summary_rejects_incomplete_cache(self):
+        host = "xn--80agvlv.xn--p1ai"
+        incomplete = {
+            "whois_server": "whois.tcinet.ru",
+            "domain_name": host,
+            "domain_unicode": "агнкс.рф",
+        }
+        app_module.r.setex(
+            f"cache:report:whois:{host}",
+            60,
+            app_module._json_dumps(incomplete),
+        )
+        summary = app_module._cached_whois_summary(host)
+        self.assertTrue(app_module._whois_has_core_fields(summary))
+        self.assertEqual(summary.get("registrar"), "REGRU-RF")
 
 
 if __name__ == "__main__":

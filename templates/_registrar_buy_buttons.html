@@ -1,0 +1,31 @@
+{# Compact registrar buy actions. Expects: domain (str), placement (str, optional), size (sm|xs, optional) #}
+{% set _domain = domain or '' %}
+{% set _placement = placement or 'inline' %}
+{% set _size = size or 'sm' %}
+{% set _locale_tag = 'en' if (get_locale()|string).startswith('en') else 'ru' %}
+{% set _offers = registrar_offers_featured() %}
+{% if _domain and _offers %}
+<div class="registrar-buy-actions registrar-buy-actions--{{ _size }}" role="group" aria-label="{{ tr('Зарегистрировать у регистратора', 'Register at registrar') }}">
+  {% for offer in _offers %}
+    {% set _buy = registrar_buy_url(offer.id, _domain) %}
+    {% if _buy %}
+    <a class="registrar-buy-actions__btn btn btn-{{ _size }} {% if offer.badge == 'recommended' %}btn-success{% else %}btn-outline-success{% endif %}"
+       href="{{ _buy }}"
+       target="_blank"
+       rel="nofollow noopener sponsored"
+       title="{{ tr('Зарегистрировать', 'Register') }} {{ _domain }} — {{ offer.name }}"
+       data-buy-track
+       data-buy-domain="{{ _domain }}"
+       data-buy-registrar="{{ offer.id }}"
+       data-buy-locale="{{ _locale_tag }}"
+       data-ref-track
+       data-ref-type="registrar"
+       data-ref-id="{{ offer.id }}"
+       data-ref-placement="{{ _placement }}"
+       data-ref-locale="{{ _locale_tag }}">
+      <i class="fa-solid {{ offer.icon }} me-1" aria-hidden="true"></i>{{ offer.name }}
+    </a>
+    {% endif %}
+  {% endfor %}
+</div>
+{% endif %}

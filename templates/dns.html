@@ -1,5 +1,6 @@
 {# templates/dns.html #}
 {% extends "base.html" %}
+{% from 'macros/quick_actions.html' import tool_page_dock_open, tool_page_dock_close %}
 {% block title %}{% if query %}{{ tr('DNS для ', 'DNS for ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('DNS-проверка — DomainTools', 'DNS lookup — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{% if query %}{{ tr('DNS-записи домена ', 'DNS records for ') ~ query ~ tr(': A, MX, NS, TXT и другие типы.', ': A, MX, NS, TXT and other record types.') }}{% else %}{{ tr('Проверка DNS-записей домена: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV и другие типы.', 'Check domain DNS records: A, AAAA, CNAME, MX, TXT, NS, SOA, SRV and other types.') }}{% endif %}{% endblock %}
 
@@ -28,19 +29,24 @@
 {% set breadcrumb_path = url_for('dns_lookup') %}
 {% include '_tool_page_header.html' %}
 
-<form method="get" action="{{ url_for('dns_lookup') }}" class="tool-form mb-4" autocomplete="off">
+<form method="get" action="{{ url_for('dns_lookup') }}" class="tool-form mb-4" autocomplete="off" data-smart-query-form data-query-context="dns">
   <div class="input-group input-group-lg search-command">
     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
     <input type="text"
            class="form-control form-control-lg"
            name="q"
-           placeholder="{{ tr('example.com', 'example.com') }}"
+           data-smart-query
+           placeholder="{{ tr('example.com или агнкс.рф', 'example.com or агнкс.рф') }}"
            value="{{ query or '' }}"
-           autofocus>
+           autofocus
+           aria-describedby="dnsQueryIntent">
     {% with short_ru='Проверить', short_en='Check', long_ru='Проверить', long_en='Check', btn_variant='btn-primary btn-lg' %}
     {% include '_search_submit_btn.html' %}
     {% endwith %}
   </div>
+  {% with query_context='dns' %}
+  {% include '_smart_query_intent.html' %}
+  {% endwith %}
 
   <div class="mt-3">
     <div class="small text-muted mb-2">{{ tr('Типы DNS-записей для выборки:', 'DNS record types to query:') }}</div>
@@ -59,12 +65,15 @@
   </div>
 </form>
 
-  <!-- Ошибка -->
-  {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-  {% endif %}
+  {% set show_tool_layout = query or error or result %}
 
-  <!-- РЕЗУЛЬТАТЫ ПОИСКА -->
+  {% if show_tool_layout %}
+    {{ tool_page_dock_open() }}
+
+    {% if error %}
+    <div class="alert alert-danger tool-page-alert mb-3" role="alert">{{ error }}</div>
+    {% endif %}
+
   {% if result %}
     <div class="result-panel mb-3">
       <div class="result-panel__head">
@@ -80,7 +89,7 @@
     {% endwith %}
     {% endif %}
     {% if permalink or query %}
-      <div class="tool-actions mb-2" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
+      <div class="tool-actions tool-actions--dns-fallback mb-2 d-xl-none" role="toolbar" aria-label="{{ tr('Действия с результатом', 'Result actions') }}">
         <div class="tool-actions__group" aria-label="{{ tr('Связанные инструменты', 'Related tools') }}">
           {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
         </div>
@@ -115,10 +124,20 @@
     {% set title = tr('Показать DNS-результат в табличном виде (максимум полей)', 'Show DNS result in table view (maximum fields)') %}
     {% include "_json_table.html" %}
 
+    {% set qa_bundle = quick_actions_bundle_dns(query, records|default({}, true), affiliate_domain_search_url, has_result=true) %}
+    {{ tool_page_dock_close(tr, qa_bundle) }}
+
+  {% elif error and query %}
+    {% set qa_bundle = quick_actions_bundle_dns(query, {}, affiliate_domain_search_url, has_result=false) %}
+    {{ tool_page_dock_close(tr, qa_bundle) }}
+
   {% else %}
-  <!-- КАРТОЧКИ И ССЫЛКИ — только когда результата ещё нет -->
-<!-- Карточки-подсказки -->
-<div class="row g-3 mt-4">
+    {{ tool_page_dock_close(tr, none) }}
+  {% endif %}
+
+  {% else %}
+  <section class="tool-cards-grid mt-4" aria-label="{{ tr('Связанные инструменты', 'Related tools') }}">
+<div class="row g-3">
   <div class="col-12 col-md-4">
     <div class="card feature-card h-100">
       <div class="card-body">
@@ -152,6 +171,7 @@
     </div>
   </div>
 </div>
+</section>
 
   {% endif %}
 

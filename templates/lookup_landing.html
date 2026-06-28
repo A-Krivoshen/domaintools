@@ -14,7 +14,7 @@
 {% set landing_lead = tr('Выберите инструмент для быстрого анализа домена и проверки доступности.', 'Choose a tool for instant domain analysis and availability checks.') %}
 {% set landing_note = tr('Эта страница — общий хаб по домену: быстрый доступ к отчёту, DNS и WHOIS.', 'This page is a general domain hub with quick access to report, DNS, and WHOIS.') %}
 {% set landing_actions = [
-  {'label': tr('Сводный отчёт', 'Domain report'), 'class': 'btn-primary', 'href': url_for('domain_report') ~ '?q=' ~ q},
+  {'label': tr('Проверить домен', 'Check domain'), 'class': 'btn-primary', 'href': url_for('domain_check', domain=domain)},
   {'label': 'WHOIS', 'class': 'btn-outline-primary', 'href': url_for('whois_lookup') ~ '?query=' ~ q},
   {'label': 'DNS', 'class': 'btn-outline-primary', 'href': url_for('dns_lookup') ~ '?q=' ~ q},
   {'label': tr('Доступность', 'Availability'), 'class': 'btn-outline-secondary', 'href': url_for('domain_search') ~ '?query=' ~ (domain_label or q)},

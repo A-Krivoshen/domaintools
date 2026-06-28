@@ -1,4 +1,7 @@
 import unittest
+from unittest.mock import patch
+
+import app as app_module
 
 
 class FormI18nLayoutTests(unittest.TestCase):
@@ -39,7 +42,75 @@ class FormI18nLayoutTests(unittest.TestCase):
                 html = self.client.get(f'/?lang={lang}').get_data(as_text=True)
                 self.assertIn('nav-label--short', html)
                 self.assertIn('nav-label--long', html)
+                self.assertIn('nav-label-stack', html)
                 self.assertIn('nav-link--adaptive', html)
+
+    def test_desktop_nav_single_row_all_items_no_more_dropdown(self):
+        for lang, labels in (
+            ('ru', ('DNS', 'Владелец', 'GeoIP', 'Reverse', 'Проверка', 'Домены', 'Рег.', 'VPS', 'Сайт', 'Безопасность', 'История')),
+            ('en', ('DNS', 'Owner', 'GeoIP', 'Reverse', 'Check', 'Domains', 'Regs', 'VPS', 'Site', 'Security', 'History')),
+        ):
+            with self.subTest(lang=lang):
+                html = self.client.get(f'/?lang={lang}').get_data(as_text=True)
+                self.assertIn('site-navbar__links--desktop', html)
+                desktop = html.split('site-navbar__links--desktop', 1)[1].split('site-navbar__links--mobile', 1)[0]
+                self.assertNotIn('site-navbar__more', desktop)
+                self.assertNotIn('Ещё', desktop)
+                self.assertNotIn('More', desktop)
+                for label in labels:
+                    self.assertIn(label, desktop)
+                self.assertEqual(desktop.count('class="nav-item"'), 11)
+
+    def test_desktop_header_tools_match_reference(self):
+        html = self.client.get('/?lang=ru').get_data(as_text=True)
+        self.assertIn('ux-mode-toggle-btn__glyph', html)
+        self.assertIn('&lt;/&gt;', html)
+        self.assertIn('Быстрый переход', html)
+        self.assertIn('data-shortcut-mod', html)
+        self.assertIn('lang-switch', html)
+        self.assertIn('data-theme-toggle', html)
+
+    def test_mobile_nav_keeps_all_adaptive_dual_labels(self):
+        html = self.client.get('/?lang=en').get_data(as_text=True)
+        mobile_block = html.split('site-navbar__links--mobile', 1)[1].split('navbar-tools', 1)[0]
+        self.assertEqual(mobile_block.count('nav-link--adaptive'), 11)
+        self.assertEqual(mobile_block.count('class="nav-label-stack"'), 11)
+
+    def test_status_chips_dock_is_outside_navbar(self):
+        dock = {
+            'items': [{
+                'query': 'example.com',
+                'kind': 'dns',
+                'chip_kind_label': 'DNS',
+                'domain_display': 'example.com',
+                'repeat_url': '/dns?q=example.com',
+                'view_url': '/history/dns/x',
+                'status_tone': 'ok',
+            }],
+            'total': 1,
+            'has_more': False,
+            'history_url': '/history',
+        }
+        with patch.object(app_module, 'recent_history_user_dock', return_value=dock):
+            with patch.object(app_module, 'recent_history_global_dock', return_value={'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}):
+                html = self.client.get('/?lang=en').get_data(as_text=True)
+        nav_end = html.split('</nav>', 1)[0]
+        after_nav = html.split('</nav>', 1)[1]
+        self.assertNotIn('data-status-chips-dock-user', nav_end)
+        self.assertIn('status-chips-dock', after_nav)
+        self.assertIn('data-status-chips-dock-user', after_nav)
+
+    def test_command_palette_shortcut_uses_readable_ctrl_not_unicode(self):
+        for lang in ('ru', 'en'):
+            with self.subTest(lang=lang):
+                html = self.client.get(f'/?lang={lang}').get_data(as_text=True)
+                self.assertIn('data-shortcut-mod', html)
+                self.assertNotIn('⌘K', html)
+                self.assertIn('command-palette-trigger__shortcut', html)
+                if lang == 'ru':
+                    self.assertIn('Быстрый переход', html)
+                else:
+                    self.assertIn('Quick navigation', html)
 
     def test_ru_and_en_home_submit_texts_present(self):
         ru = self.client.get('/?lang=ru').get_data(as_text=True)
@@ -52,10 +123,12 @@ class FormI18nLayoutTests(unittest.TestCase):
     def test_domains_search_labels_both_locales(self):
         ru = self.client.get('/domains?lang=ru').get_data(as_text=True)
         en = self.client.get('/domains?lang=en').get_data(as_text=True)
-        self.assertIn('Поиск домена', ru)
-        self.assertIn('Искать', ru)
-        self.assertIn('Search domain', en)
-        self.assertIn('Search', en)
+        self.assertIn('Подбор и проверка', ru)
+        self.assertIn('Найти', ru)
+        self.assertIn('Проверить домены', ru)
+        self.assertIn('Find and check', en)
+        self.assertIn('Find', en)
+        self.assertIn('Check domains', en)
 
     def test_site_checker_multi_action_form_markup(self):
         html = self.client.get('/site-checker?lang=en').get_data(as_text=True)

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/quick_actions.html' import tool_page_dock_open, tool_page_dock_close %}
 {% block title %}{% if query %}{{ tr('Reverse DNS для ', 'Reverse DNS for ') ~ query ~ ' — DomainTools' }}{% else %}{{ tr('Reverse-проверка — DomainTools', 'Reverse lookup — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{{ tr('Reverse DNS и FCrDNS проверка для IP/доменов с подробными PTR/forward-результатами.', 'Reverse DNS and FCrDNS checks for IP/domains with detailed PTR/forward results.') }}{% endblock %}
 
@@ -32,9 +33,14 @@
     </div>
   </form>
 
-  {% if error %}
-    <div class="alert alert-danger">{{ error }}</div>
-  {% endif %}
+  {% set show_tool_layout = query or error or result %}
+
+  {% if show_tool_layout %}
+    {{ tool_page_dock_open() }}
+
+    {% if error %}
+    <div class="alert alert-danger tool-page-alert mb-3" role="alert">{{ error }}</div>
+    {% endif %}
 
   {% if result %}
     <div class="result-panel mb-3">
@@ -46,7 +52,7 @@
       </div>
     </div>
     {% if permalink or query %}
-      <div class="tool-actions mb-3" role="toolbar">
+      <div class="tool-actions tool-actions--fallback mb-3 d-xl-none" role="toolbar">
         <div class="tool-actions__group">
           {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('whois_lookup') }}?query={{ query }}">WHOIS</a>{% endif %}
           {% if query %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('geo_lookup') }}?query={{ query }}">GeoIP</a>{% endif %}
@@ -135,6 +141,17 @@
     {% set data = result %}
     {% set title = tr('Показать Reverse-результат в табличном виде (максимум полей)', 'Show Reverse result in table view (maximum fields)') %}
     {% include "_json_table.html" %}
+
+    {% set qa_bundle = quick_actions_bundle_reverse(query, result, permalink, has_result=true) %}
+    {{ tool_page_dock_close(tr, qa_bundle) }}
+
+  {% elif error and query %}
+    {% set qa_bundle = quick_actions_bundle_reverse(query, none, none, has_result=false) %}
+    {{ tool_page_dock_close(tr, qa_bundle) }}
+
+  {% else %}
+    {{ tool_page_dock_close(tr, none) }}
+  {% endif %}
 
   {% else %}
     {% include "_cards_under_tools.html" %}

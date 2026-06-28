@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}{{ tr('Регистраторы доменов — DomainTools', 'Domain registrars — DomainTools') }}{% endblock %}
+{% block meta_snippet %}{{ tr('Сравнение регистраторов для покупки домена: Beget, REG.RU, SpaceWeb. Подборка после проверки свободных имён на DomainTools.', 'Compare domain registrars: Beget, REG.RU, SpaceWeb. Curated picks after checking available names on DomainTools.') }}{% endblock %}
+
+{% block jsonld_extra %}
+{% set breadcrumb_name = tr('Регистраторы', 'Registrars') %}
+{% set breadcrumb_path = url_for('registrars_landing') %}
+{% include '_breadcrumb_jsonld.html' %}
+{% set webapp_name = tr('Сравнение регистраторов доменов', 'Domain registrar comparison') %}
+{% set webapp_path = url_for('registrars_landing') %}
+{% include '_webapp_jsonld.html' %}
+{% endblock %}
+
+{% block content %}
+<section class="hosting-hero card-soft p-4 p-md-5 mb-4">
+  <div class="hosting-hero__badge">
+    <i class="fa-solid fa-globe" aria-hidden="true"></i>
+    {{ tr('Регистрация', 'Registration') }}
+  </div>
+  <h1 class="hosting-hero__title">{{ tr('Где зарегистрировать домен', 'Where to register your domain') }}</h1>
+  <p class="hosting-hero__lead">
+    {{ tr('Нашли свободное имя на DomainTools — выберите регистратора. Сравните Beget, REG.RU и SpaceWeb, затем переходите к VPS для запуска сайта.', 'Found an available name on DomainTools — pick a registrar. Compare Beget, REG.RU, and SpaceWeb, then move on to VPS hosting.') }}
+  </p>
+  <div class="hosting-hero__actions">
+    <a class="btn btn-primary" href="{{ url_for('domain_search') }}">
+      <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>
+      {{ tr('Подобрать домен', 'Find a domain') }}
+    </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('hosting_landing') }}">
+      <i class="fa-solid fa-server me-1" aria-hidden="true"></i>
+      {{ tr('Дальше — VPS', 'Next — VPS') }}
+    </a>
+  </div>
+</section>
+
+<section class="mb-4">
+  {% with offers=registrar_all_offers, placement='registrars-page-grid', title=tr('Проверенные регистраторы', 'Trusted registrars'), lead=tr('Цены ориентировочные для .ru — актуальные тарифы на сайтах регистраторов.', 'Prices are indicative for .ru — see registrar sites for current rates.') %}
+  {% include '_registrar_offers_grid.html' %}
+  {% endwith %}
+</section>
+
+<section class="hosting-faq card-soft p-4 mb-3">
+  <h2 class="page-section-title mb-3">{{ tr('Как выбрать регистратора', 'How to pick a registrar') }}</h2>
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="hosting-faq__item">
+        <div class="hosting-faq__icon" aria-hidden="true"><i class="fa-solid fa-cloud"></i></div>
+        <h3 class="h6">Beget</h3>
+        <p class="small text-muted mb-0">{{ tr('Домен и хостинг в одной панели — минимум переключений после подбора.', 'Domain and hosting in one panel — fewer steps after your search.') }}</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="hosting-faq__item">
+        <div class="hosting-faq__icon" aria-hidden="true"><i class="fa-solid fa-certificate"></i></div>
+        <h3 class="h6">REG.RU</h3>
+        <p class="small text-muted mb-0">{{ tr('Широкий выбор зон .ru / .рф и удобный перенос доменов.', 'Wide .ru / .рф zone coverage and easy domain transfers.') }}</p>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="hosting-faq__item">
+        <div class="hosting-faq__icon" aria-hidden="true"><i class="fa-solid fa-shield-halved"></i></div>
+        <h3 class="h6">SpaceWeb</h3>
+        <p class="small text-muted mb-0">{{ tr('Домен и VPS у одного провайдера — быстрый путь к запуску.', 'Domain and VPS from one provider — a fast path to launch.') }}</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% set faq_id = 'registrars-faq' %}
+{% set faq_items = [
+  {'q': tr('Какой регистратор выбрать после подбора?', 'Which registrar after a domain search?'),
+   'a': tr('Beget — если сразу нужен хостинг; REG.RU — для .ru/.рф и переноса; SpaceWeb — домен + VPS.', 'Beget if you need hosting right away; REG.RU for .ru/.рф and transfers; SpaceWeb for domain + VPS.')},
+  {'q': tr('Можно ли зарегистрировать кириллический домен?', 'Can I register a Cyrillic domain?'),
+   'a': tr('Да — выберите зоны .рф, .рус и др. в подборе, затем перейдите к регистратору.', 'Yes — pick .рф, .рус and other zones in search, then go to a registrar.')},
+  {'q': tr('Что делать после регистрации?', 'What after registration?'),
+   'a': tr('Выберите VPS на странице хостинга и привяжите DNS к серверу.', 'Pick a VPS on the hosting page and point DNS to your server.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endblock %}

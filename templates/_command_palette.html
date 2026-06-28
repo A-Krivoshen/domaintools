@@ -26,10 +26,13 @@
     </div>
     <p id="commandPaletteTitle" class="visually-hidden">{{ tr('Быстрый переход', 'Quick navigation') }}</p>
     <ul id="commandPaletteList" class="command-palette__list" role="listbox" aria-label="{{ tr('Инструменты', 'Tools') }}"></ul>
+    {% include '_query_history_chips.html' %}
     <div class="command-palette__footer">
       <span><kbd class="command-palette__kbd">↑↓</kbd> {{ tr('выбор', 'navigate') }}</span>
       <span><kbd class="command-palette__kbd">↵</kbd> {{ tr('открыть', 'open') }}</span>
-      <span class="d-none d-md-inline"><kbd class="command-palette__kbd">⌘K</kbd> / <kbd class="command-palette__kbd">Ctrl+K</kbd></span>
+      <span class="d-none d-md-inline command-palette__footer-shortcut">
+        <kbd class="command-palette__kbd" data-shortcut-mod>Ctrl</kbd><kbd class="command-palette__kbd">K</kbd>
+      </span>
     </div>
   </div>
 </div>
@@ -99,6 +102,14 @@
     "url": {{ url_for('domain_search')|tojson }},
     "icon": "fa-magnifying-glass",
     "keywords": ["domains", "домены", "search", "availability", "tld", "зоны"]
+  },
+  {
+    "id": "registrars",
+    "title": {{ tr('Регистраторы доменов', 'Domain registrars')|tojson }},
+    "subtitle": {{ tr('Beget, REG.RU, SpaceWeb — где купить домен', 'Beget, REG.RU, SpaceWeb — where to buy a domain')|tojson }},
+    "url": {{ url_for('registrars_landing')|tojson }},
+    "icon": "fa-certificate",
+    "keywords": ["registrar", "регистратор", "beget", "regru", "reg.ru", "spaceweb", "sweb", "купить", "register"]
   },
   {
     "id": "hosting",

@@ -329,7 +329,8 @@ class SecurityStorageAndSsrfTests(unittest.TestCase):
 
         app_module.socket.getaddrinfo = _fake_getaddrinfo
         app_module.requests.get = _fake_get
-        status, text, headers, err = app_module._safe_get_text('https://example.com')
+        with app_module.app.test_request_context('/security?lang=en'):
+            status, text, headers, err = app_module._safe_get_text('https://example.com')
         self.assertEqual(status, 0)
         self.assertEqual(text, '')
         self.assertEqual(headers, {})

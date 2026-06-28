@@ -1,0 +1,121 @@
+{#-
+  Tool Side Panel — reusable right panel (desktop ≥1280px)
+  tool_side_panel(tr, actions, quick_links=[], qa_context={})
+  tool_page_dock_open() / tool_page_dock_close(tr, qa_bundle)
+-#}
+{% macro tool_side_panel(tr, actions, quick_links=None, qa_context=None) %}
+{% set qa_quick_links = quick_links or [] %}
+{% set qa_ctx = qa_context or {} %}
+<aside class="quick-actions-dock tool-side-panel"
+       aria-label="{{ tr('Панель инструментов', 'Tool panel') }}"
+       data-quick-actions-dock
+       data-qa-context='{{ qa_ctx | tojson }}'
+       aria-expanded="false">
+  <button type="button"
+          class="quick-actions-dock__affordance"
+          data-qa-dock-toggle
+          aria-label="{{ tr('Развернуть панель', 'Expand panel') }}"
+          title="{{ tr('Быстрые действия', 'Quick actions') }}">
+    <i class="fa-solid fa-grip-lines-vertical" aria-hidden="true"></i>
+  </button>
+  <div class="quick-actions-dock__panel">
+    <div class="tool-side-panel__body">
+      <header class="quick-actions-dock__head">
+        <button type="button" class="quick-actions-dock__toggle" data-qa-dock-toggle>
+          <i class="fa-solid fa-bolt quick-actions-dock__head-icon" aria-hidden="true"></i>
+          <span class="quick-actions-dock__title">{{ tr('Быстрые действия', 'Quick actions') }}</span>
+        </button>
+      </header>
+
+      <div class="quick-actions-dock__scroll quick-actions-dock__scroll--actions">
+        <nav class="quick-actions-dock__list" aria-label="{{ tr('Быстрые действия', 'Quick actions') }}">
+          {% for item in actions if item.get('group', 'primary') != 'secondary' %}
+            {{ _quick_action_item(tr, item) }}
+          {% endfor %}
+        </nav>
+
+        {% set qa_secondary = actions | selectattr('group', 'equalto', 'secondary') | list %}
+        {% if qa_secondary %}
+        <div class="quick-actions-dock__section">
+          <span class="quick-actions-dock__section-label">{{ tr('Дополнительно', 'More') }}</span>
+          <nav class="quick-actions-dock__list quick-actions-dock__list--secondary" aria-label="{{ tr('Дополнительные действия', 'More actions') }}">
+            {% for item in qa_secondary %}
+              {{ _quick_action_item(tr, item) }}
+            {% endfor %}
+          </nav>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {% if qa_quick_links %}
+    <div class="quick-actions-dock__footer">
+      <span class="quick-actions-dock__footer-label">{{ tr('Быстрый переход', 'Quick jump') }}</span>
+      <div class="quick-actions-dock__quick-row">
+        {% for link in qa_quick_links %}
+        <a class="quick-actions-dock__quick-link" href="{{ link.href }}">
+          {% if link.label is defined %}{{ link.label }}{% else %}{{ tr(link.label_ru, link.label_en) }}{% endif %}
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</aside>
+{% endmacro %}
+
+{% macro quick_actions_dock(tr, actions, quick_links=None, qa_context=None) %}
+{{ tool_side_panel(tr, actions, quick_links, qa_context) }}
+{% endmacro %}
+
+{% macro _quick_action_item(tr, item) %}
+  {% if item.type == 'link' %}
+  <a class="quick-actions-dock__btn quick-actions-dock__btn--link" href="{{ item.href }}">
+    <span class="quick-actions-dock__icon" aria-hidden="true"><i class="fa-solid {{ item.icon }}"></i></span>
+    <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
+  </a>
+  {% elif item.type == 'export' %}
+  <div class="quick-actions-dock__item quick-actions-dock__item--export">
+    <button type="button" class="quick-actions-dock__btn" data-qa-action="export-json" title="{{ tr('Экспорт JSON', 'Export JSON') }}">
+      <span class="quick-actions-dock__icon" aria-hidden="true"><i class="fa-solid {{ item.icon }}"></i></span>
+      <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
+    </button>
+    <div class="quick-actions-dock__sub" aria-hidden="true">
+      <button type="button" class="quick-actions-dock__sub-btn" data-qa-action="export-json">JSON</button>
+      <button type="button" class="quick-actions-dock__sub-btn" data-qa-action="export-csv">CSV</button>
+    </div>
+  </div>
+  {% else %}
+  <button type="button"
+          class="quick-actions-dock__btn"
+          data-qa-action="{{ item.action }}"
+          {% if item.copy_target %}data-qa-copy-target="{{ item.copy_target }}"{% endif %}>
+    <span class="quick-actions-dock__icon" aria-hidden="true">
+      {% if item.action == 'favorite' %}
+      <i class="fa-regular fa-star"></i>
+      {% else %}
+      <i class="fa-solid {{ item.icon }}"></i>
+      {% endif %}
+    </span>
+    <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
+  </button>
+  {% endif %}
+{% endmacro %}
+
+{% macro tool_page_dock_open() %}
+<div class="tool-page-layout tool-page-layout--dock">
+<div class="tool-page-layout__main">
+{% endmacro %}
+
+{% macro tool_page_dock_close(tr, qa_bundle) %}
+</div>
+{% if qa_bundle %}
+{{ tool_side_panel(
+  tr,
+  qa_bundle.actions if qa_bundle else [],
+  qa_bundle.quick_links if qa_bundle else [],
+  qa_bundle.context if qa_bundle else {}
+) }}
+{% endif %}
+</div>
+{% endmacro %}

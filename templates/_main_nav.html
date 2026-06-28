@@ -1,0 +1,123 @@
+{% from 'macros/ui_labels.html' import nav_dual %}
+
+{% set report_active = request.endpoint in ['domain_report', 'domain_check', 'domain_check_query'] %}
+{% set site_checker_active = request.blueprint == 'site_checker' %}
+
+<ul class="navbar-nav site-navbar__links site-navbar__links--desktop me-auto my-lg-0 d-none d-xl-flex">
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='dns_lookup' %}active{% endif %}"
+       href="{{ url_for('dns_lookup') }}"
+       title="{{ tr('Куда ведёт домен', 'Where the domain points') }}">{{ tr('DNS', 'DNS') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='whois_lookup' %}active{% endif %}"
+       href="{{ url_for('whois_lookup') }}"
+       title="{{ tr('Кто владелец домена', 'Who owns the domain') }}">{{ tr('Владелец', 'Owner') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='geo_lookup' %}active{% endif %}"
+       href="{{ url_for('geo_lookup') }}"
+       title="{{ tr('ASN, страна и сеть по IP', 'ASN, country, and network by IP') }}">{{ tr('GeoIP', 'GeoIP') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='reverse_lookup' %}active{% endif %}"
+       href="{{ url_for('reverse_lookup') }}"
+       title="{{ tr('Обратный DNS (PTR)', 'Reverse DNS (PTR)') }}">{{ tr('Reverse', 'Reverse') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if report_active %}active{% endif %}"
+       href="{{ url_for('domain_report') }}"
+       title="{{ tr('Полная проверка домена', 'Full domain check') }}">{{ tr('Проверка', 'Check') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='domain_search' %}active{% endif %}"
+       href="{{ url_for('domain_search') }}"
+       title="{{ tr('Подбор доменов и проверка зон', 'Domain search and zone availability') }}">{{ tr('Домены', 'Domains') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='registrars_landing' %}active{% endif %}"
+       href="{{ url_for('registrars_landing') }}"
+       title="{{ tr('Где зарегистрировать домен', 'Where to register a domain') }}">{{ tr('Рег.', 'Regs') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='hosting_landing' %}active{% endif %}"
+       href="{{ url_for('hosting_landing') }}"
+       title="{{ tr('VPS и хостинг для домена', 'VPS and hosting for your domain') }}">{{ tr('VPS', 'VPS') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if site_checker_active %}active{% endif %}"
+       href="{{ url_for('site_checker.site_checker') }}"
+       title="{{ tr('Проверка сайта', 'Site Checker') }}">{{ tr('Сайт', 'Site') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='security_tools' %}active{% endif %}"
+       href="{{ url_for('security_tools') }}"
+       title="{{ tr('Проверить безопасность', 'Check security') }}">{{ tr('Безопасность', 'Security') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link {% if request.endpoint=='history_list' %}active{% endif %}"
+       href="{{ url_for('history_list') }}"
+       title="{{ tr('Сохранённые проверки', 'Saved checks') }}">{{ tr('История', 'History') }}</a>
+  </li>
+</ul>
+
+<ul class="navbar-nav site-navbar__links site-navbar__links--mobile me-auto my-2 d-xl-none">
+  <li class="nav-group-label">{{ tr('Проверки', 'Lookup') }}</li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='dns_lookup' %}active{% endif %}"
+       href="{{ url_for('dns_lookup') }}"
+       title="{{ tr('Куда ведёт домен', 'Where the domain points') }}">{{ nav_dual(tr, 'DNS', 'DNS', 'Куда ведёт', 'Where It Points') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='whois_lookup' %}active{% endif %}"
+       href="{{ url_for('whois_lookup') }}"
+       title="{{ tr('Кто владелец домена', 'Who owns the domain') }}">{{ nav_dual(tr, 'Владелец', 'Owner', 'Кто владелец', 'Who Owns It') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='geo_lookup' %}active{% endif %}"
+       href="{{ url_for('geo_lookup') }}"
+       title="{{ tr('ASN, страна и сеть по IP', 'ASN, country, and network by IP') }}">{{ nav_dual(tr, 'GeoIP', 'GeoIP', 'ASN и страна', 'ASN & country') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='reverse_lookup' %}active{% endif %}"
+       href="{{ url_for('reverse_lookup') }}"
+       title="{{ tr('Обратный DNS (PTR)', 'Reverse DNS (PTR)') }}">{{ nav_dual(tr, 'Reverse', 'Reverse', 'PTR и FCrDNS', 'PTR and FCrDNS') }}</a>
+  </li>
+
+  <li class="nav-group-label">{{ tr('Инструменты', 'Tools') }}</li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if report_active %}active{% endif %}"
+       href="{{ url_for('domain_report') }}"
+       title="{{ tr('Полная проверка домена', 'Full domain check') }}">{{ nav_dual(tr, 'Проверка', 'Check', 'Полная проверка', 'Full Check') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='domain_search' %}active{% endif %}"
+       href="{{ url_for('domain_search') }}"
+       title="{{ tr('Подбор доменов и проверка зон', 'Domain search and zone availability') }}">{{ nav_dual(tr, 'Домены', 'Domains', 'Подбор и зоны', 'Search & zones') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='registrars_landing' %}active{% endif %}"
+       href="{{ url_for('registrars_landing') }}"
+       title="{{ tr('Где зарегистрировать домен', 'Where to register a domain') }}">{{ nav_dual(tr, 'Рег.', 'Regs', 'Регистраторы', 'Registrars') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='hosting_landing' %}active{% endif %}"
+       href="{{ url_for('hosting_landing') }}"
+       title="{{ tr('VPS и хостинг для домена', 'VPS and hosting for your domain') }}">{{ nav_dual(tr, 'VPS', 'VPS', 'Хостинг', 'Hosting') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if site_checker_active %}active{% endif %}"
+       href="{{ url_for('site_checker.site_checker') }}"
+       title="{{ tr('Проверка сайта', 'Site Checker') }}">{{ nav_dual(tr, 'Сайт', 'Site', 'Проверка сайта', 'Site Checker') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='security_tools' %}active{% endif %}"
+       href="{{ url_for('security_tools') }}"
+       title="{{ tr('Проверить безопасность', 'Check security') }}">{{ nav_dual(tr, 'Безопасность', 'Security', 'Проверить безопасность', 'Check Security') }}</a>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link nav-link--adaptive {% if request.endpoint=='history_list' %}active{% endif %}"
+       href="{{ url_for('history_list') }}"
+       title="{{ tr('Сохранённые проверки', 'Saved checks') }}">{{ nav_dual(tr, 'История', 'History', 'Сохранённые', 'Saved checks') }}</a>
+  </li>
+</ul>

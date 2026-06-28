@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/quick_actions.html' import tool_page_dock_open, tool_page_dock_close %}
 {% block title %}{{ tr('Проверка безопасности — DomainTools', 'Security checks — DomainTools') }}{% endblock %}
 {% block meta_snippet %}{{ tr('Безопасные проверки хоста: порт-сканер с лимитами и пассивная WordPress-проверка без brute-force.', 'Safe host checks: rate-limited port scanner and passive WordPress checks without brute-force.') }}{% endblock %}
 
@@ -17,19 +18,26 @@
 {% set page_icon = 'fa-user-shield' %}
 {% include '_tool_page_header.html' %}
 
+{% set security_result = port_result if active_scan == 'ports' else wp_result %}
+{% set security_scan_error = port_error if active_scan == 'ports' else wp_error %}
+{% set security_target = host if active_scan == 'ports' else (wp_result.target_url if wp_result else wp_url_raw) %}
+{% set has_security_result = security_result is not none %}
+
+{{ tool_page_dock_open() }}
+
   {% if security_error %}
-    <div class="alert alert-warning">{{ security_error }}</div>
+    <div class="alert alert-danger tool-page-alert mb-3" role="alert">{{ security_error }}</div>
   {% endif %}
 
   {% if job_id and job_status in ['queued','running'] %}
-    <div class="alert alert-primary" data-security-job data-job-id="{{ job_id }}" data-job-kind="{{ active_scan }}">
+    <div class="alert alert-primary mb-3" data-security-job data-job-id="{{ job_id }}" data-job-kind="{{ active_scan }}">
       <strong>{{ tr('Задача запущена', 'Scan job started') }}</strong>: {{ tr('ожидаем завершения и обновим страницу автоматически.', 'waiting for completion, page will refresh automatically.') }}
       <div class="small mt-1 text-muted">ID: <code>{{ job_id }}</code></div>
     </div>
   {% endif %}
 
   {% if recaptcha_enabled and (not recaptcha_ready) %}
-    <div class="alert alert-warning small">
+    <div class="alert alert-warning small mb-3">
       {% if recaptcha_setup_error %}
         <strong>{{ tr('Проверьте конфигурацию:', 'Check configuration:') }}</strong> {{ recaptcha_setup_error }}
       {% else %}
@@ -78,47 +86,50 @@
     </div>
 
     {% if port_error %}
-      <div class="alert alert-warning mt-3 mb-0">{{ port_error }}</div>
+      <div class="alert alert-warning tool-page-alert mt-3 mb-0" role="alert">{{ port_error }}</div>
     {% endif %}
 
     {% if port_result %}
-      <div class="mt-3">
-        <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
-          <div>
-            <strong>{{ tr('Цель', 'Target') }}:</strong> <code>{{ port_result.host }}</code> → <code>{{ port_result.ip }}</code>
-            {% if port_result.input_host and port_result.input_host != port_result.host %}
-              <span class="small text-muted">({{ tr('введено', 'input') }}: <code>{{ port_result.input_host }}</code>)</span>
-            {% endif %}
-          </div>
-          <div class="small text-muted">{{ tr('Лимиты', 'Limits') }}: {{ tr('порты', 'ports') }} ≤ {{ port_result.limits.max_ports }}, timeout {{ port_result.limits.timeout_s }}s</div>
+      <div class="result-panel mt-3 mb-2">
+        <div class="result-panel__head">
+          <h3 class="result-panel__title h6 mb-0">{{ tr('Результаты сканирования', 'Scan results') }}</h3>
         </div>
-        <div class="d-flex flex-wrap gap-2 mb-2">
-          <span class="badge bg-success">{{ tr('Открыто', 'Open') }}: {{ port_result.open_count }}</span>
-          <span class="badge bg-secondary">{{ tr('Закрыто', 'Closed') }}: {{ port_result.closed_count }}</span>
-          <span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}: {{ port_result.filtered_count }}</span>
+      </div>
+      <div class="d-flex flex-wrap justify-content-between gap-2 mb-2">
+        <div>
+          <strong>{{ tr('Цель', 'Target') }}:</strong> <code>{{ port_result.host }}</code> → <code>{{ port_result.ip }}</code>
+          {% if port_result.input_host and port_result.input_host != port_result.host %}
+            <span class="small text-muted">({{ tr('введено', 'input') }}: <code>{{ port_result.input_host }}</code>)</span>
+          {% endif %}
         </div>
+        <div class="small text-muted">{{ tr('Лимиты', 'Limits') }}: {{ tr('порты', 'ports') }} ≤ {{ port_result.limits.max_ports }}, timeout {{ port_result.limits.timeout_s }}s</div>
+      </div>
+      <div class="d-flex flex-wrap gap-2 mb-2">
+        <span class="badge bg-success">{{ tr('Открыто', 'Open') }}: {{ port_result.open_count }}</span>
+        <span class="badge bg-secondary">{{ tr('Закрыто', 'Closed') }}: {{ port_result.closed_count }}</span>
+        <span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}: {{ port_result.filtered_count }}</span>
+      </div>
 
-        {% set hints = port_result.hints %}
-        {% set top_margin = '' %}
-        {% include "_security_hints.html" %}
+      {% set hints = port_result.hints %}
+      {% set top_margin = '' %}
+      {% include "_security_hints.html" %}
 
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-0">
-            <thead class="table-light"><tr><th>{{ tr('Порт', 'Port') }}</th><th>{{ tr('Статус', 'Status') }}</th></tr></thead>
-            <tbody>
-              {% for row in port_result.rows %}
-              <tr>
-                <td><code>{{ row.port }}</code></td>
-                <td>
-                  {% if row.state == 'open' %}<span class="badge bg-success">{{ tr('Открыт', 'Open') }}</span>
-                  {% elif row.state == 'closed' %}<span class="badge bg-secondary">{{ tr('Закрыт', 'Closed') }}</span>
-                  {% else %}<span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}</span>{% endif %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
+      <div class="table-responsive">
+        <table class="table table-sm align-middle mb-0">
+          <thead class="table-light"><tr><th>{{ tr('Порт', 'Port') }}</th><th>{{ tr('Статус', 'Status') }}</th></tr></thead>
+          <tbody>
+            {% for row in port_result.rows %}
+            <tr>
+              <td><code>{{ row.port }}</code></td>
+              <td>
+                {% if row.state == 'open' %}<span class="badge bg-success">{{ tr('Открыт', 'Open') }}</span>
+                {% elif row.state == 'closed' %}<span class="badge bg-secondary">{{ tr('Закрыт', 'Closed') }}</span>
+                {% else %}<span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}</span>{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     {% endif %}
   </div>
@@ -140,30 +151,33 @@
     </form>
 
     {% if wp_error %}
-      <div class="alert alert-warning mt-3 mb-0">{{ wp_error }}</div>
+      <div class="alert alert-warning tool-page-alert mt-3 mb-0" role="alert">{{ wp_error }}</div>
     {% endif %}
 
     {% if wp_result %}
-      <div class="mt-3">
-        <div class="small text-muted mb-2"><code>{{ wp_result.target_url }}</code> → <code>{{ wp_result.target_ip }}</code></div>
-        <ul class="list-group list-group-flush">
-          <li class="list-group-item px-0">WordPress: <strong>{{ tr('да', 'yes') if wp_result.is_wordpress else tr('нет', 'no') }}</strong></li>
-          <li class="list-group-item px-0">/wp-login.php: <code>{{ wp_result.wp_login_status }}</code></li>
-          <li class="list-group-item px-0">xmlrpc.php: <strong>{{ tr('доступен', 'enabled') if wp_result.xmlrpc_enabled else tr('не обнаружен', 'not detected') }}</strong></li>
-          <li class="list-group-item px-0">readme.html: <strong>{{ tr('доступен', 'exposed') if wp_result.readme_exposed else tr('не обнаружен', 'not detected') }}</strong></li>
-          <li class="list-group-item px-0">wp-json: <strong>{{ tr('доступен', 'enabled') if wp_result.wp_json_enabled else tr('не обнаружен', 'not detected') }}</strong></li>
-          <li class="list-group-item px-0">uploads listing: <strong>{{ tr('включен', 'enabled') if wp_result.uploads_listing else tr('выключен', 'disabled') }}</strong></li>
-        </ul>
-
-        {% set hints = wp_result.hints %}
-        {% set top_margin = 'mt-2 mb-0' %}
-        {% include "_security_hints.html" %}
+      <div class="result-panel mt-3 mb-2">
+        <div class="result-panel__head">
+          <h3 class="result-panel__title h6 mb-0">{{ tr('Результаты WordPress', 'WordPress results') }}</h3>
+        </div>
       </div>
+      <div class="small text-muted mb-2"><code>{{ wp_result.target_url }}</code> → <code>{{ wp_result.target_ip }}</code></div>
+      <ul class="list-group list-group-flush">
+        <li class="list-group-item px-0">WordPress: <strong>{{ tr('да', 'yes') if wp_result.is_wordpress else tr('нет', 'no') }}</strong></li>
+        <li class="list-group-item px-0">/wp-login.php: <code>{{ wp_result.wp_login_status }}</code></li>
+        <li class="list-group-item px-0">xmlrpc.php: <strong>{{ tr('доступен', 'enabled') if wp_result.xmlrpc_enabled else tr('не обнаружен', 'not detected') }}</strong></li>
+        <li class="list-group-item px-0">readme.html: <strong>{{ tr('доступен', 'exposed') if wp_result.readme_exposed else tr('не обнаружен', 'not detected') }}</strong></li>
+        <li class="list-group-item px-0">wp-json: <strong>{{ tr('доступен', 'enabled') if wp_result.wp_json_enabled else tr('не обнаружен', 'not detected') }}</strong></li>
+        <li class="list-group-item px-0">uploads listing: <strong>{{ tr('включен', 'enabled') if wp_result.uploads_listing else tr('выключен', 'disabled') }}</strong></li>
+      </ul>
+
+      {% set hints = wp_result.hints %}
+      {% set top_margin = 'mt-2 mb-0' %}
+      {% include "_security_hints.html" %}
     {% endif %}
   </div>
 
   {% if permalink %}
-    <div class="tool-actions d-flex flex-wrap gap-3 small mb-3">
+    <div class="tool-actions tool-actions--fallback d-flex flex-wrap gap-3 small mb-3 d-xl-none">
       <span class="text-muted">{{ tr('Результат:', 'Result:') }}</span>
       <a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
       {% if host %}<a href="{{ url_for('whois_lookup') }}?query={{ host }}">WHOIS</a>{% endif %}
@@ -172,6 +186,28 @@
   {% endif %}
 
   {% include "_cards_under_tools.html" %}
+
+{% if has_security_result %}
+  {% set qa_bundle = quick_actions_bundle_security(security_target, active_scan, security_result, permalink, has_result=true) %}
+{% elif security_error or security_scan_error %}
+  {% set qa_bundle = quick_actions_bundle_security(security_target or host or wp_url_raw, active_scan, none, none, has_result=false) %}
+{% else %}
+  {% set qa_bundle = quick_actions_bundle_security(host or wp_url_raw, active_scan, none, none, has_result=false) %}
+{% endif %}
+{{ tool_page_dock_close(tr, qa_bundle) }}
+
+{% if not host and not wp_url_raw and not job_id %}
+{% set faq_id = 'security-faq' %}
+{% set faq_items = [
+  {'q': tr('Законно ли сканировать порты?', 'Is port scanning legal?'),
+   'a': tr('Используйте только для своих хостов. Есть лимиты и captcha — без brute-force.', 'Only for hosts you own. Rate limits and captcha — no brute-force.')},
+  {'q': tr('Какие порты проверяются?', 'Which ports are scanned?'),
+   'a': tr('Список в форме (по умолчанию популярные: 22, 80, 443…), максимум ограничен настройкой.', 'As listed in the form (defaults: 22, 80, 443…), max limited by config.')},
+] %}
+{% include '_faq_section.html' %}
+{% include '_faq_jsonld.html' %}
+{% endif %}
+
 {% endblock %}
 
 {% block extra_scripts %}
@@ -263,16 +299,4 @@
       }, 2000);
     })();
   </script>
-
-{% if not host and not wp_url_raw and not job_id %}
-{% set faq_id = 'security-faq' %}
-{% set faq_items = [
-  {'q': tr('Законно ли сканировать порты?', 'Is port scanning legal?'),
-   'a': tr('Используйте только для своих хостов. Есть лимиты и captcha — без brute-force.', 'Only for hosts you own. Rate limits and captcha — no brute-force.')},
-  {'q': tr('Какие порты проверяются?', 'Which ports are scanned?'),
-   'a': tr('Список в форме (по умолчанию популярные: 22, 80, 443…), максимум ограничен настройкой.', 'As listed in the form (defaults: 22, 80, 443…), max limited by config.')},
-] %}
-{% include '_faq_section.html' %}
-{% include '_faq_jsonld.html' %}
-{% endif %}
 {% endblock %}

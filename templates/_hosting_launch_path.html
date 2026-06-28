@@ -37,7 +37,7 @@
   </header>
 
   <ol class="launch-path__steps">
-    {% if _variant in ['bundle', 'expiry'] and _buy %}
+    {% if _variant in ['bundle', 'expiry'] and _domain %}
     <li class="launch-path__step launch-path__step--active">
       <div class="launch-path__step-marker" aria-hidden="true">1</div>
       <div class="launch-path__step-body">
@@ -46,16 +46,36 @@
           {% if _display %}<span class="launch-path__step-chip">{{ _display }}</span>{% endif %}
         </div>
         <p class="launch-path__step-text">{{ tr('Закрепите имя у регистратора, пока оно свободно.', 'Secure the name at the registrar while it is still available.') }}</p>
-        <a class="btn btn-success launch-path__step-cta"
-           href="{{ _buy }}"
-           target="_blank"
-           rel="nofollow noopener sponsored"
-           data-buy-track
-           data-buy-domain="{{ _domain }}"
-           data-buy-locale="{{ _locale_tag }}">
-          <i class="fa-solid fa-cart-shopping me-1" aria-hidden="true"></i>
-          {{ tr('Зарегистрировать', 'Register') }}{% if _display %} {{ _display }}{% endif %}
-        </a>
+        <div class="launch-path__providers">
+          {% for reg in registrar_offers_featured() %}
+            {% set _reg_buy = registrar_buy_url(reg.id, _domain) %}
+            {% if _reg_buy %}
+            <a class="launch-path__provider"
+               href="{{ _reg_buy }}"
+               target="_blank"
+               rel="nofollow noopener sponsored"
+               style="--hosting-accent: {{ reg.accent }}"
+               data-buy-track
+               data-buy-domain="{{ _domain }}"
+               data-buy-registrar="{{ reg.id }}"
+               data-buy-locale="{{ _locale_tag }}"
+               data-ref-track
+               data-ref-type="registrar"
+               data-ref-id="{{ reg.id }}"
+               data-ref-placement="{{ _placement }}"
+               data-ref-locale="{{ _locale_tag }}">
+              {% if reg.badge_text %}
+              <span class="launch-path__provider-badge">{{ reg.badge_text }}</span>
+              {% endif %}
+              <span class="launch-path__provider-icon" aria-hidden="true"><i class="fa-solid {{ reg.icon }}"></i></span>
+              <span class="launch-path__provider-name">{{ reg.name }}</span>
+              <span class="launch-path__provider-price">{{ tr('от', 'from') }} {{ reg.price_rub }} ₽</span>
+            </a>
+            {% endif %}
+          {% endfor %}
+        </div>
+        <a class="launch-path__more link-offset-2"
+           href="{{ url_for('registrars_landing') }}">{{ tr('Сравнить регистраторы', 'Compare registrars') }}</a>
       </div>
     </li>
     {% elif _variant == 'dns_unconfigured' %}
@@ -72,7 +92,7 @@
     {% endif %}
 
     <li class="launch-path__step launch-path__step--active">
-      <div class="launch-path__step-marker" aria-hidden="true">{% if _variant in ['bundle', 'expiry'] and _buy %}2{% elif _variant == 'dns_unconfigured' %}2{% else %}1{% endif %}</div>
+      <div class="launch-path__step-marker" aria-hidden="true">{% if _variant in ['bundle', 'expiry'] and _domain %}2{% elif _variant == 'dns_unconfigured' %}2{% else %}1{% endif %}</div>
       <div class="launch-path__step-body">
         <div class="launch-path__step-head">
           <h3 class="launch-path__step-title">{{ tr('Разместить на VPS', 'Host on VPS') }}</h3>
@@ -105,7 +125,7 @@
     </li>
 
     <li class="launch-path__step">
-      <div class="launch-path__step-marker" aria-hidden="true">{% if _variant in ['bundle', 'expiry'] and _buy %}3{% elif _variant == 'dns_unconfigured' %}3{% else %}2{% endif %}</div>
+      <div class="launch-path__step-marker" aria-hidden="true">{% if _variant in ['bundle', 'expiry'] and _domain %}3{% elif _variant == 'dns_unconfigured' %}3{% else %}2{% endif %}</div>
       <div class="launch-path__step-body launch-path__step-body--setup">
         <div class="launch-path__setup">
           <div class="launch-path__setup-icon" aria-hidden="true"><i class="fa-solid fa-wand-magic-sparkles"></i></div>

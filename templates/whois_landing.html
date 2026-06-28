@@ -17,8 +17,8 @@
 {% set landing_lead = tr('Получите сведения о регистраторе, датах регистрации и статусе домена за один клик.', 'Get registrar data, registration dates, and domain status in one click.') %}
 {% set landing_note = tr('Страница сфокусирована на регистрационных данных: владелец, регистратор, даты и статусы.', 'This page focuses on registration data: owner, registrar, dates, and statuses.') %}
 {% set landing_actions = [
-  {'label': tr('Открыть WHOIS', 'Open WHOIS'), 'class': 'btn-primary', 'href': url_for('whois_lookup') ~ '?query=' ~ q},
-  {'label': tr('Сводный отчёт', 'Domain report'), 'class': 'btn-outline-primary', 'href': url_for('domain_report') ~ '?q=' ~ q},
+  {'label': tr('Проверить домен', 'Check domain'), 'class': 'btn-primary', 'href': url_for('domain_check', domain=domain)},
+  {'label': tr('Открыть WHOIS', 'Open WHOIS'), 'class': 'btn-outline-primary', 'href': url_for('whois_lookup') ~ '?query=' ~ q},
   {'label': 'DNS', 'class': 'btn-outline-secondary', 'href': url_for('dns_lookup') ~ '?q=' ~ q},
 ] %}
 {% include '_lookup_landing_shell.html' %}

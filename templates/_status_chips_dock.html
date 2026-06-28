@@ -1,0 +1,32 @@
+{# Left: visitor history (cookie). Right: site-wide history. Desktop only. #}
+{% set _panels = [
+  (recent_history_user_dock(), 'status-chips-dock--user', 'Мои запросы', 'My queries', 'data-status-chips-dock-user'),
+  (recent_history_global_dock(), 'status-chips-dock--global status-chips-dock--right', 'Общая история', 'Site history', 'data-status-chips-dock-global'),
+] %}
+{% for _dock, _mod, _ru, _en, _data_attr in _panels %}
+{% set _items = _dock.get('items', []) %}
+{% if _items and _items|length %}
+<aside class="status-chips-dock {{ _mod }} d-none d-xl-flex"
+       {{ _data_attr }}
+       aria-label="{{ tr(_ru, _en) }}">
+  <span class="status-chips-dock__label">{{ tr(_ru, _en) }}</span>
+  {% for item in _items %}
+  <a class="status-chip status-chip--dock-item"
+     href="{{ item.repeat_url or item.view_url }}"
+     title="{{ item.query or item.domain_display }}">
+    <i class="fa-solid fa-globe status-chip__icon" aria-hidden="true"></i>
+    <span class="status-chip__domain">{{ item.domain_display or item.query or '—' }}</span>
+    <span class="status-chip__badge status-chip__badge--{{ item.status_tone or 'ok' }}">
+      {{ item.chip_kind_label or item.kind|upper }}
+    </span>
+  </a>
+  {% endfor %}
+  {% if _dock.get('has_more') %}
+  <a class="status-chips-dock__more" href="{{ _dock.get('history_url') }}">
+    {{ tr('Вся история', 'All history') }}
+    <i class="fa-solid fa-arrow-right-long ms-1" aria-hidden="true"></i>
+  </a>
+  {% endif %}
+</aside>
+{% endif %}
+{% endfor %}

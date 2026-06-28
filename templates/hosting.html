@@ -26,6 +26,10 @@
       <i class="fa-solid fa-magnifying-glass me-1" aria-hidden="true"></i>
       {{ tr('Подобрать домен', 'Find a domain') }}
     </a>
+    <a class="btn btn-outline-secondary" href="{{ url_for('registrars_landing') }}">
+      <i class="fa-solid fa-globe me-1" aria-hidden="true"></i>
+      {{ tr('Регистраторы', 'Registrars') }}
+    </a>
     <a class="btn btn-outline-secondary"
        href="{{ hosting_vps_landing_url }}"
        target="_blank"
@@ -46,7 +50,7 @@
 {% endwith %}
 
 <section class="mb-4">
-  {% with offers=hosting_all_offers, placement='hosting-page-grid', title=tr('Все провайдеры', 'All providers'), lead=tr('Цены ориентировочные — актуальные тарифы на сайтах провайдеров.', 'Prices are indicative — see provider sites for current plans.') %}
+  {% with offers=hosting_all_offers, placement='hosting-page-grid', providers_grid=true, title=tr('Все провайдеры', 'All providers'), lead=tr('Цены ориентировочные — актуальные тарифы на сайтах провайдеров.', 'Prices are indicative — see provider sites for current plans.') %}
   {% include '_hosting_offers_grid.html' %}
   {% endwith %}
 </section>

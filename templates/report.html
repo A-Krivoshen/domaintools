@@ -20,14 +20,17 @@
 {% include '_tool_page_header.html' %}
 
 <section class="tool-form mb-3">
-  <form method="post" action="{{ url_for('domain_report') }}" data-report-form data-no-global-recaptcha="1" data-loading>
+  <form method="post" action="{{ url_for('domain_report') }}" data-report-form data-no-global-recaptcha="1" data-loading data-smart-query-form data-query-context="report">
     <div class="input-group input-group-lg search-command">
       <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
-      <input name="q" class="form-control form-control-lg" value="{{ query or '' }}" placeholder="example.com пример.рф site.ru" aria-label="{{ tr('Домен', 'Domain') }}" autofocus>
+      <input name="q" class="form-control form-control-lg" data-smart-query value="{{ query or '' }}" placeholder="{{ tr('example.com, агнкс.рф или site.ru, other.com', 'example.com, агнкс.рф or site.ru, other.com') }}" aria-label="{{ tr('Домен', 'Domain') }}" autofocus aria-describedby="reportQueryIntent">
       {% with short_ru='Проверить', short_en='Check', long_ru='Полная проверка', long_en='Full check', btn_variant='btn-primary btn-lg' %}
       {% include '_search_submit_btn.html' %}
       {% endwith %}
     </div>
+    {% with query_context='report' %}
+    {% include '_smart_query_intent.html' %}
+    {% endwith %}
     <div class="col-12">
       <div class="form-text">{{ tr('Максимум доменов за раз:', 'Max domains per batch:') }} {{ batch_max }}</div>
     </div>

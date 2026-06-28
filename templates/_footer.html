@@ -1,5 +1,6 @@
 <footer class="site-footer mt-5 border-top py-3 text-muted small">
   <div class="container">
+    {% include '_registrar_footer_strip.html' %}
     {% include '_hosting_footer_strip.html' %}
 
     <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 footer-top pb-2">
@@ -12,6 +13,7 @@
         <a class="nav-link px-2 text-muted" href="{{ url_for('whois_lookup') }}">WHOIS</a>
         <a class="nav-link px-2 text-muted" href="{{ url_for('domain_report') }}">{{ tr('Проверка', 'Check') }}</a>
         <a class="nav-link px-2 text-muted" href="{{ url_for('domain_search') }}">{{ tr('Домены', 'Domains') }}</a>
+        <a class="nav-link px-2 text-muted" href="{{ url_for('registrars_landing') }}">{{ tr('Регистраторы', 'Registrars') }}</a>
         <a class="nav-link px-2 text-muted" href="{{ url_for('geo_lookup') }}">GeoIP</a>
         <a class="nav-link px-2 text-muted" href="{{ url_for('developers_hub') }}">{{ tr('API', 'API') }}</a>
         <a class="nav-link px-2 text-muted" href="{{ url_for('about_page') }}">{{ tr('О сервисе', 'About') }}</a>

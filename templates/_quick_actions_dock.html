@@ -1,0 +1,4 @@
+{% from 'macros/quick_actions.html' import quick_actions_dock %}
+{% if qa_bundle %}
+{{ quick_actions_dock(tr, qa_bundle.actions, qa_bundle.quick_links, qa_bundle.context) }}
+{% endif %}

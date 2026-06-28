@@ -89,7 +89,7 @@ class ReportCaptchaTests(unittest.TestCase):
                 raise AssertionError('report job should not be queued after captcha failure')
 
         app_module._REPORT_ASYNC_POOL = _MustNotQueue()
-        r = self.client.post('/report', data={'q': 'example.com'})
+        r = self.client.post('/report', data={'q': 'example.com, example.org'})
         self.assertEqual(r.status_code, 200)
         self.assertIn('captcha required', r.get_data(as_text=True))
 

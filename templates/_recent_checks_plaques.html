@@ -1,0 +1,53 @@
+{# expects: recent_checks = {items[], total, has_more, history_url} #}
+{% set _recent = recent_checks or {} %}
+{% set _items = _recent.get('items', []) %}
+{% if _items and _items|length %}
+<section class="recent-checks-plaques mb-3" aria-label="{{ tr('Недавние проверки', 'Recent checks') }}">
+  <div class="recent-checks-plaques__head">
+    <h2 class="recent-checks-plaques__title page-section-title mb-0">
+      <i class="fa-solid fa-clock-rotate-left me-1 text-primary" aria-hidden="true"></i>
+      {{ tr('Недавние проверки', 'Recent checks') }}
+    </h2>
+    {% if _recent.get('has_more') %}
+    <a class="recent-checks-plaques__all small" href="{{ _recent.get('history_url') }}">
+      {{ tr('Вся история', 'View all history') }}
+      <i class="fa-solid fa-arrow-right-long ms-1" aria-hidden="true"></i>
+    </a>
+    {% endif %}
+  </div>
+  <div class="recent-checks-plaques__list">
+    {% for item in _items %}
+    <a class="recent-checks-plaque recent-checks-plaque--{{ item.status_tone or 'ok' }}"
+       href="{{ item.repeat_url or item.view_url }}"
+       title="{{ item.query or item.domain_display }}">
+      <span class="recent-checks-plaque__icon" aria-hidden="true">
+        <i class="fa-solid fa-globe"></i>
+      </span>
+      <span class="recent-checks-plaque__main">
+        <span class="recent-checks-plaque__domain">{{ item.domain_display or item.query or '—' }}</span>
+        <span class="recent-checks-plaque__meta">
+          <span class="recent-checks-plaque__kind">{{ item.kind_label or item.kind|upper }}</span>
+          {% if item.ts %}<time class="recent-checks-plaque__time">{{ item.ts|dt }}</time>{% endif %}
+        </span>
+      </span>
+      <span class="recent-checks-plaque__badges">
+        {% if item.availability_label_ru %}
+        <span class="recent-checks-plaque__badge recent-checks-plaque__badge--availability">
+          {{ tr(item.availability_label_ru, item.availability_label_en) }}
+        </span>
+        {% endif %}
+        {% if item.dns_label_ru %}
+        <span class="recent-checks-plaque__badge recent-checks-plaque__badge--dns">
+          {{ tr(item.dns_label_ru, item.dns_label_en) }}
+        </span>
+        {% elif item.status_label_ru %}
+        <span class="recent-checks-plaque__badge recent-checks-plaque__badge--status recent-checks-plaque__badge--{{ item.status_tone or 'ok' }}">
+          {{ tr(item.status_label_ru, item.status_label_en) }}
+        </span>
+        {% endif %}
+      </span>
+    </a>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}

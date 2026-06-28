@@ -17,8 +17,8 @@
 {% set landing_lead = tr('Проверьте A, MX, NS, TXT и другие записи домена, затем перейдите к WHOIS или регистрации.', 'Check A, MX, NS, TXT and other records, then jump to WHOIS or registration.') %}
 {% set landing_note = tr('Страница помогает быстро открыть DNS-проверку и связанные инструменты для домена.', 'This page helps you open DNS checks and related tools for the domain quickly.') %}
 {% set landing_actions = [
-  {'label': tr('Открыть DNS', 'Open DNS'), 'class': 'btn-primary', 'href': url_for('dns_lookup') ~ '?q=' ~ q},
-  {'label': tr('Сводный отчёт', 'Domain report'), 'class': 'btn-outline-primary', 'href': url_for('domain_report') ~ '?q=' ~ q},
+  {'label': tr('Проверить домен', 'Check domain'), 'class': 'btn-primary', 'href': url_for('domain_check', domain=domain)},
+  {'label': tr('Открыть DNS', 'Open DNS'), 'class': 'btn-outline-primary', 'href': url_for('dns_lookup') ~ '?q=' ~ q},
   {'label': 'WHOIS', 'class': 'btn-outline-secondary', 'href': url_for('whois_lookup') ~ '?query=' ~ q},
   {'label': tr('Доступность', 'Availability'), 'class': 'btn-outline-secondary', 'href': url_for('domain_search') ~ '?query=' ~ (domain_label or q)},
 ] %}

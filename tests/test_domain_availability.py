@@ -56,12 +56,130 @@ class DomainAvailabilityTests(unittest.TestCase):
         self.assertGreaterEqual(len(ideas), 3)
         self.assertTrue(any("coffee" in idea for idea in ideas))
 
-    def test_domains_generator_renders_idea_chips(self):
-        resp = self.client.get("/domains?idea=coffee+shop&generate=1")
+    def test_domains_unified_search_generates_ideas_for_description(self):
+        resp = self.client.get("/domains?query=coffee+shop")
         html = resp.get_data(as_text=True)
         self.assertEqual(resp.status_code, 200)
-        self.assertIn("domain-name-generator", html)
+        self.assertIn("domain-idea-suggestions", html)
         self.assertIn("coffee", html.lower())
+
+    def test_default_tlds_ru_audience(self):
+        with self.app.test_request_context("/domains", headers={"CF-IPCountry": "RU"}):
+            groups, _ = app_module._build_tld_groups(
+                ["ru", "рф", "com", "net", "io"],
+                [],
+            )
+            tlds = app_module._default_tlds_for_audience(
+                ["ru", "рф", "com", "net", "io"],
+                groups,
+            )
+        self.assertIn("ru", tlds)
+        self.assertIn("рф", tlds)
+        self.assertNotIn("com", tlds)
+
+    def test_default_tlds_global_audience(self):
+        with self.app.test_request_context("/domains", headers={"CF-IPCountry": "US"}):
+            groups, _ = app_module._build_tld_groups(
+                ["ru", "рф", "com", "net", "io", "app"],
+                [],
+            )
+            tlds = app_module._default_tlds_for_audience(
+                ["ru", "рф", "com", "net", "io", "app"],
+                groups,
+            )
+        self.assertIn("com", tlds)
+        self.assertIn("io", tlds)
+        self.assertNotIn("ru", tlds)
+        self.assertNotIn("рф", tlds)
+
+    def test_classify_domain_search_query(self):
+        tlds = ["ru", "рф", "site", "com", "tatar"]
+        self.assertEqual(
+            app_module._classify_domain_search_query("coffee shop", tlds).get("mode"),
+            "ideas",
+        )
+        self.assertEqual(
+            app_module._classify_domain_search_query("mybrand", tlds).get("mode"),
+            "label",
+        )
+        fqdn = app_module._classify_domain_search_query("krivoshein.site", tlds)
+        self.assertEqual(fqdn.get("mode"), "fqdn")
+        self.assertEqual(fqdn.get("tld"), "site")
+        self.assertEqual(fqdn.get("label"), "krivoshein")
+        idn = app_module._classify_domain_search_query("агнкс.рф", tlds)
+        self.assertEqual(idn.get("mode"), "fqdn")
+        self.assertEqual(idn.get("tld"), "рф")
+        self.assertEqual(idn.get("label"), "агнкс")
+        self.assertEqual(idn.get("display_fqdn"), "агнкс.рф")
+        puny = app_module._classify_domain_search_query("xn--80agvlv.xn--p1ai", tlds)
+        self.assertEqual(puny.get("mode"), "fqdn")
+        self.assertEqual(puny.get("tld"), "рф")
+        self.assertEqual(puny.get("label"), "агнкс")
+        www = app_module._classify_domain_search_query("www.агнкс.рф", tlds)
+        self.assertEqual(www.get("label"), "агнкс")
+        self.assertEqual(www.get("tld"), "рф")
+
+    def test_full_domain_search_checks_only_entered_zone(self):
+        with patch.object(app_module, "_check_candidates") as check_mock:
+            check_mock.return_value = [
+                {"fqdn": "krivoshein.site", "puny": "krivoshein.site", "available": False, "error": None},
+            ]
+            resp = self.client.get("/domains?query=krivoshein.site")
+        self.assertEqual(resp.status_code, 200)
+        check_mock.assert_called_once()
+        label, zones = check_mock.call_args[0]
+        self.assertEqual(label, "krivoshein")
+        self.assertEqual(zones, ["site"])
+        self.assertNotIn("domain-idea-suggestions", resp.get_data(as_text=True))
+
+    def test_check_page_refreshes_incomplete_cached_whois_for_idn_domain(self):
+        from urllib.parse import quote
+
+        ascii_domain = "xn--80agvlv.xn--p1ai"
+        incomplete = {
+            "input": "агнкс.рф",
+            "domain": ascii_domain,
+            "domain_display": "агнкс.рф",
+            "whois": {
+                "whois_server": "whois.tcinet.ru",
+                "domain_name": ascii_domain,
+                "domain_unicode": "агнкс.рф",
+            },
+            "dns": {"records": {"A": ["93.184.216.34"]}, "ips": ["93.184.216.34"], "has_records": True},
+            "geo": {"ip": "93.184.216.34"},
+            "reverse": {},
+        }
+        app_module.r.setex(
+            f"cache:report:full:{ascii_domain}",
+            60,
+            app_module._json_dumps(incomplete),
+        )
+        resp = self.client.get("/check/" + quote("агнкс.рф") + "?lang=ru")
+        html = resp.get_data(as_text=True)
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn("REGRU-RF", html)
+        self.assertNotRegex(html, r"Регистратор</span><span class=\"report-value\">—")
+
+    def test_idn_full_domain_search_checks_only_entered_zone(self):
+        from urllib.parse import quote
+
+        with patch.object(app_module, "_check_candidates") as check_mock:
+            check_mock.return_value = [
+                {
+                    "fqdn": "агнкс.рф",
+                    "puny": "xn--80agvlv.xn--p1ai",
+                    "available": False,
+                    "error": None,
+                },
+            ]
+            resp = self.client.get("/domains?query=" + quote("агнкс.рф"))
+        self.assertEqual(resp.status_code, 200)
+        check_mock.assert_called_once()
+        label, zones = check_mock.call_args[0]
+        self.assertEqual(label, "агнкс")
+        self.assertEqual(zones, ["рф"])
+        self.assertIn("агнкс.рф", resp.get_data(as_text=True))
+        self.assertNotIn("domain-idea-suggestions", resp.get_data(as_text=True))
 
     def test_domain_availability_from_search_items(self):
         items = [
@@ -112,6 +230,9 @@ class DomainAvailabilityTests(unittest.TestCase):
                 domain_availability=availability,
                 tr=lambda ru, en: ru,
                 get_locale=lambda: "ru",
+                registrar_offers_featured=app_module._registrar_offers,
+                registrar_buy_url=app_module._registrar_buy_url,
+                url_for=app_module.url_for,
             )
         self.assertIn('class="domain-available-banner__chip"', html)
         self.assertIn("https://beget.com/x/brand.site", html)

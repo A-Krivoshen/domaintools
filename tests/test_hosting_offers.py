@@ -19,6 +19,32 @@ class HostingOffersTests(unittest.TestCase):
         self.assertEqual(ids, ["firstvds", "beget", "sweb"])
         self.assertIn("krivoshein.site/firstvds", offers[0]["url"])
 
+    def test_hosting_all_offers_include_ultravds(self):
+        offers = app_module._hosting_offers()
+        ultravds = next((o for o in offers if o["id"] == "ultravds"), None)
+        self.assertIsNotNone(ultravds)
+        self.assertIn("ultravds", ultravds["url"])
+        self.assertEqual(249, ultravds["price_rub"])
+        self.assertIn("Windows VPS", ultravds["desc"])
+
+    def test_yandex_cloud_offer_is_premium_enterprise(self):
+        offers = app_module._hosting_offers()
+        yc = next((o for o in offers if o["id"] == "yandexcloud"), None)
+        self.assertIsNotNone(yc)
+        self.assertEqual("enterprise", yc["badge"])
+        self.assertEqual("Enterprise", yc["badge_text"])
+        self.assertEqual("#ea580c", yc["accent"])
+
+    def test_hosting_page_providers_grid_layout(self):
+        html = self.client.get("/hosting?lang=ru").get_data(as_text=True)
+        self.assertIn("hosting-offers-grid--providers", html)
+        self.assertIn("hosting-offer-card--premium", html)
+        self.assertIn("Windows VPS", html)
+
+    def test_hosting_featured_offers_exclude_ultravds(self):
+        offers = app_module._hosting_offers(featured_only=True)
+        self.assertNotIn("ultravds", [o["id"] for o in offers])
+
     def test_dns_suggests_hosting_for_taken_domain_without_connect_records(self):
         records = {"NS": ["ns1.example.com."]}
         availability = {"status": "taken"}
@@ -46,6 +72,15 @@ class HostingOffersTests(unittest.TestCase):
     def test_sitemap_includes_hosting(self):
         xml = self.client.get("/sitemap.xml").get_data(as_text=True)
         self.assertIn("/hosting", xml)
+
+    def test_sweb_verification_file_served_from_site_root(self):
+        resp = self.client.get("/7508a901e87b92a2d6baedf07a004316.txt")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(
+            resp.get_data(as_text=True).strip(),
+            "7508a901e87b92a2d6baedf07a004316",
+        )
+        self.assertIn("text/plain", resp.content_type)
 
     def test_ref_click_tracking_accepts_hosting(self):
         resp = self.client.post(

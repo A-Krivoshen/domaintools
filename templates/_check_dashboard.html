@@ -68,9 +68,9 @@
           {% include '_report_explain.html' %}
           <ul class="report-list list-unstyled mb-0 small">
             <li><span class="report-label">{{ tr('Домен', 'Domain') }}</span><span class="report-value">{{ one.whois.domain_unicode or one.domain_display or one.domain }}</span></li>
-            <li><span class="report-label">{{ tr('Регистратор', 'Registrar') }}</span><span class="report-value">{{ one.whois.registrar or '—' }}</span></li>
-            <li><span class="report-label">{{ tr('Создан', 'Created') }}</span><span class="report-value">{{ one.whois.creation_date or '—' }}</span></li>
-            <li><span class="report-label">{{ tr('Истекает', 'Expires') }}</span><span class="report-value">{{ one.whois.expiration_date or '—' }}</span></li>
+            <li><span class="report-label">{{ tr('Регистратор', 'Registrar') }}</span><span class="report-value">{% if one.whois.registrar %}{{ one.whois.registrar }}{% elif one.whois_pending %}<span class="report-skeleton" aria-hidden="true"></span><span class="visually-hidden">{{ tr('Загрузка WHOIS…', 'Loading WHOIS…') }}</span>{% else %}—{% endif %}</span></li>
+            <li><span class="report-label">{{ tr('Создан', 'Created') }}</span><span class="report-value">{% if one.whois.creation_date %}{{ one.whois.creation_date }}{% elif one.whois_pending %}<span class="report-skeleton" aria-hidden="true"></span><span class="visually-hidden">{{ tr('Загрузка…', 'Loading…') }}</span>{% else %}—{% endif %}</span></li>
+            <li><span class="report-label">{{ tr('Истекает', 'Expires') }}</span><span class="report-value">{% if one.whois.expiration_date %}{{ one.whois.expiration_date }}{% elif one.whois_pending %}<span class="report-skeleton" aria-hidden="true"></span><span class="visually-hidden">{{ tr('Загрузка…', 'Loading…') }}</span>{% else %}—{% endif %}</span></li>
           </ul>
         </div>
       </div>

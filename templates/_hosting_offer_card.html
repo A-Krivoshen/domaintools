@@ -1,7 +1,7 @@
 {# Single VPS provider card. Expects: offer (dict), compact (bool, optional), placement (str, optional) #}
 {% set _placement = placement or 'grid' %}
 {% set _compact = compact|default(false) %}
-<article class="hosting-offer-card{% if _compact %} hosting-offer-card--compact{% endif %}{% if offer.badge == 'recommended' %} hosting-offer-card--featured{% endif %}"
+<article class="hosting-offer-card{% if _compact %} hosting-offer-card--compact{% endif %}{% if offer.badge == 'recommended' %} hosting-offer-card--featured{% endif %}{% if offer.badge == 'enterprise' %} hosting-offer-card--premium{% endif %}"
          style="--hosting-accent: {{ offer.accent }}">
   {% if offer.badge_text %}
   <span class="hosting-offer-card__badge">{{ offer.badge_text }}</span>
@@ -27,7 +27,7 @@
   </div>
   {% endif %}
   {% endif %}
-  <a class="hosting-offer-card__cta btn {% if offer.badge == 'recommended' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+  <a class="hosting-offer-card__cta btn {% if offer.badge == 'recommended' %}btn-primary{% elif offer.badge == 'enterprise' %}btn-primary hosting-offer-card__cta--premium{% else %}btn-outline-primary{% endif %}"
      href="{{ offer.url }}"
      target="_blank"
      rel="nofollow noopener sponsored"

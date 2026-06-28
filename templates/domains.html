@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from 'macros/quick_actions.html' import tool_page_dock_open, tool_page_dock_close %}
 {% block title %}{% if q %}{{ tr('Подбор доменов: ', 'Domain search: ') ~ q ~ ' — DomainTools' }}{% else %}{{ tr('Подбор доменов — DomainTools', 'Domain search — DomainTools') }}{% endif %}{% endblock %}
 {% block meta_snippet %}{{ tr('Подбор свободных доменных имён по множеству зон, включая IDN и популярные RU/Global TLD.', 'Find available domain names across many zones, including IDN and popular RU/Global TLDs.') }}{% endblock %}
 
@@ -14,67 +15,101 @@
 {% block content %}
 {% set page_title = tr('Подбор и проверка свободных доменов', 'Find and check available domain names') %}
 {% set page_intro %}
-  {{ tr('Умный подбор доменных имён под ваш проект. Поддерживаем кириллицу (IDN) и русскоязычные зоны:', 'Smart domain-name search for your project. We support Cyrillic (IDN) and Russian-language zones:') }}
-  <strong>.рф</strong>, <strong>.рус</strong>, <strong>.онлайн</strong>, <strong>.сайт</strong>, <strong>.москва</strong>, <strong>.дети</strong>,
-  {{ tr('а также международные зоны', 'as well as international zones') }} (<strong>.com</strong>, <strong>.net</strong>, <strong>.org</strong> {{ tr('и др.', 'and others') }}).
-  {{ tr('Для любой позиции — быстрые действия: WHOIS, DNS, GeoIP и сохранение результата в историю.', 'For each item, quick actions are available: WHOIS, DNS, GeoIP, and saving result to history.') }}
+  {{ tr('Одно поле для всего: полный домен', 'One field for everything: a full domain') }} (<strong>krivoshein.site</strong>, <strong>агнкс.рф</strong>),
+  {{ tr('имя для подбора', 'a name to search') }} (<strong>mybrand</strong>)
+  {{ tr('или описание проекта', 'or a project description') }} (<strong>{{ tr('кофейня москва', 'coffee shop nyc') }}</strong>).
+  {{ tr('Мы сами предложим варианты и проверим свободные зоны', 'We suggest name variants and check availability') }}
+  {% if zone_audience == 'ru' %}
+    <strong>.ru</strong>, <strong>.рф</strong>, <strong>.рус</strong>, <strong>.москва</strong>
+  {% else %}
+    <strong>.com</strong>, <strong>.net</strong>, <strong>.io</strong>, <strong>.app</strong>
+  {% endif %}
+  {{ tr('и другие.', 'and more.') }}
 {% endset %}
 {% set page_icon = 'fa-magnifying-glass' %}
 {% include '_tool_page_header.html' %}
 
-{% include '_domain_name_generator.html' %}
+{% if not items %}
+<section class="mb-4">
+  {% with placement='domains-hero', compact=true, title=tr('Где зарегистрировать', 'Where to register'), lead=tr('После подбора свободного имени — выберите регистратора.', 'After finding an available name — pick a registrar.') %}
+  {% include '_registrar_offers_grid.html' %}
+  {% endwith %}
+</section>
+{% endif %}
 
-<form method="post" action="{{ url_for('domain_search') }}" class="tool-form mb-3" autocomplete="off" data-zones-controls data-domain-progress>
+<form method="post" action="{{ url_for('domain_search') }}" class="tool-form mb-3" autocomplete="off" data-zones-controls data-domain-progress data-smart-query-form data-query-context="domains">
   <div class="input-group input-group-lg search-command">
     <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
-    <input type="text" name="query" value="{{ q or '' }}" class="form-control" placeholder="{{ tr('например: mybrand', 'for example: mybrand') }}" required autofocus>
-    {% with short_ru='Искать', short_en='Search', long_ru='Поиск домена', long_en='Search domain', btn_variant='btn-primary' %}
+    <input type="text"
+           name="query"
+           value="{{ q or '' }}"
+           class="form-control"
+           data-smart-query
+           placeholder="{{ tr('агнкс.рф, krivoshein.site, mybrand или кофейня москва', 'агнкс.рф, krivoshein.site, mybrand or coffee shop nyc') }}"
+           required
+           autofocus
+           aria-describedby="domainSearchHint domainQueryIntent">
+    {% with short_ru='Найти', short_en='Find', long_ru='Проверить домены', long_en='Check domains', btn_variant='btn-primary' %}
     {% include '_search_submit_btn.html' %}
     {% endwith %}
   </div>
+  {% with query_context='domains' %}
+  {% include '_smart_query_intent.html' %}
+  {% endwith %}
+  <p id="domainSearchHint" class="form-text mb-2">
+    <i class="fa-solid fa-wand-magic-sparkles me-1 text-primary" aria-hidden="true"></i>
+    {{ tr('Домен с точкой — проверяем только его. Одно слово — подбор по зонам. Несколько слов — идеи и проверка лучшего варианта.', 'A domain with a dot — we check only that name. One word — search across zones. Multiple words — ideas plus the best match.') }}
+  </p>
 
-  <div class="mt-2">
-    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-      <div class="small text-muted">{{ tr('Выберите зоны для подбора:', 'Choose zones to search:') }}</div>
-      <div class="d-flex flex-wrap gap-2 ux-expert-only">
-        <button type="submit" name="zone_preset" value="defaults" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Основные', 'Core') }}</button>
-        <button type="submit" name="zone_preset" value="ru" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('RU', 'RU') }}</button>
-        <button type="submit" name="zone_preset" value="global" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Global', 'Global') }}</button>
-        <button type="submit" name="zone_preset" value="newgtld" class="btn btn-sm btn-outline-secondary" data-zone-action="newgtld">{{ tr('New gTLD', 'New gTLD') }}</button>
-        <button type="submit" name="zone_preset" value="all" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
-        <button type="submit" name="zone_preset" value="none" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
-      </div>
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="small text-muted">{{ tr('Зоны для проверки:', 'Zones to check:') }}</span>
+      {% if zone_audience == 'ru' %}
+      <span class="domain-zone-audience badge text-bg-light border">{{ tr('Россия', 'Russia') }}</span>
+      {% else %}
+      <span class="domain-zone-audience badge text-bg-light border">{{ tr('Международные', 'International') }}</span>
+      {% endif %}
     </div>
-    <div class="small mb-2" data-zone-count-wrap>
-      <span class="text-muted" data-zone-count
-            data-selected-label-ru="{{ tr('Выбрано', 'Selected') }}"
-            data-selected-label-en="{{ tr('Selected', 'Selected') }}"
-            data-limit-label-ru="{{ tr('Рекомендованный лимит', 'Recommended limit') }}"
-            data-limit-label-en="{{ tr('Recommended limit', 'Recommended limit') }}"
-            data-over-limit-ru="{{ tr('Слишком много зон — поиск может быть медленнее.', 'Too many zones selected — search may be slower.') }}"
-            data-over-limit-en="{{ tr('Too many zones selected — search may be slower.', 'Too many zones selected — search may be slower.') }}"
-      ></span>
+    <div class="d-flex flex-wrap gap-2 ux-expert-only">
+      <button type="submit" name="zone_preset" value="defaults" class="btn btn-sm btn-outline-secondary" data-zone-action="defaults">{{ tr('Рекомендуемые', 'Recommended') }}</button>
+      <button type="submit" name="zone_preset" value="ru" class="btn btn-sm btn-outline-secondary" data-zone-action="ru">{{ tr('RU', 'RU') }}</button>
+      <button type="submit" name="zone_preset" value="global" class="btn btn-sm btn-outline-secondary" data-zone-action="global">{{ tr('Global', 'Global') }}</button>
+      <button type="submit" name="zone_preset" value="newgtld" class="btn btn-sm btn-outline-secondary" data-zone-action="newgtld">{{ tr('New gTLD', 'New gTLD') }}</button>
+      <button type="submit" name="zone_preset" value="all" class="btn btn-sm btn-outline-secondary" data-zone-action="all">{{ tr('Все', 'All') }}</button>
+      <button type="submit" name="zone_preset" value="none" class="btn btn-sm btn-outline-secondary" data-zone-action="none">{{ tr('Сброс', 'Clear') }}</button>
     </div>
-    <div class="d-flex flex-wrap gap-2 zones-list zones-list--compact" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
-         data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
-         data-group-global="{{ (tld_groups.global or [])|join(',') }}"
-         data-group-new="{{ (tld_groups.new or [])|join(',') }}">
-      {% for tld in all_tlds %}
-      <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}"{% if tld not in default_tlds %} data-zone-extra{% endif %}>
-        <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
-        .{{ tld }}
-      </label>
-      {% endfor %}
-    </div>
-    <button type="button" class="btn btn-sm btn-link px-0 mt-2" data-zones-expand aria-expanded="false">
-      {{ tr('Показать все зоны', 'Show all zones') }}
-    </button>
   </div>
+  <div class="small mb-2" data-zone-count-wrap>
+    <span class="text-muted" data-zone-count
+          data-selected-label-ru="Выбрано"
+          data-selected-label-en="Selected"
+          data-limit-label-ru="Рекомендованный лимит"
+          data-limit-label-en="Recommended limit"
+          data-over-limit-ru="Слишком много зон — поиск может быть медленнее."
+          data-over-limit-en="Too many zones selected — search may be slower."
+    ></span>
+  </div>
+  <div class="d-flex flex-wrap gap-2 zones-list zones-list--compact" data-zones-list data-default-zones="{{ default_tlds|join(',') }}" data-max-zones="{{ max_tlds }}"
+       data-group-ru="{{ (tld_groups.ru or [])|join(',') }}"
+       data-group-global="{{ (tld_groups.global or [])|join(',') }}"
+       data-group-new="{{ (tld_groups.new or [])|join(',') }}">
+    {% for tld in all_tlds %}
+    <label class="btn btn-sm btn-outline-secondary" data-zone-group="{{ tld_group_map.get(tld, 'all') }}"{% if tld not in default_tlds %} data-zone-extra{% endif %}>
+      <input class="form-check-input me-1" type="checkbox" name="zones" value="{{ tld }}" {% if tld in selected_tlds %}checked{% endif %}>
+      .{{ tld }}
+    </label>
+    {% endfor %}
+  </div>
+  <button type="button" class="btn btn-sm btn-link px-0 mt-2" data-zones-expand aria-expanded="false"
+          data-collapse-label="{{ tr('Скрыть лишние зоны', 'Show fewer zones') }}">
+    {{ tr('Показать все зоны', 'Show all zones') }}
+  </button>
+
   {% if suggestions and suggestions|length %}
     <div class="form-text mt-1">
       {{ tr('Варианты транслитерации:', 'Transliteration suggestions:') }}
       {% for s in suggestions %}
-        <a class="badge text-bg-light border me-1" href="{{ url_for('domain_search') }}?query={{ s }}">{{ s }}</a>
+        <a class="badge text-bg-light border me-1" href="{{ url_for('domain_search', query=s, zones=selected_tlds) }}">{{ s }}</a>
       {% endfor %}
     </div>
   {% endif %}
@@ -90,7 +125,43 @@
   </div>
 </form>
 
-{% if error %}<div class="alert alert-danger">{{ error }}</div>{% endif %}
+{% set show_tool_layout = q or error or (items and not error) %}
+
+{% if show_tool_layout %}
+{{ tool_page_dock_open() }}
+
+{% if error %}
+<div class="alert alert-danger tool-page-alert mb-3" role="alert">{{ error }}</div>
+{% endif %}
+
+{% if idea_mode and name_ideas and name_ideas|length and searched_label %}
+<section class="domain-idea-suggestions card-soft p-3 mb-3" aria-labelledby="domainIdeaSuggestionsTitle">
+  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+    <div>
+      <h2 id="domainIdeaSuggestionsTitle" class="h6 mb-1">
+        <i class="fa-solid fa-lightbulb me-1 text-primary" aria-hidden="true"></i>
+        {{ tr('Идеи по запросу', 'Ideas for your query') }}
+      </h2>
+      <p class="small text-muted mb-0">
+        {{ tr('Уже проверили', 'Already checked') }} <strong>{{ searched_label }}</strong>.
+        {{ tr('Нажмите на вариант, чтобы проверить другие написания:', 'Click a variant to check other spellings:') }}
+      </p>
+    </div>
+  </div>
+  <div class="domain-name-generator__chips">
+    {% for idea in name_ideas %}
+      {% if idea != searched_label %}
+      <a class="domain-name-generator__chip"
+         href="{{ url_for('domain_search', query=idea, zones=selected_tlds) }}">{{ idea }}</a>
+      {% else %}
+      <span class="domain-name-generator__chip domain-name-generator__chip--active">{{ idea }}</span>
+      {% endif %}
+    {% endfor %}
+  </div>
+</section>
+{% elif idea_mode and q and not name_ideas %}
+<p class="small text-muted mb-3">{{ tr('Не удалось сгенерировать идеи — попробуйте другое описание.', 'Could not generate ideas — try a different description.') }}</p>
+{% endif %}
 
 {% if items and not error %}
 {% include '_domain_availability_banner.html' %}
@@ -121,15 +192,12 @@
           {% if it.error %}<div class="small text-muted">{{ it.error }}</div>{% endif %}
         </td>
         <td class="text-end">
-          <a class="btn btn-sm btn-outline-dark" href="{{ url_for('lookup_domain', domain=it.fqdn) }}">{{ tr('Обзор домена', 'Domain overview') }}</a>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('domain_check', domain=it.fqdn) }}">{{ tr('Проверить', 'Check') }}</a>
+            <a class="btn btn-sm btn-outline-dark" href="{{ url_for('lookup_domain', domain=it.fqdn) }}">{{ tr('Обзор', 'Overview') }}</a>
           {% if it.available %}
-            <a class="btn btn-sm btn-success"
-               href="{{ buy_base.format(domain=it.fqdn) }}"
-               target="_blank"
-               rel="nofollow noopener"
-               data-buy-track
-               data-buy-domain="{{ it.fqdn }}"
-               data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">{{ tr('Купить', 'Buy') }}</a>
+            {% with domain=it.fqdn, placement='domains-table' %}
+            {% include '_registrar_buy_buttons.html' %}
+            {% endwith %}
           {% else %}
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('whois_lookup') }}?query={{ it.fqdn }}">{{ tr('Владелец', 'Owner') }}</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('dns_lookup') }}?q={{ it.fqdn }}">{{ tr('DNS', 'DNS') }}</a>
@@ -141,7 +209,7 @@
   </table>
 </div>
 
-<div class="tool-actions d-flex flex-wrap gap-3 small mt-2">
+<div class="tool-actions tool-actions--fallback d-flex flex-wrap gap-3 small mt-2 d-xl-none">
   {% if permalink %}<a href="{{ permalink }}">{{ tr('Постоянная ссылка', 'Permalink') }}</a>{% endif %}
   {% if q %}<a href="{{ url_for('whois_lookup') }}?query={{ q }}">WHOIS</a>{% endif %}
   {% if q %}<a href="{{ url_for('dns_lookup') }}?q={{ q }}">DNS</a>{% endif %}
@@ -149,17 +217,34 @@
 </div>
 {% endif %}
 
+{% if items and not error %}
+{% set qa_bundle = quick_actions_bundle_domains(q, items, permalink, none, has_result=true) %}
+{% elif error and q %}
+{% set qa_bundle = quick_actions_bundle_domains(q, none, permalink, none, has_result=false) %}
+{% elif q %}
+{% set qa_bundle = quick_actions_bundle_domains(q, none, permalink, none, has_result=false) %}
+{% else %}
+{% set qa_bundle = none %}
+{% endif %}
+{{ tool_page_dock_close(tr, qa_bundle) }}
+
+{% else %}
+
 {% include "_cards_under_tools.html" %}
 {% if not q %}
 {% set faq_id = 'domains-faq' %}
 {% set faq_items = [
   {'q': tr('Как работает подбор доменов?', 'How does domain search work?'),
-   'a': tr('Проверяем занятость имени в выбранных зонах через DNS/WHOIS-подобные проверки.', 'We check name availability in selected zones.')},
+   'a': tr('Одно поле: готовое имя проверяем сразу, описание проекта превращаем в варианты и проверяем лучший.', 'One field: a ready name is checked immediately; a project description becomes name variants and we check the best match.')},
+  {'q': tr('Какие зоны выбраны по умолчанию?', 'Which zones are selected by default?'),
+   'a': tr('Для посетителей из России — зоны .ru, .рф и др. Для остальных — .com, .net, .io и популярные gTLD.', 'For visitors from Russia — .ru, .рф and related zones. For others — .com, .net, .io and popular gTLDs.')},
   {'q': tr('Поддерживаются ли .рф и кириллица?', 'Are .рф and Cyrillic supported?'),
    'a': tr('Да — IDN и кириллические зоны в списке TLD.', 'Yes — IDN and Cyrillic zones are in the TLD list.')},
 ] %}
 {% include '_faq_section.html' %}
 {% include '_faq_jsonld.html' %}
+{% endif %}
+
 {% endif %}
 {% include '_domain_sticky_cta.html' %}
 {% endblock %}

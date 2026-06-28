@@ -8,6 +8,7 @@
      rel="nofollow noopener"
      data-buy-track
      data-buy-domain="{{ domain_availability.affiliate_domain }}"
+     data-buy-registrar="{{ registrar_default_id }}"
      data-buy-locale="{{ 'en' if (get_locale()|string).startswith('en') else 'ru' }}">
     <i class="fa-solid fa-cart-shopping me-1" aria-hidden="true"></i>
     {% if domain_availability.available_count and domain_availability.available_count > 1 %}
