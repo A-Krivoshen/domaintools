@@ -1689,13 +1689,8 @@ body.onboarding-open {
 }
 
 .hero-home__form {
-  max-width: 42rem;
-}
-
-.hero-home__search .btn {
-  border-radius: 0 var(--radius-lg) var(--radius-lg) 0;
-  font-weight: 600;
-  white-space: nowrap;
+  width: 100%;
+  max-width: none;
 }
 
 .hero-home__actions {
@@ -1799,9 +1794,6 @@ body.onboarding-open {
     min-height: 2.75rem;
   }
 
-  .hero-home__search .btn {
-    border-radius: var(--radius-md) !important;
-  }
 }
 
 @media (min-width: 992px) and (max-width: 1199.98px) {
