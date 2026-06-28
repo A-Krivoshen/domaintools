@@ -853,6 +853,7 @@ HIST_LIMIT = 5000
 HIST_USER_LIMIT = 50
 VISITOR_COOKIE = "dt_vid"
 DOCK_HISTORY_KINDS = ["report", "dns", "whois", "geo", "reverse", "security"]
+DNS_POPULAR_TYPES = ["A", "AAAA", "CNAME", "MX", "NS", "TXT", "SOA"]
 SEO_DOMAIN_ZSET = "dt:seo:domains"
 SEO_DOMAIN_META_NS = "dt:seo:domainmeta"
 SITEMAP_DYNAMIC_DOMAIN_LIMIT = int(os.environ.get("SITEMAP_DYNAMIC_DOMAIN_LIMIT", "1000"))
@@ -950,8 +951,17 @@ def _select_locale():
 babel = Babel(app, locale_selector=_select_locale)
 
 
-def _qa_item(ru: str, en: str, **extra):
-    return {"label_ru": ru, "label_en": en, **extra}
+def _qa_item(ru: str, en: str, *, risk: str = "low", group: str = "primary", **extra):
+    return {"label_ru": ru, "label_en": en, "risk": risk, "group": group, **extra}
+
+
+def _qa_bundle_payload(actions, quick_links=None, context=None) -> Dict:
+    return {
+        "actions": actions,
+        "quick_links": quick_links or [],
+        "context": context or {},
+        "user_history": recent_history_user_dock(8),
+    }
 
 
 def _qa_quick_links_for_query(query: str):
@@ -978,13 +988,35 @@ def quick_actions_bundle_dns(
     from urllib.parse import quote
 
     actions = [
-        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+        _qa_item(
+            "Поделиться результатом",
+            "Share result",
+            type="button",
+            action="share",
+            icon="fa-share-nodes",
+            risk="medium",
+        ),
     ]
     if has_result:
         actions.extend(
             [
-                _qa_item("Скопировать все записи", "Copy all records", type="button", action="copy", icon="fa-copy"),
-                _qa_item("Экспорт JSON / CSV", "Export JSON / CSV", type="export", icon="fa-file-code"),
+                _qa_item(
+                    "Скопировать все записи",
+                    "Copy all records",
+                    type="button",
+                    action="copy",
+                    icon="fa-copy",
+                    risk="medium",
+                    group="secondary",
+                ),
+                _qa_item(
+                    "Экспорт JSON / CSV",
+                    "Export JSON / CSV",
+                    type="export",
+                    icon="fa-file-code",
+                    risk="medium",
+                    group="secondary",
+                ),
             ]
         )
     actions.extend(
@@ -995,8 +1027,17 @@ def quick_actions_bundle_dns(
                 type="link",
                 icon="fa-address-card",
                 href=f"{url_for('whois_lookup')}?query={quote(query or '')}",
+                risk="low",
             ),
-            _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star"),
+            _qa_item(
+                "Сохранить в избранное",
+                "Save to favorites",
+                type="button",
+                action="favorite",
+                icon="fa-star",
+                risk="low",
+                group="secondary",
+            ),
         ]
     )
     if affiliate_domain_search_url:
@@ -1010,16 +1051,16 @@ def quick_actions_bundle_dns(
                 href=affiliate_domain_search_url,
             ),
         )
-    return {
-        "actions": actions,
-        "quick_links": _qa_quick_links_for_query(query),
-        "context": {
+    return _qa_bundle_payload(
+        actions,
+        _qa_quick_links_for_query(query),
+        {
             "kind": "dns",
             "domain": query,
             "payload": records or {},
             "share_url": request.url,
         },
-    }
+    )
 
 
 def quick_actions_bundle_whois(
@@ -1100,16 +1141,16 @@ def quick_actions_bundle_whois(
                 ),
             ]
         )
-    return {
-        "actions": actions + secondary,
-        "quick_links": _qa_quick_links_for_query(host),
-        "context": {
+    return _qa_bundle_payload(
+        actions + secondary,
+        _qa_quick_links_for_query(host),
+        {
             "kind": "whois",
             "domain": host,
             "payload": {},
             "share_url": request.url,
         },
-    }
+    )
 
 
 def quick_actions_bundle_geo(query: str, result, permalink: str = None, has_result: bool = True):
@@ -1163,16 +1204,16 @@ def quick_actions_bundle_geo(query: str, result, permalink: str = None, has_resu
                 ),
             ]
         )
-    return {
-        "actions": actions,
-        "quick_links": _qa_quick_links_for_query(query),
-        "context": {
+    return _qa_bundle_payload(
+        actions,
+        _qa_quick_links_for_query(query),
+        {
             "kind": "geo",
             "domain": query,
             "payload": result or {},
             "share_url": request.url,
         },
-    }
+    )
 
 
 def quick_actions_bundle_reverse(query: str, result=None, permalink: str = None, has_result: bool = True):
@@ -1215,9 +1256,9 @@ def quick_actions_bundle_reverse(query: str, result=None, permalink: str = None,
                 group="secondary",
             )
         )
-    return {
-        "actions": actions,
-        "quick_links": [
+    return _qa_bundle_payload(
+        actions,
+        [
             {
                 "label": "DNS",
                 "href": f"{url_for('dns_lookup')}?q={quote(query or '')}",
@@ -1228,13 +1269,13 @@ def quick_actions_bundle_reverse(query: str, result=None, permalink: str = None,
                 "href": f"{url_for('domain_report')}?q={quote(query or '')}",
             },
         ],
-        "context": {
+        {
             "kind": "reverse",
             "domain": query,
             "payload": result or {},
             "share_url": request.url,
         },
-    }
+    )
 
 
 def _history_repeat_url(kind: str, q: str) -> Optional[str]:
@@ -1334,6 +1375,35 @@ def _plaque_summary_from_history(kind_k: str, doc: Dict) -> Dict[str, object]:
     return summary
 
 
+def _format_time_ago(ts: Optional[int]) -> Dict[str, str]:
+    """Relative time labels for history chips."""
+    if not ts:
+        return {"time_ago_ru": "", "time_ago_en": ""}
+    try:
+        delta = max(0, int(time.time()) - int(ts))
+    except (TypeError, ValueError):
+        return {"time_ago_ru": "", "time_ago_en": ""}
+    if delta < 60:
+        return {"time_ago_ru": "только что", "time_ago_en": "just now"}
+    if delta < 3600:
+        mins = delta // 60
+        return {
+            "time_ago_ru": f"{mins} мин назад",
+            "time_ago_en": f"{mins} min ago",
+        }
+    if delta < 86400:
+        hrs = delta // 3600
+        return {
+            "time_ago_ru": f"{hrs} ч назад",
+            "time_ago_en": f"{hrs} h ago",
+        }
+    days = delta // 86400
+    return {
+        "time_ago_ru": f"{days} дн назад",
+        "time_ago_en": f"{days} d ago",
+    }
+
+
 def _history_chip_kind_label(kind_k: str) -> str:
     en = _hosting_locale_en()
     labels = {
@@ -1359,6 +1429,7 @@ def _recent_history_item(kind_k: str, hid: str, doc: Dict) -> Dict:
         "chip_kind_label": _history_chip_kind_label(kind_k),
     }
     item.update(_plaque_summary_from_history(kind_k, doc))
+    item.update(_format_time_ago(doc.get("ts")))
     return item
 
 
@@ -1397,7 +1468,7 @@ def recent_history_global_dock(limit: int = 10) -> Dict:
 
 
 def recent_history_user_dock(limit: int = 10) -> Dict:
-    """Visitor's own recent checks (cookie-scoped) for the left dock."""
+    """Visitor's own recent checks (cookie-scoped) for the actions panel."""
     vid = _visitor_id()
     if not vid:
         return _empty_history_dock()
@@ -1413,17 +1484,40 @@ def recent_history_dock(limit: int = 10) -> Dict:
     return recent_history_global_dock(limit=limit)
 
 
-def history_dock_api_payload(limit: int = 10) -> Dict:
-    """JSON payload for live status-chip dock refresh."""
-    return {
+def history_dock_api_payload(limit: int = 8, *, include_global: bool = False) -> Dict:
+    """JSON payload for quick-actions panel history refresh."""
+    payload = {
         "user": recent_history_user_dock(limit=limit),
-        "global": recent_history_global_dock(limit=limit),
         "labels": {
             "user": _msg("Мои запросы", "My queries"),
             "global": _msg("Общая история", "Site history"),
+            "global_hint": _msg(
+                "Запросы других пользователей сайта",
+                "Queries from other visitors on this site",
+            ),
             "all_history": _msg("Вся история", "All history"),
+            "privacy": _msg(
+                "История сохраняется в cookie браузера на этом устройстве.",
+                "History is stored in a browser cookie on this device.",
+            ),
+            "clear_history": _msg("Очистить мою историю", "Clear my history"),
         },
     }
+    if include_global:
+        payload["global"] = recent_history_global_dock(limit=limit)
+    return payload
+
+
+def clear_user_history() -> bool:
+    vid = _visitor_id()
+    if not vid:
+        return False
+    try:
+        r.delete(_user_hist_zset(vid))
+        return True
+    except Exception:
+        app.logger.warning("Clear user history failed", exc_info=True)
+        return False
 
 
 def recent_history_for_kinds(kinds, limit: int = 10, *, zset_key: str = HIST_ZSET) -> Dict:
@@ -1523,16 +1617,16 @@ def quick_actions_bundle_domains(
                 group="secondary",
             )
         )
-    return {
-        "actions": actions + secondary,
-        "quick_links": _qa_quick_links_for_query(q),
-        "context": {
+    return _qa_bundle_payload(
+        actions + secondary,
+        _qa_quick_links_for_query(q),
+        {
             "kind": "domains",
             "domain": q,
             "payload": rows,
             "share_url": request.url,
         },
-    }
+    )
 
 
 def quick_actions_bundle_report(
@@ -1597,16 +1691,16 @@ def quick_actions_bundle_report(
                 group="secondary",
             )
         )
-    return {
-        "actions": actions + secondary,
-        "quick_links": _qa_quick_links_for_query(host),
-        "context": {
+    return _qa_bundle_payload(
+        actions + secondary,
+        _qa_quick_links_for_query(host),
+        {
             "kind": "report",
             "domain": host,
             "payload": report or {},
             "share_url": request.url,
         },
-    }
+    )
 
 
 def quick_actions_bundle_security(
@@ -1619,15 +1713,38 @@ def quick_actions_bundle_security(
     from urllib.parse import quote
 
     target = (host or "").strip()
+    scan_risk = "high" if active_scan == "ports" else "medium"
     actions = [
-        _qa_item("Поделиться результатом", "Share result", type="button", action="share", icon="fa-share-nodes"),
+        _qa_item(
+            "Поделиться результатом",
+            "Share result",
+            type="button",
+            action="share",
+            icon="fa-share-nodes",
+            risk="medium",
+        ),
     ]
     if has_result and result:
         actions.append(
-            _qa_item("Скопировать результат", "Copy result", type="button", action="copy", icon="fa-copy")
+            _qa_item(
+                "Скопировать результат",
+                "Copy result",
+                type="button",
+                action="copy",
+                icon="fa-copy",
+                risk=scan_risk,
+                group="secondary",
+            )
         )
         actions.append(
-            _qa_item("Экспорт JSON / CSV", "Export JSON / CSV", type="export", icon="fa-file-code")
+            _qa_item(
+                "Экспорт JSON / CSV",
+                "Export JSON / CSV",
+                type="export",
+                icon="fa-file-code",
+                risk=scan_risk,
+                group="secondary",
+            )
         )
     if target:
         actions.extend(
@@ -1638,6 +1755,7 @@ def quick_actions_bundle_security(
                     type="link",
                     icon="fa-address-card",
                     href=f"{url_for('whois_lookup')}?query={quote(target)}",
+                    risk="low",
                 ),
                 _qa_item(
                     "Открыть DNS",
@@ -1645,11 +1763,20 @@ def quick_actions_bundle_security(
                     type="link",
                     icon="fa-database",
                     href=f"{url_for('dns_lookup')}?q={quote(target)}",
+                    risk="low",
                 ),
             ]
         )
     actions.append(
-        _qa_item("Сохранить в избранное", "Save to favorites", type="button", action="favorite", icon="fa-star")
+        _qa_item(
+            "Сохранить в избранное",
+            "Save to favorites",
+            type="button",
+            action="favorite",
+            icon="fa-star",
+            risk="low",
+            group="secondary",
+        )
     )
     secondary = []
     if has_result and permalink:
@@ -1673,17 +1800,17 @@ def quick_actions_bundle_security(
                 "href": f"{url_for('domain_report')}?q={quote(target)}",
             },
         ]
-    return {
-        "actions": actions + secondary,
-        "quick_links": quick_links,
-        "context": {
+    return _qa_bundle_payload(
+        actions + secondary,
+        quick_links,
+        {
             "kind": "security",
             "domain": target,
             "payload": result or {},
             "share_url": request.url,
             "scan": active_scan,
         },
-    }
+    )
 
 
 # Пробросить get_locale() в шаблоны Jinja (для base.html и др.)
@@ -3872,8 +3999,19 @@ def api_resolve_query():
 
 @app.get("/api/history/dock")
 def api_history_dock():
-    """Live refresh for left (user) and right (global) status-chip docks."""
-    resp = jsonify(history_dock_api_payload())
+    """Live refresh for quick-actions panel history chips."""
+    include_global = (request.args.get("global") or "").strip().lower() in {"1", "true", "yes", "on"}
+    resp = jsonify(history_dock_api_payload(limit=8, include_global=include_global))
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.post("/api/history/user/clear")
+def api_clear_user_history():
+    """Clear cookie-scoped personal query history."""
+    if not clear_user_history():
+        return jsonify({"ok": False, "error": "no_visitor"}), 400
+    resp = jsonify({"ok": True})
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
@@ -5567,6 +5705,11 @@ def security_tools():
             security_error = _msg("Слишком длинный список портов.", "Ports list is too long.")
         elif len(wp_url_raw) > SECURITY_MAX_WP_URL_LEN:
             security_error = _msg("Слишком длинный URL WordPress.", "WordPress URL is too long.")
+        elif active_scan == 'ports' and request.form.get('confirm_ownership') != '1':
+            port_error = _msg(
+                "Подтвердите, что имеете право сканировать этот хост.",
+                "Confirm that you are authorized to scan this host.",
+            )
         elif (not recaptcha_ready) and bool(app.config.get('SECURITY_RECAPTCHA_ENABLED')):
             security_error = recaptcha_setup_error or _msg("reCAPTCHA не настроен.", "reCAPTCHA is not configured.")
         else:

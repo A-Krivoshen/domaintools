@@ -114,12 +114,10 @@ class UXSimpleModeTests(unittest.TestCase):
         self.assertEqual(job.get('progress_step'), 'dns')
 
     def test_wave3_status_chip_and_ux_mode_markup(self):
-        empty = {'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}
-        with patch.object(app_module, 'recent_history_user_dock', return_value=_STATUS_CHIPS_DOCK_STUB):
-            with patch.object(app_module, 'recent_history_global_dock', return_value=empty):
-                html = self.client.get('/?lang=ru').get_data(as_text=True)
-        self.assertIn('data-status-chips-dock-user', html)
-        self.assertIn('status-chips-dock', html)
+        html = self.client.get('/security?lang=ru').get_data(as_text=True)
+        self.assertIn('data-quick-actions-dock', html)
+        self.assertIn('data-qa-dock-toggle', html)
+        self.assertIn('confirm_ownership', html)
         self.assertIn('data-ux-mode-toggle', html)
         self.assertIn('data-ux-mode', html)
 

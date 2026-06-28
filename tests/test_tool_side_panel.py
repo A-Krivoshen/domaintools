@@ -31,37 +31,16 @@ class ToolSidePanelTests(unittest.TestCase):
         self.assertIn('Поделиться результатом', html)
 
     def test_dns_result_dock_has_no_history_section(self):
-        recent = {
-            'items': [
-                {
-                    'query': 'example.com',
-                    'kind': 'dns',
-                    'chip_kind_label': 'DNS',
-                    'domain_display': 'example.com',
-                    'ts': 1710000000,
-                    'repeat_url': '/dns?q=example.com',
-                    'view_url': '/history/dns/abc',
-                    'status_tone': 'warning',
-                }
-            ],
-            'total': 1,
-            'has_more': False,
-            'history_url': '/history',
-        }
         with patch.object(app_module.dns.resolver, 'resolve', side_effect=Exception('no records')):
             with patch.object(app_module, '_evaluate_domain_availability', return_value=None):
                 with self._tool_request_patches():
-                    with patch.object(app_module, 'recent_history_global_dock', return_value=recent):
-                        with patch.object(app_module, 'recent_history_user_dock', return_value={'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}):
-                            html = self.client.get('/dns?q=example.com&types=A&lang=ru').get_data(as_text=True)
-        self.assertNotIn('quick-actions-dock__history', html)
-        self.assertNotIn('status-chip--panel', html)
-        self.assertIn('status-chips-dock', html)
-        self.assertIn('status-chip--dock-item', html)
+                    html = self.client.get('/dns?q=example.com&types=A&lang=ru').get_data(as_text=True)
+        self.assertNotIn('status-chips-dock', html)
+        self.assertIn('data-qa-history-user', html)
+        self.assertIn('data-qa-clear-history', html)
         self.assertIn('example.com', html)
-        self.assertIn('data-status-chips-dock-global', html)
 
-    def test_status_chips_dock_renders_up_to_ten_items(self):
+    def test_panel_history_renders_up_to_eight_items(self):
         items = [
             {
                 'query': f'site{i}.com',
@@ -71,18 +50,20 @@ class ToolSidePanelTests(unittest.TestCase):
                 'repeat_url': f'/dns?q=site{i}.com',
                 'view_url': f'/history/dns/h{i}',
                 'status_tone': 'ok',
+                'time_ago_ru': '2 мин назад',
+                'time_ago_en': '2 min ago',
             }
-            for i in range(10)
+            for i in range(8)
         ]
         dock = {'items': items, 'total': 12, 'has_more': True, 'history_url': '/history'}
-        empty = {'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}
-        with patch.object(app_module, 'recent_history_global_dock', return_value=dock):
-            with patch.object(app_module, 'recent_history_user_dock', return_value=empty):
-                html = self.client.get('/?lang=ru').get_data(as_text=True)
-        self.assertEqual(html.count('status-chip--dock-item'), 10)
-        self.assertIn('status-chips-dock__more', html)
-        self.assertIn('data-status-chips-dock-global', html)
-        self.assertIn('Общая история', html)
+        with patch.object(app_module.dns.resolver, 'resolve', side_effect=Exception('no records')):
+            with patch.object(app_module, '_evaluate_domain_availability', return_value=None):
+                with self._tool_request_patches():
+                    with patch.object(app_module, 'recent_history_user_dock', return_value=dock):
+                        html = self.client.get('/dns?q=site0.com&types=A&lang=ru').get_data(as_text=True)
+        self.assertGreaterEqual(html.count('quick-actions-dock__history-chip'), 8)
+        self.assertIn('Мои запросы', html)
+        self.assertIn('cookie', html.lower())
 
     def test_visitor_cookie_is_set_on_first_visit(self):
         resp = self.client.get('/?lang=ru')
@@ -101,7 +82,7 @@ class ToolSidePanelTests(unittest.TestCase):
         self.assertIn(app_module.HIST_ZSET, zset_keys)
         self.assertIn(f'{app_module.HIST_USER_ZSET_PREFIX}{vid}', zset_keys)
 
-    def test_api_history_dock_returns_user_and_global_payload(self):
+    def test_api_history_dock_returns_user_payload(self):
         dock = {
             'items': [{
                 'query': 'example.com',
@@ -112,23 +93,38 @@ class ToolSidePanelTests(unittest.TestCase):
                 'view_url': '/history/whois/x',
                 'status_tone': 'ok',
                 'ts': 1710000000,
+                'time_ago_ru': 'только что',
+                'time_ago_en': 'just now',
             }],
             'total': 1,
             'has_more': False,
             'history_url': '/history',
         }
         with patch.object(app_module, 'recent_history_user_dock', return_value=dock):
-            with patch.object(app_module, 'recent_history_global_dock', return_value=dock):
-                resp = self.client.get('/api/history/dock?lang=ru')
+            resp = self.client.get('/api/history/dock?lang=ru')
         self.assertEqual(200, resp.status_code)
-        self.assertIn('no-store', resp.headers.get('Cache-Control', ''))
         data = resp.get_json()
         self.assertIn('user', data)
-        self.assertIn('global', data)
-        self.assertIn('labels', data)
-        self.assertEqual('Мои запросы', data['labels']['user'])
-        self.assertEqual('Общая история', data['labels']['global'])
+        self.assertNotIn('global', data)
         self.assertEqual('example.com', data['user']['items'][0]['query'])
+
+    def test_api_history_dock_global_opt_in(self):
+        with patch.object(app_module, 'recent_history_global_dock', return_value={'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}):
+            resp = self.client.get('/api/history/dock?global=1')
+        self.assertIn('global', resp.get_json())
+
+    def test_security_port_scan_requires_ownership_confirm(self):
+        resp = self.client.post(
+            '/security?lang=ru',
+            data={'scan': 'ports', 'host': 'example.com', 'ports': '80'},
+            follow_redirects=True,
+        )
+        html = resp.get_data(as_text=True)
+        self.assertEqual(200, resp.status_code)
+        self.assertIn('подтверждаю', html.lower())
+        self.assertIn('подтвердите', html.lower())
+        self.assertNotIn('Сканирование запущено', html)
+        self.assertNotIn('alert alert-primary mb-3" data-security-job', html)
 
     def test_recent_history_user_dock_uses_visitor_zset(self):
         vid = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
@@ -224,12 +220,14 @@ class ToolSidePanelTests(unittest.TestCase):
         self.assertIn('tool-page-layout--dock', html)
         self.assertIn('Поделиться результатом', html)
 
-    def test_security_page_side_panel_without_history_block(self):
+    def test_security_page_side_panel_includes_history_block(self):
         resp = self.client.get('/security?lang=ru')
         html = resp.get_data(as_text=True)
         self.assertEqual(200, resp.status_code)
         self.assertIn('tool-page-layout--dock', html)
-        self.assertNotIn('quick-actions-dock__history', html)
+        self.assertIn('quick-actions-dock__history', html)
+        self.assertIn('data-qa-history-user', html)
+        self.assertIn('Мои запросы', html)
         self.assertIn('tool-faq-wrap', html)
 
     def test_home_and_domains_do_not_surface_ultravds_promo_cards(self):

@@ -1,22 +1,79 @@
 {#-
-  Tool Side Panel — reusable right panel (desktop ≥1280px)
+  Tool Side Panel — click-to-expand (desktop ≥1280px) + mobile offcanvas
   tool_side_panel(tr, actions, quick_links=[], qa_context={})
   tool_page_dock_open() / tool_page_dock_close(tr, qa_bundle)
 -#}
-{% macro tool_side_panel(tr, actions, quick_links=None, qa_context=None) %}
+{% macro _history_chip(tr, item) %}
+<a class="quick-actions-dock__history-chip"
+   href="{{ item.repeat_url or item.view_url }}"
+   title="{{ item.query or item.domain_display }}">
+  <span class="quick-actions-dock__history-domain">{{ item.domain_display or item.query or '—' }}</span>
+  <span class="quick-actions-dock__history-meta">
+    <span class="quick-actions-dock__history-kind">{{ item.chip_kind_label or item.kind|upper }}</span>
+    {% if item.time_ago_ru or item.time_ago_en %}
+    <span class="quick-actions-dock__history-time">{{ tr(item.time_ago_ru, item.time_ago_en) }}</span>
+    {% endif %}
+  </span>
+</a>
+{% endmacro %}
+
+{% macro _quick_action_item(tr, item) %}
+  {% set risk = item.get('risk', 'low') %}
+  {% set risk_class = 'quick-actions-dock__btn--risk-' ~ risk %}
+  {% if item.type == 'link' %}
+  <a class="quick-actions-dock__btn quick-actions-dock__btn--link {{ risk_class }}" href="{{ item.href }}">
+    <span class="quick-actions-dock__icon" aria-hidden="true"><i class="fa-solid {{ item.icon }}"></i></span>
+    <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
+  </a>
+  {% elif item.type == 'export' %}
+  <div class="quick-actions-dock__item quick-actions-dock__item--export">
+    <button type="button"
+            class="quick-actions-dock__btn {{ risk_class }}"
+            data-qa-action="export-json"
+            data-qa-risk="{{ risk }}"
+            title="{{ tr('Экспорт JSON', 'Export JSON') }}">
+      <span class="quick-actions-dock__icon" aria-hidden="true"><i class="fa-solid {{ item.icon }}"></i></span>
+      <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
+    </button>
+    <div class="quick-actions-dock__sub" aria-hidden="true">
+      <button type="button" class="quick-actions-dock__sub-btn" data-qa-action="export-json" data-qa-risk="{{ risk }}">JSON</button>
+      <button type="button" class="quick-actions-dock__sub-btn" data-qa-action="export-csv" data-qa-risk="{{ risk }}">CSV</button>
+    </div>
+  </div>
+  {% else %}
+  <button type="button"
+          class="quick-actions-dock__btn {{ risk_class }}"
+          data-qa-action="{{ item.action }}"
+          data-qa-risk="{{ risk }}"
+          {% if item.copy_target %}data-qa-copy-target="{{ item.copy_target }}"{% endif %}>
+    <span class="quick-actions-dock__icon" aria-hidden="true">
+      {% if item.action == 'favorite' %}
+      <i class="fa-regular fa-star"></i>
+      {% else %}
+      <i class="fa-solid {{ item.icon }}"></i>
+      {% endif %}
+    </span>
+    <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
+  </button>
+  {% endif %}
+{% endmacro %}
+
+{% macro tool_side_panel(tr, actions, quick_links=None, qa_context=None, user_history=None) %}
 {% set qa_quick_links = quick_links or [] %}
 {% set qa_ctx = qa_context or {} %}
+{% set _user_hist = user_history if user_history is not none else {'items': [], 'has_more': false, 'history_url': '/history'} %}
+{% set _user_items = _user_hist.get('items', []) %}
 <aside class="quick-actions-dock tool-side-panel"
-       aria-label="{{ tr('Панель инструментов', 'Tool panel') }}"
+       aria-label="{{ tr('Панель действий', 'Actions panel') }}"
        data-quick-actions-dock
        data-qa-context='{{ qa_ctx | tojson }}'
        aria-expanded="false">
   <button type="button"
-          class="quick-actions-dock__affordance"
+          class="quick-actions-dock__rail"
           data-qa-dock-toggle
-          aria-label="{{ tr('Развернуть панель', 'Expand panel') }}"
-          title="{{ tr('Быстрые действия', 'Quick actions') }}">
-    <i class="fa-solid fa-grip-lines-vertical" aria-hidden="true"></i>
+          aria-label="{{ tr('Развернуть панель действий', 'Expand actions panel') }}">
+    <i class="fa-solid fa-bolt quick-actions-dock__rail-icon" aria-hidden="true"></i>
+    <span class="quick-actions-dock__rail-text">{{ tr('Действия', 'Actions') }}</span>
   </button>
   <div class="quick-actions-dock__panel">
     <div class="tool-side-panel__body">
@@ -46,6 +103,45 @@
         </div>
         {% endif %}
       </div>
+
+      <div class="quick-actions-dock__scroll quick-actions-dock__scroll--history"
+           data-qa-history-panel
+           aria-live="polite">
+        <div class="quick-actions-dock__section quick-actions-dock__section--history">
+          <span class="quick-actions-dock__section-label">{{ tr('Мои запросы', 'My queries') }}</span>
+          <p class="quick-actions-dock__privacy-note small text-muted mb-2">
+            {{ tr('История сохраняется в cookie браузера на этом устройстве.', 'History is stored in a browser cookie on this device.') }}
+          </p>
+          <div class="quick-actions-dock__history-list" data-qa-history-user>
+            {% for item in _user_items %}
+              {{ _history_chip(tr, item) }}
+            {% endfor %}
+          </div>
+          <div class="quick-actions-dock__history-actions">
+            {% if _user_hist.get('has_more') %}
+            <a class="quick-actions-dock__history-more" href="{{ _user_hist.get('history_url') }}">
+              {{ tr('Вся история', 'All history') }}
+            </a>
+            {% endif %}
+            <button type="button" class="quick-actions-dock__history-clear" data-qa-clear-history>
+              {{ tr('Очистить', 'Clear') }}
+            </button>
+          </div>
+        </div>
+
+        <div class="quick-actions-dock__section quick-actions-dock__section--global d-none" data-qa-history-global-wrap>
+          <span class="quick-actions-dock__section-label">{{ tr('Общая история', 'Site history') }}</span>
+          <p class="quick-actions-dock__privacy-note small text-muted mb-2">
+            {{ tr('Запросы других пользователей сайта.', 'Queries from other visitors on this site.') }}
+          </p>
+          <div class="quick-actions-dock__history-list" data-qa-history-global></div>
+        </div>
+
+        <label class="quick-actions-dock__global-toggle small text-muted">
+          <input type="checkbox" class="form-check-input me-1" data-qa-show-global-history>
+          {{ tr('Показать общую историю', 'Show site-wide history') }}
+        </label>
+      </div>
     </div>
 
     {% if qa_quick_links %}
@@ -62,44 +158,46 @@
     {% endif %}
   </div>
 </aside>
+
+<button type="button"
+        class="mobile-qa-fab d-xl-none"
+        data-mobile-qa-open
+        aria-controls="mobileQuickActions"
+        aria-label="{{ tr('Действия', 'Actions') }}">
+  <i class="fa-solid fa-bolt" aria-hidden="true"></i>
+</button>
+
+<div class="offcanvas offcanvas-end mobile-qa-offcanvas d-xl-none"
+     tabindex="-1"
+     id="mobileQuickActions"
+     aria-labelledby="mobileQuickActionsTitle"
+     data-mobile-qa-offcanvas>
+  <div class="offcanvas-header">
+    <h2 class="offcanvas-title h6" id="mobileQuickActionsTitle">{{ tr('Действия', 'Actions') }}</h2>
+    <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="{{ tr('Закрыть', 'Close') }}"></button>
+  </div>
+  <div class="offcanvas-body">
+    <nav class="quick-actions-dock__list" aria-label="{{ tr('Быстрые действия', 'Quick actions') }}">
+      {% for item in actions %}
+        {{ _quick_action_item(tr, item) }}
+      {% endfor %}
+    </nav>
+    {% if _user_items and _user_items|length %}
+    <div class="quick-actions-dock__section quick-actions-dock__section--history mt-3">
+      <span class="quick-actions-dock__section-label">{{ tr('Мои запросы', 'My queries') }}</span>
+      <div class="quick-actions-dock__history-list">
+        {% for item in _user_items %}
+          {{ _history_chip(tr, item) }}
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
 {% endmacro %}
 
 {% macro quick_actions_dock(tr, actions, quick_links=None, qa_context=None) %}
 {{ tool_side_panel(tr, actions, quick_links, qa_context) }}
-{% endmacro %}
-
-{% macro _quick_action_item(tr, item) %}
-  {% if item.type == 'link' %}
-  <a class="quick-actions-dock__btn quick-actions-dock__btn--link" href="{{ item.href }}">
-    <span class="quick-actions-dock__icon" aria-hidden="true"><i class="fa-solid {{ item.icon }}"></i></span>
-    <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
-  </a>
-  {% elif item.type == 'export' %}
-  <div class="quick-actions-dock__item quick-actions-dock__item--export">
-    <button type="button" class="quick-actions-dock__btn" data-qa-action="export-json" title="{{ tr('Экспорт JSON', 'Export JSON') }}">
-      <span class="quick-actions-dock__icon" aria-hidden="true"><i class="fa-solid {{ item.icon }}"></i></span>
-      <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
-    </button>
-    <div class="quick-actions-dock__sub" aria-hidden="true">
-      <button type="button" class="quick-actions-dock__sub-btn" data-qa-action="export-json">JSON</button>
-      <button type="button" class="quick-actions-dock__sub-btn" data-qa-action="export-csv">CSV</button>
-    </div>
-  </div>
-  {% else %}
-  <button type="button"
-          class="quick-actions-dock__btn"
-          data-qa-action="{{ item.action }}"
-          {% if item.copy_target %}data-qa-copy-target="{{ item.copy_target }}"{% endif %}>
-    <span class="quick-actions-dock__icon" aria-hidden="true">
-      {% if item.action == 'favorite' %}
-      <i class="fa-regular fa-star"></i>
-      {% else %}
-      <i class="fa-solid {{ item.icon }}"></i>
-      {% endif %}
-    </span>
-    <span class="quick-actions-dock__label">{{ tr(item.label_ru, item.label_en) }}</span>
-  </button>
-  {% endif %}
 {% endmacro %}
 
 {% macro tool_page_dock_open() %}
@@ -114,7 +212,8 @@
   tr,
   qa_bundle.actions if qa_bundle else [],
   qa_bundle.quick_links if qa_bundle else [],
-  qa_bundle.context if qa_bundle else {}
+  qa_bundle.context if qa_bundle else {},
+  qa_bundle.user_history if qa_bundle else none
 ) }}
 {% endif %}
 </div>

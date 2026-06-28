@@ -852,8 +852,7 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     min-height: 0;
   }
 
-  .quick-actions-dock:hover,
-  .quick-actions-dock:focus-within,
+  .quick-actions-dock.is-expanded,
   .quick-actions-dock.is-expanded {
     width: 284px;
   }
@@ -901,8 +900,7 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     overflow: hidden;
   }
 
-  .quick-actions-dock:hover .quick-actions-dock__panel,
-  .quick-actions-dock:focus-within .quick-actions-dock__panel,
+  .quick-actions-dock.is-expanded .quick-actions-dock__panel,
   .quick-actions-dock.is-expanded .quick-actions-dock__panel {
     box-shadow: -10px 14px 32px rgba(15, 23, 42, .12);
   }
@@ -934,8 +932,7 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     border-radius: var(--radius-sm);
   }
 
-  .quick-actions-dock:hover .quick-actions-dock__affordance,
-  .quick-actions-dock:focus-within .quick-actions-dock__affordance,
+  .quick-actions-dock.is-expanded .quick-actions-dock__affordance,
   .quick-actions-dock.is-expanded .quick-actions-dock__affordance {
     opacity: 0;
     height: 0;
@@ -970,14 +967,13 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     transition: opacity .2s ease, max-width .24s ease;
   }
 
-  .quick-actions-dock:hover .quick-actions-dock__title,
-  .quick-actions-dock:focus-within .quick-actions-dock__title,
+  .quick-actions-dock.is-expanded .quick-actions-dock__title,
   .quick-actions-dock.is-expanded .quick-actions-dock__title {
     opacity: 1;
     max-width: 12rem;
   }
 
-  .quick-actions-dock:not(:hover):not(:focus-within):not(.is-expanded) .quick-actions-dock__head {
+  .quick-actions-dock:not(.is-expanded) .quick-actions-dock__head {
     justify-content: center;
     padding-inline: .45rem;
     border-bottom: 0;
@@ -1037,14 +1033,13 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     transition: opacity .2s ease, max-width .24s ease;
   }
 
-  .quick-actions-dock:hover .quick-actions-dock__label,
-  .quick-actions-dock:focus-within .quick-actions-dock__label,
+  .quick-actions-dock.is-expanded .quick-actions-dock__label,
   .quick-actions-dock.is-expanded .quick-actions-dock__label {
     opacity: 1;
     max-width: 14rem;
   }
 
-  .quick-actions-dock:not(:hover):not(:focus-within):not(.is-expanded) .quick-actions-dock__btn {
+  .quick-actions-dock:not(.is-expanded) .quick-actions-dock__btn {
     justify-content: center;
     padding-inline: .42rem;
   }
@@ -1055,8 +1050,7 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     padding: 0 .62rem .35rem 2.35rem;
   }
 
-  .quick-actions-dock:hover .quick-actions-dock__item--export .quick-actions-dock__sub,
-  .quick-actions-dock:focus-within .quick-actions-dock__item--export .quick-actions-dock__sub,
+  .quick-actions-dock.is-expanded .quick-actions-dock__item--export .quick-actions-dock__sub,
   .quick-actions-dock.is-expanded .quick-actions-dock__item--export .quick-actions-dock__sub {
     display: flex;
   }
@@ -1088,8 +1082,7 @@ pre.code { background: #0b0f14; color: #e6edf3; border-radius: var(--radius-sm);
     transition: opacity .2s ease, max-height .24s ease, padding .24s ease;
   }
 
-  .quick-actions-dock:hover .quick-actions-dock__footer,
-  .quick-actions-dock:focus-within .quick-actions-dock__footer,
+  .quick-actions-dock.is-expanded .quick-actions-dock__footer,
   .quick-actions-dock.is-expanded .quick-actions-dock__footer {
     opacity: 1;
     max-height: 5rem;
@@ -3761,4 +3754,202 @@ body.has-mobile-nav.has-domain-sticky-cta {
 .command-palette__item--execute .command-palette__item-title {
   color: var(--bs-primary);
   font-weight: 600;
+}
+
+/* ===== UX hardening: panel rail, history, risk tiers ===== */
+@media (min-width: 1280px) {
+  .quick-actions-dock__rail {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: .35rem;
+    width: 100%;
+    min-height: 4.5rem;
+    padding: .55rem .35rem;
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-md) 0 0 var(--radius-md);
+    background: var(--surface-1);
+    color: var(--text-secondary);
+    cursor: pointer;
+    box-shadow: -4px 6px 18px rgba(15, 23, 42, .06);
+  }
+
+  .quick-actions-dock__rail-icon {
+    color: var(--bs-primary);
+    font-size: 1rem;
+  }
+
+  .quick-actions-dock__rail-text {
+    font-size: .62rem;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+  }
+
+  .quick-actions-dock.is-expanded .quick-actions-dock__rail {
+    display: none;
+  }
+
+  .quick-actions-dock:not(.is-expanded) .quick-actions-dock__panel {
+    display: none;
+  }
+
+  .quick-actions-dock.is-expanded {
+    width: 300px;
+  }
+
+  .quick-actions-dock__history-chip {
+    display: flex;
+    flex-direction: column;
+    gap: .1rem;
+    padding: .4rem .5rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--surface-2);
+    text-decoration: none;
+    color: inherit;
+    font-size: .74rem;
+  }
+
+  .quick-actions-dock__history-chip:hover {
+    border-color: rgba(var(--bs-primary-rgb), .35);
+    color: var(--bs-primary);
+  }
+
+  .quick-actions-dock__history-domain {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .quick-actions-dock__history-meta {
+    display: flex;
+    gap: .35rem;
+    color: var(--text-secondary);
+    font-size: .66rem;
+  }
+
+  .quick-actions-dock__history-kind {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .03em;
+  }
+
+  .quick-actions-dock__privacy-note {
+    padding: 0 .45rem;
+    line-height: 1.35;
+  }
+
+  .quick-actions-dock__history-list {
+    display: flex;
+    flex-direction: column;
+    gap: .3rem;
+    padding: 0 .35rem;
+  }
+
+  .quick-actions-dock__history-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+    padding: .35rem .45rem .15rem;
+    font-size: .72rem;
+  }
+
+  .quick-actions-dock__history-clear {
+    border: 0;
+    background: transparent;
+    color: var(--text-secondary);
+    padding: 0;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+
+  .quick-actions-dock__global-toggle {
+    display: flex;
+    align-items: center;
+    gap: .25rem;
+    padding: .35rem .45rem .5rem;
+    margin: 0;
+  }
+}
+
+.quick-actions-dock__btn--risk-medium .quick-actions-dock__icon {
+  color: var(--bs-warning);
+}
+
+.quick-actions-dock__btn--risk-high .quick-actions-dock__icon {
+  color: var(--bs-danger);
+}
+
+.quick-actions-dock__btn--risk-high {
+  border-left: 2px solid rgba(var(--bs-danger-rgb), .35);
+}
+
+.dns-types-picker__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(5.5rem, 1fr));
+  gap: .35rem;
+}
+
+.dns-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .22rem .45rem;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-size: .78rem;
+  background: var(--surface-1);
+  margin: 0;
+  cursor: pointer;
+}
+
+.dns-type-chip--muted {
+  opacity: .88;
+}
+
+.security-port-warning {
+  max-width: 42rem;
+}
+
+.security-port-presets__list {
+  line-height: 1.8;
+}
+
+.hosting-offer-card__partner-badge {
+  display: inline-block;
+  font-size: .62rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  opacity: .85;
+  margin-bottom: .35rem;
+}
+
+.mobile-qa-fab {
+  position: fixed;
+  right: max(1rem, env(safe-area-inset-right, 0px));
+  bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  z-index: 1030;
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-1);
+  color: var(--bs-primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.mobile-qa-offcanvas .quick-actions-dock__label {
+  opacity: 1;
+  max-width: none;
+}
+
+.mobile-qa-offcanvas .quick-actions-dock__btn {
+  justify-content: flex-start;
 }

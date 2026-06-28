@@ -7,17 +7,17 @@
     {% for item in faq_items %}
     <div class="accordion-item tool-faq__item">
       <h3 class="accordion-header">
-        <button class="accordion-button tool-faq__btn {% if not loop.first %}collapsed{% endif %}"
+        <button class="accordion-button tool-faq__btn collapsed"
                 type="button"
                 data-bs-toggle="collapse"
                 data-bs-target="#{{ faq_id }}-{{ loop.index }}"
-                aria-expanded="{{ 'true' if loop.first else 'false' }}"
+                aria-expanded="false"
                 aria-controls="{{ faq_id }}-{{ loop.index }}">
           {{ item.q }}
         </button>
       </h3>
       <div id="{{ faq_id }}-{{ loop.index }}"
-           class="accordion-collapse collapse {% if loop.first %}show{% endif %}"
+           class="accordion-collapse collapse"
            data-bs-parent="#{{ faq_id }}-acc">
         <div class="accordion-body tool-faq__body">{{ item.a }}</div>
       </div>

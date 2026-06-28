@@ -76,29 +76,11 @@ class FormI18nLayoutTests(unittest.TestCase):
         self.assertEqual(mobile_block.count('nav-link--adaptive'), 11)
         self.assertEqual(mobile_block.count('class="nav-label-stack"'), 11)
 
-    def test_status_chips_dock_is_outside_navbar(self):
-        dock = {
-            'items': [{
-                'query': 'example.com',
-                'kind': 'dns',
-                'chip_kind_label': 'DNS',
-                'domain_display': 'example.com',
-                'repeat_url': '/dns?q=example.com',
-                'view_url': '/history/dns/x',
-                'status_tone': 'ok',
-            }],
-            'total': 1,
-            'has_more': False,
-            'history_url': '/history',
-        }
-        with patch.object(app_module, 'recent_history_user_dock', return_value=dock):
-            with patch.object(app_module, 'recent_history_global_dock', return_value={'items': [], 'total': 0, 'has_more': False, 'history_url': '/history'}):
-                html = self.client.get('/?lang=en').get_data(as_text=True)
+    def test_panel_history_not_in_navbar(self):
+        html = self.client.get('/dns?q=example.com&types=A&lang=en').get_data(as_text=True)
         nav_end = html.split('</nav>', 1)[0]
-        after_nav = html.split('</nav>', 1)[1]
-        self.assertNotIn('data-status-chips-dock-user', nav_end)
-        self.assertIn('status-chips-dock', after_nav)
-        self.assertIn('data-status-chips-dock-user', after_nav)
+        self.assertNotIn('data-qa-history-user', nav_end)
+        self.assertNotIn('status-chips-dock', html)
 
     def test_command_palette_shortcut_uses_readable_ctrl_not_unicode(self):
         for lang in ('ru', 'en'):
@@ -141,7 +123,8 @@ class FormI18nLayoutTests(unittest.TestCase):
             with self.subTest(lang=lang):
                 html = self.client.get(f'/security?lang={lang}').get_data(as_text=True)
                 self.assertIn('security-form', html)
-                self.assertIn('btn btn-primary', html)
+                self.assertIn('security-scan-btn', html)
+                self.assertIn('btn btn-outline-secondary', html)
 
 
 if __name__ == '__main__':

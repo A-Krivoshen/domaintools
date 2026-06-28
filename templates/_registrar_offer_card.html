@@ -5,6 +5,7 @@
 {% set _buy_url = registrar_buy_url(offer.id, _domain) if _domain else offer.url %}
 <article class="hosting-offer-card registrar-offer-card{% if _compact %} hosting-offer-card--compact{% endif %}{% if offer.badge == 'recommended' %} hosting-offer-card--featured{% endif %}"
          style="--hosting-accent: {{ offer.accent }}">
+  <span class="hosting-offer-card__partner-badge">{{ tr('Партнёр', 'Partner') }}</span>
   {% if offer.badge_text %}
   <span class="hosting-offer-card__badge">{{ offer.badge_text }}</span>
   {% endif %}

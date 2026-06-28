@@ -71,7 +71,7 @@ class SecurityAuditFixTests(unittest.TestCase):
         original_execute = app_module._execute_security_job
         app_module._execute_security_job = _fake_execute
         try:
-            r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+            r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80', 'confirm_ownership': '1'})
             self.assertIn(r.status_code, (301, 302))
             location = r.headers.get('Location', '')
             self.assertIn('job=', location)
@@ -111,7 +111,7 @@ class SecurityAuditFixTests(unittest.TestCase):
         try:
             r = self.client.post(
                 '/security?scan=ports&host=&ports=',
-                data={'scan': 'ports', 'host': 'example.com', 'ports': '80'},
+                data={'scan': 'ports', 'host': 'example.com', 'ports': '80', 'confirm_ownership': '1'},
             )
         finally:
             app_module._execute_security_job = original_execute
@@ -124,7 +124,7 @@ class SecurityAuditFixTests(unittest.TestCase):
     def test_security_invalid_host_returns_validation_error_without_request_context_failure(self):
         app_module._SECURITY_ASYNC_POOL = _ImmediatePool()
 
-        r = self.client.post('/security', data={'scan': 'ports', 'host': '[io[o[o]', 'ports': '80'})
+        r = self.client.post('/security', data={'scan': 'ports', 'host': '[io[o[o]', 'ports': '80', 'confirm_ownership': '1'})
         self.assertIn(r.status_code, (301, 302))
         location = r.headers.get('Location', '')
         self.assertIn('job=', location)
@@ -142,7 +142,7 @@ class SecurityAuditFixTests(unittest.TestCase):
     def test_security_submit_failure_sets_human_error_message(self):
         app_module._SECURITY_ASYNC_POOL = _FailingPool()
 
-        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80', 'confirm_ownership': '1'})
         self.assertEqual(r.status_code, 200)
         body = r.get_data(as_text=True)
         self.assertIn('Could not start scan job. Please retry.', body)
@@ -157,7 +157,7 @@ class SecurityAuditFixTests(unittest.TestCase):
 
         app_module._run_port_scan_result = _boom
 
-        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80', 'confirm_ownership': '1'})
         self.assertIn(r.status_code, (301, 302))
         location = r.headers.get('Location', '')
         self.assertIn('job=', location)
@@ -314,7 +314,7 @@ class SecurityStorageAndSsrfTests(unittest.TestCase):
 
     def test_security_refuses_to_queue_when_required_redis_storage_is_down(self):
         app_module.r = _RedisDown()
-        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80'})
+        r = self.client.post('/security', data={'scan': 'ports', 'host': 'example.com', 'ports': '80', 'confirm_ownership': '1'})
         self.assertEqual(r.status_code, 200)
         body = r.get_data(as_text=True)
         self.assertIn('Scan storage is temporarily unavailable. Please retry later.', body)

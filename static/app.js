@@ -527,15 +527,33 @@
     });
   });
 
+  function confirmAction(message) {
+    if (!message) return true;
+    return window.confirm(message);
+  }
+
   document.querySelectorAll('[data-security-quick-port]').forEach((btn) => {
     btn.addEventListener('click', () => {
       const form = btn.closest('form.security-form');
       if (!form) return;
       const portsInput = form.querySelector('input[name="ports"]');
       if (!portsInput) return;
-      portsInput.value = btn.getAttribute('data-security-quick-port') || '';
+      const preset = btn.getAttribute('data-security-quick-port') || '';
+      const msg = body?.dataset?.i18nConfirmPortPreset;
+      if (portsInput.value && portsInput.value !== preset && !confirmAction(msg)) return;
+      portsInput.value = preset;
       portsInput.focus();
       portsInput.select();
+    });
+  });
+
+  document.querySelectorAll('[data-security-port-form]').forEach((form) => {
+    form.addEventListener('submit', (e) => {
+      const consent = form.querySelector('input[name="confirm_ownership"]');
+      if (consent && !consent.checked) {
+        e.preventDefault();
+        consent.focus();
+      }
     });
   });
 
@@ -1256,12 +1274,59 @@
       window.setTimeout(() => btn.classList.remove('is-done'), 1400);
     }
 
+    function confirmForAction(action, risk) {
+      if (action === 'export-json' || action === 'export-csv') {
+        return confirmAction(body?.dataset?.i18nConfirmExport);
+      }
+      if (action === 'copy') {
+        return confirmAction(body?.dataset?.i18nConfirmCopy);
+      }
+      if (action === 'share') {
+        return confirmAction(body?.dataset?.i18nConfirmShare);
+      }
+      return true;
+    }
+
+    const mobileOpen = document.querySelector('[data-mobile-qa-open]');
+    const mobileCanvas = document.getElementById('mobileQuickActions');
+    if (mobileOpen && mobileCanvas && window.bootstrap?.Offcanvas) {
+      const offcanvas = bootstrap.Offcanvas.getOrCreateInstance(mobileCanvas);
+      mobileOpen.addEventListener('click', () => offcanvas.show());
+    }
+
+    const globalToggle = dock.querySelector('[data-qa-show-global-history]');
+    const globalWrap = dock.querySelector('[data-qa-history-global-wrap]');
+    const GLOBAL_HIST_KEY = 'dt:show-global-history';
+    if (globalToggle) {
+      globalToggle.checked = localStorage.getItem(GLOBAL_HIST_KEY) === '1';
+      if (globalWrap) globalWrap.classList.toggle('d-none', !globalToggle.checked);
+      globalToggle.addEventListener('change', () => {
+        localStorage.setItem(GLOBAL_HIST_KEY, globalToggle.checked ? '1' : '0');
+        if (globalWrap) globalWrap.classList.toggle('d-none', !globalToggle.checked);
+        if (typeof window.dtRefreshPanelHistory === 'function') window.dtRefreshPanelHistory();
+      });
+    }
+
+    const clearBtn = dock.querySelector('[data-qa-clear-history]');
+    if (clearBtn) {
+      clearBtn.addEventListener('click', async () => {
+        if (!confirmAction(body?.dataset?.i18nConfirmClearHistory)) return;
+        try {
+          const resp = await fetch('/api/history/user/clear', { method: 'POST', headers: { Accept: 'application/json' } });
+          if (resp.ok && typeof window.dtRefreshPanelHistory === 'function') window.dtRefreshPanelHistory();
+        } catch (err) {
+          /* noop */
+        }
+      });
+    }
+
     dock.addEventListener('click', async (e) => {
       const btn = e.target.closest('[data-qa-action]');
       if (!btn) return;
       e.preventDefault();
       const action = btn.getAttribute('data-qa-action');
       const copyTarget = btn.getAttribute('data-qa-copy-target');
+      if (!confirmForAction(action, btn.getAttribute('data-qa-risk'))) return;
 
       try {
         if (action === 'share') {
@@ -1327,15 +1392,16 @@
     });
   })();
 
-  // ===== Status chips dock — live refresh (user left / global right) =====
-  (function initStatusChipsDockRefresh() {
-    const DESKTOP_MQ = window.matchMedia('(min-width: 1280px)');
-    const POLL_MS = 10000;
-    const PANELS = [
-      { scope: 'user', modifier: 'status-chips-dock--user', dataAttr: 'data-status-chips-dock-user' },
-      { scope: 'global', modifier: 'status-chips-dock--global status-chips-dock--right', dataAttr: 'data-status-chips-dock-global' },
-    ];
-    const TONE_WHITELIST = new Set(['ok', 'warning', 'critical']);
+  // ===== Panel history — live refresh inside Quick Actions =====
+  (function initPanelHistoryRefresh() {
+    const dock = document.querySelector('[data-quick-actions-dock]');
+    if (!dock) return;
+    const POLL_MS = 12000;
+    const GLOBAL_HIST_KEY = 'dt:show-global-history';
+    const userList = dock.querySelector('[data-qa-history-user]');
+    const globalList = dock.querySelector('[data-qa-history-global]');
+    let inflight = false;
+    let fingerprint = '';
 
     function pageLang() {
       const lang = (document.documentElement.getAttribute('lang') || 'ru').toLowerCase();
@@ -1349,81 +1415,43 @@
         .replace(/"/g, '&quot;');
     }
 
-    function dockFingerprint(dock) {
-      const items = dock?.items || [];
-      const body = items.map((item) => `${item.ts || 0}:${item.kind || ''}:${item.query || ''}`).join('|');
-      return `${body}|more:${dock?.has_more ? 1 : 0}`;
-    }
-
-    const fingerprints = { user: null, global: null };
-    let inflight = false;
-    let pollTimer = null;
-
-    function findPanel(dataAttr) {
-      return document.querySelector(`[${dataAttr}]`);
-    }
-
-    function dockInsertPoint() {
-      return document.querySelector('nav.site-navbar') || document.body;
-    }
-
     function renderChip(item) {
       const href = esc(item.repeat_url || item.view_url || '#');
-      const title = esc(item.query || item.domain_display || '');
       const domain = esc(item.domain_display || item.query || '—');
-      const tone = TONE_WHITELIST.has(item.status_tone) ? item.status_tone : 'ok';
-      const badge = esc(item.chip_kind_label || String(item.kind || '').toUpperCase());
-      return `<a class="status-chip status-chip--dock-item" href="${href}" title="${title}">
-        <i class="fa-solid fa-globe status-chip__icon" aria-hidden="true"></i>
-        <span class="status-chip__domain">${domain}</span>
-        <span class="status-chip__badge status-chip__badge--${tone}">${badge}</span>
+      const kind = esc(item.chip_kind_label || String(item.kind || '').toUpperCase());
+      const timeRu = item.time_ago_ru || '';
+      const timeEn = item.time_ago_en || '';
+      const isRu = pageLang() === 'ru';
+      const time = esc(isRu ? timeRu : timeEn);
+      const timeHtml = time ? `<span class="quick-actions-dock__history-time">${time}</span>` : '';
+      return `<a class="quick-actions-dock__history-chip" href="${href}" title="${domain}">
+        <span class="quick-actions-dock__history-domain">${domain}</span>
+        <span class="quick-actions-dock__history-meta">
+          <span class="quick-actions-dock__history-kind">${kind}</span>${timeHtml}
+        </span>
       </a>`;
     }
 
-    function renderPanel(cfg, dock, label, allHistoryLabel) {
-      const items = dock?.items || [];
-      const fp = dockFingerprint(dock);
-      if (fingerprints[cfg.scope] === fp) return;
-      fingerprints[cfg.scope] = fp;
-
-      let panel = findPanel(cfg.dataAttr);
-      if (!items.length) {
-        if (panel) panel.remove();
-        return;
-      }
-
-      const chipsHtml = items.map(renderChip).join('');
-      const moreHtml = dock.has_more
-        ? `<a class="status-chips-dock__more" href="${esc(dock.history_url || '/history')}">${esc(allHistoryLabel)}<i class="fa-solid fa-arrow-right-long ms-1" aria-hidden="true"></i></a>`
-        : '';
-      const inner = `<span class="status-chips-dock__label">${esc(label)}</span>${chipsHtml}${moreHtml}`;
-
-      if (!panel) {
-        panel = document.createElement('aside');
-        panel.className = `status-chips-dock ${cfg.modifier} d-none d-xl-flex`;
-        panel.setAttribute(cfg.dataAttr, '');
-        const anchor = dockInsertPoint();
-        anchor.parentNode.insertBefore(panel, anchor.nextSibling);
-      }
-      panel.setAttribute('aria-label', label);
-      panel.innerHTML = inner;
+    function renderList(el, items) {
+      if (!el) return;
+      el.innerHTML = (items || []).map(renderChip).join('');
     }
 
-    async function refreshDocks() {
-      if (!DESKTOP_MQ.matches || document.visibilityState === 'hidden') return;
+    async function refreshPanelHistory() {
+      if (document.visibilityState === 'hidden') return;
       if (inflight) return;
       inflight = true;
       try {
-        const resp = await fetch(`/api/history/dock?lang=${encodeURIComponent(pageLang())}`, {
-          headers: { Accept: 'application/json' },
-          cache: 'no-store',
-        });
+        const showGlobal = localStorage.getItem(GLOBAL_HIST_KEY) === '1';
+        const url = `/api/history/dock?lang=${encodeURIComponent(pageLang())}${showGlobal ? '&global=1' : ''}`;
+        const resp = await fetch(url, { headers: { Accept: 'application/json' }, cache: 'no-store' });
         if (!resp.ok) return;
         const data = await resp.json();
-        const labels = data.labels || {};
-        PANELS.forEach((cfg) => {
-          renderPanel(cfg, data[cfg.scope], labels[cfg.scope] || '', labels.all_history || 'All history');
-        });
+        const fp = JSON.stringify(data);
+        if (fp === fingerprint) return;
+        fingerprint = fp;
+        renderList(userList, data.user?.items || []);
+        if (showGlobal) renderList(globalList, data.global?.items || []);
       } catch (err) {
         /* noop */
       } finally {
@@ -1431,33 +1459,11 @@
       }
     }
 
-    function schedulePoll() {
-      clearInterval(pollTimer);
-      if (!DESKTOP_MQ.matches) return;
-      pollTimer = window.setInterval(refreshDocks, POLL_MS);
-    }
-
-    if (typeof DESKTOP_MQ.addEventListener === 'function') {
-      DESKTOP_MQ.addEventListener('change', () => {
-        schedulePoll();
-        refreshDocks();
-      });
-    } else if (typeof DESKTOP_MQ.addListener === 'function') {
-      DESKTOP_MQ.addListener(() => {
-        schedulePoll();
-        refreshDocks();
-      });
-    }
-
+    window.setTimeout(refreshPanelHistory, 800);
+    window.setInterval(refreshPanelHistory, POLL_MS);
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') refreshDocks();
+      if (document.visibilityState === 'visible') refreshPanelHistory();
     });
-    window.addEventListener('pageshow', refreshDocks);
-    window.addEventListener('focus', refreshDocks);
-
-    window.setTimeout(refreshDocks, 600);
-    window.setTimeout(refreshDocks, 2500);
-    schedulePoll();
-    window.dtRefreshHistoryDocks = refreshDocks;
+    window.dtRefreshPanelHistory = refreshPanelHistory;
   })();
 })();

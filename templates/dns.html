@@ -48,20 +48,33 @@
   {% include '_smart_query_intent.html' %}
   {% endwith %}
 
-  <div class="mt-3">
-    <div class="small text-muted mb-2">{{ tr('Типы DNS-записей для выборки:', 'DNS record types to query:') }}</div>
-    <div class="d-flex flex-wrap gap-2">
-      <label class="btn btn-sm btn-outline-secondary">
-        <input class="form-check-input me-1" type="checkbox" name="types" value="ALL" {% if selected_types and (selected_types|length == dns_type_options|length) %}checked{% endif %}>
-        ALL
-      </label>
-      {% for t in dns_type_options %}
-      <label class="btn btn-sm btn-outline-secondary">
-        <input class="form-check-input me-1" type="checkbox" name="types" value="{{ t }}" {% if t in selected_types %}checked{% endif %}>
-        {{ t }}
+  {% set dns_popular = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA'] %}
+  {% set dns_extra = dns_type_options | reject('in', dns_popular) | list %}
+  <div class="dns-types-picker mt-2" data-dns-types-picker>
+    <div class="small text-muted mb-2">{{ tr('Типы DNS-записей:', 'DNS record types:') }}</div>
+    <div class="dns-types-picker__grid">
+      {% for t in dns_popular %}
+      <label class="dns-type-chip">
+        <input class="form-check-input" type="checkbox" name="types" value="{{ t }}" {% if t in selected_types %}checked{% endif %}>
+        <span>{{ t }}</span>
       </label>
       {% endfor %}
     </div>
+    <details class="dns-types-picker__more mt-2">
+      <summary class="small">{{ tr('Показать все типы', 'Show all types') }}</summary>
+      <div class="dns-types-picker__grid dns-types-picker__grid--extra mt-2">
+        <label class="dns-type-chip dns-type-chip--muted ux-expert-only">
+          <input class="form-check-input" type="checkbox" name="types" value="ALL" {% if selected_types and (selected_types|length == dns_type_options|length) %}checked{% endif %}>
+          <span>ALL</span>
+        </label>
+        {% for t in dns_extra %}
+        <label class="dns-type-chip dns-type-chip--muted">
+          <input class="form-check-input" type="checkbox" name="types" value="{{ t }}" {% if t in selected_types %}checked{% endif %}>
+          <span>{{ t }}</span>
+        </label>
+        {% endfor %}
+      </div>
+    </details>
   </div>
 </form>
 

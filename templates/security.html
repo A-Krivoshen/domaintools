@@ -31,8 +31,7 @@
 
   {% if job_id and job_status in ['queued','running'] %}
     <div class="alert alert-primary mb-3" data-security-job data-job-id="{{ job_id }}" data-job-kind="{{ active_scan }}">
-      <strong>{{ tr('Задача запущена', 'Scan job started') }}</strong>: {{ tr('ожидаем завершения и обновим страницу автоматически.', 'waiting for completion, page will refresh automatically.') }}
-      <div class="small mt-1 text-muted">ID: <code>{{ job_id }}</code></div>
+      <strong>{{ tr('Сканирование запущено', 'Scan started') }}</strong> — {{ tr('ожидаем завершения, страница обновится автоматически.', 'waiting for completion, the page will refresh automatically.') }}
     </div>
   {% endif %}
 
@@ -60,7 +59,7 @@
 
   <div class="card card-soft p-3 mb-3 {{ '' if active_scan == 'ports' else 'd-none' }}" id="security-ports">
     <h2 class="h5 mb-3">{{ tr('Port Scanner (Safe)', 'Port Scanner (Safe)') }}</h2>
-    <form method="post" action="{{ url_for('security_tools') }}" autocomplete="off" class="security-form tool-form">
+    <form method="post" action="{{ url_for('security_tools') }}" autocomplete="off" class="security-form tool-form" data-security-port-form>
       <input type="hidden" name="scan" value="ports">
       <input type="hidden" name="recaptcha_token" value="" data-recaptcha-token>
       <div class="row g-2 align-items-end">
@@ -70,20 +69,33 @@
         </div>
         <div class="col-12 col-lg-6">
           <label class="form-label">{{ tr('Порты (через запятую или диапазон)', 'Ports (comma-separated or range)') }}</label>
-          <input type="text" class="form-control" name="ports" value="{{ ports_raw or '' }}" placeholder="22,80,443,8080-8081">
+          <input type="text" class="form-control" name="ports" value="{{ ports_raw or '' }}" placeholder="22,80,443,8080-8081" data-security-ports-input>
         </div>
         <div class="col-12 col-lg-2 d-grid">
-          <button class="btn btn-primary">{{ tr('Сканировать', 'Scan') }}</button>
+          <button type="submit" class="btn btn-outline-secondary security-scan-btn">{{ tr('Сканировать', 'Scan') }}</button>
         </div>
+      </div>
+      <div class="security-port-consent mt-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="confirm_ownership" value="1" id="confirmOwnership" required>
+          <label class="form-check-label" for="confirmOwnership">
+            {{ tr('Я подтверждаю, что имею право сканировать данный хост', 'I confirm I am authorized to scan this host') }}
+          </label>
+        </div>
+        <p class="small text-muted mb-0 mt-1 security-port-warning">
+          {{ tr('Сканирование разрешено только для своих серверов. Несанкционированное сканирование может повлечь юридическую ответственность.', 'Scanning is only allowed on hosts you own or manage. Unauthorized scanning may have legal consequences.') }}
+        </p>
       </div>
     </form>
 
-    <div class="mt-2 small text-muted">
-      <strong>{{ tr('Быстрый выбор:', 'Quick set:') }}</strong>
-      {% for p in common_ports %}
-        <button type="button" class="btn btn-sm btn-outline-secondary me-1" data-security-quick-port="{{ p }}">{{ p }}</button>
-      {% endfor %}
-    </div>
+    <details class="security-port-presets mt-2">
+      <summary class="small text-muted">{{ tr('Пресеты портов', 'Port presets') }}</summary>
+      <div class="mt-2 security-port-presets__list">
+        {% for p in common_ports %}
+          <button type="button" class="btn btn-sm btn-link text-muted px-1 py-0" data-security-quick-port="{{ p }}">{{ p }}</button>{% if not loop.last %}<span class="text-muted">·</span>{% endif %}
+        {% endfor %}
+      </div>
+    </details>
 
     {% if port_error %}
       <div class="alert alert-warning tool-page-alert mt-3 mb-0" role="alert">{{ port_error }}</div>
