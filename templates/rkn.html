@@ -1,38 +1,56 @@
 {% extends 'base.html' %}
 {% block title %}{{ tr('RKN — проверка блокировок', 'RKN — blocklist check') }}{% endblock %}
 {% block content %}
-<div class="card shadow-sm">
-  <div class="card-body">
-    <form method="post" class="row g-2 align-items-center">
-      <div class="col-md-8">
-        <input class="form-control" name="query" placeholder="{{ tr('example.com или 1.2.3.4 или https://example.com/page', 'example.com or 1.2.3.4 or https://example.com/page') }}" value="{{ (query or '')|e }}">
-      </div>
-      <div class="col-md-2">
-        <button class="btn btn-primary w-100">{{ tr('Проверить', 'Check') }}</button>
-      </div>
-      <div class="col-md-2 text-md-end">
-        {% if permalink %}
-          <a class="btn btn-outline-secondary w-100" href="{{ permalink }}" target="_blank" rel="nofollow noopener">Permalink</a>
-        {% endif %}
-      </div>
-    </form>
+{% set page_title = tr('РКН — проверка блокировок', 'RKN — blocklist check') %}
+{% set page_intro = tr('Проверка домена, URL или IP в публичных зеркалах реестра запрещённой информации.', 'Check domain, URL, or IP against public mirrors of the prohibited information registry.') %}
+{% set page_icon = 'fa-shield-halved' %}
+{% include '_tool_page_header.html' %}
 
-    {% if error %}
-      <div class="alert alert-danger mt-3">{{ error }}</div>
-    {% endif %}
+  <form method="post" class="tool-form mb-3">
+    <div class="input-group input-group-lg search-command">
+      <span class="input-group-text"><i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i></span>
+      <input class="form-control" name="query" placeholder="{{ tr('example.com или 1.2.3.4 или https://example.com/page', 'example.com or 1.2.3.4 or https://example.com/page') }}" value="{{ (query or '')|e }}" autofocus>
+      {% with short_ru='Проверить', short_en='Check', long_ru='Проверить', long_en='Check', btn_variant='btn-primary' %}
+      {% include '_search_submit_btn.html' %}
+      {% endwith %}
+    </div>
+  </form>
 
-    {% if result %}
-      <hr>
-      <div class="d-flex align-items-center gap-3">
+  {% if permalink %}
+  <p class="small text-end mb-3">
+    <a class="btn btn-sm btn-outline-secondary" href="{{ permalink }}" target="_blank" rel="nofollow noopener">{{ tr('Постоянная ссылка', 'Permalink') }}</a>
+  </p>
+  {% endif %}
+
+  {% if error %}
+  <div class="alert alert-danger tool-page-alert mb-3" role="alert">{{ error }}</div>
+  {% endif %}
+
+  {% if result %}
+  <div class="result-panel mb-3">
+    <div class="result-panel__head">
+      <h2 class="result-panel__title">{{ tr('Результаты для', 'Results for') }} <span class="result-panel__query">{{ query }}</span></h2>
+    </div>
+  </div>
+
+  <div class="result-card mb-3">
+    <div class="result-card__head">{{ tr('Статус', 'Status') }}</div>
+    <div class="result-card__body">
+      <div class="d-flex align-items-center gap-3 flex-wrap">
         <span class="badge {{ 'text-bg-danger' if result.status == 'blocked' else 'text-bg-success' }}">
           {{ tr('В реестре РКН', 'In RKN registry') if result.status == 'blocked' else tr('Не найдено в зеркалах реестра', 'Not found in mirror registries') }}
         </span>
         <span class="text-muted small">{{ tr('совпадений:', 'matches:') }} {{ result.count }}</span>
       </div>
+    </div>
+  </div>
 
-      {% if result.matches %}
-      <div class="table-responsive mt-3">
-        <table class="table table-sm align-middle">
+  {% if result.matches %}
+  <div class="result-card result-card--flush mb-3">
+    <div class="result-card__head">{{ tr('Совпадения', 'Matches') }}</div>
+    <div class="result-card__body p-0">
+      <div class="table-responsive mb-0">
+        <table class="table table-sm align-middle mb-0">
           <thead class="table-light">
             <tr>
               <th>{{ tr('Тип', 'Type') }}</th>
@@ -51,10 +69,10 @@
           </tbody>
         </table>
       </div>
-      {% endif %}
-    {% endif %}
+    </div>
   </div>
-</div>
+  {% endif %}
+  {% endif %}
 
 <!-- info-cards-injected -->
 <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4 mt-4">

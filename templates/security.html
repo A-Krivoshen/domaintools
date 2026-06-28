@@ -126,22 +126,27 @@
       {% set top_margin = '' %}
       {% include "_security_hints.html" %}
 
-      <div class="table-responsive">
-        <table class="table table-sm align-middle mb-0">
-          <thead class="table-light"><tr><th>{{ tr('Порт', 'Port') }}</th><th>{{ tr('Статус', 'Status') }}</th></tr></thead>
-          <tbody>
-            {% for row in port_result.rows %}
-            <tr>
-              <td><code>{{ row.port }}</code></td>
-              <td>
-                {% if row.state == 'open' %}<span class="badge bg-success">{{ tr('Открыт', 'Open') }}</span>
-                {% elif row.state == 'closed' %}<span class="badge bg-secondary">{{ tr('Закрыт', 'Closed') }}</span>
-                {% else %}<span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}</span>{% endif %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div class="result-card result-card--flush mb-3">
+        <div class="result-card__head">{{ tr('Порты', 'Ports') }}</div>
+        <div class="result-card__body p-0">
+          <div class="table-responsive mb-0">
+            <table class="table table-sm align-middle mb-0">
+              <thead class="table-light"><tr><th>{{ tr('Порт', 'Port') }}</th><th>{{ tr('Статус', 'Status') }}</th></tr></thead>
+              <tbody>
+                {% for row in port_result.rows %}
+                <tr>
+                  <td><code>{{ row.port }}</code></td>
+                  <td>
+                    {% if row.state == 'open' %}<span class="badge bg-success">{{ tr('Открыт', 'Open') }}</span>
+                    {% elif row.state == 'closed' %}<span class="badge bg-secondary">{{ tr('Закрыт', 'Closed') }}</span>
+                    {% else %}<span class="badge bg-warning text-dark">{{ tr('Фильтруется', 'Filtered') }}</span>{% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     {% endif %}
   </div>
@@ -173,14 +178,23 @@
         </div>
       </div>
       <div class="small text-muted mb-2"><code>{{ wp_result.target_url }}</code> → <code>{{ wp_result.target_ip }}</code></div>
-      <ul class="list-group list-group-flush">
-        <li class="list-group-item px-0">WordPress: <strong>{{ tr('да', 'yes') if wp_result.is_wordpress else tr('нет', 'no') }}</strong></li>
-        <li class="list-group-item px-0">/wp-login.php: <code>{{ wp_result.wp_login_status }}</code></li>
-        <li class="list-group-item px-0">xmlrpc.php: <strong>{{ tr('доступен', 'enabled') if wp_result.xmlrpc_enabled else tr('не обнаружен', 'not detected') }}</strong></li>
-        <li class="list-group-item px-0">readme.html: <strong>{{ tr('доступен', 'exposed') if wp_result.readme_exposed else tr('не обнаружен', 'not detected') }}</strong></li>
-        <li class="list-group-item px-0">wp-json: <strong>{{ tr('доступен', 'enabled') if wp_result.wp_json_enabled else tr('не обнаружен', 'not detected') }}</strong></li>
-        <li class="list-group-item px-0">uploads listing: <strong>{{ tr('включен', 'enabled') if wp_result.uploads_listing else tr('выключен', 'disabled') }}</strong></li>
-      </ul>
+      <div class="result-card mb-3">
+        <div class="result-card__head">{{ tr('Проверки WordPress', 'WordPress checks') }}</div>
+        <div class="result-card__body p-0">
+          <div class="table-responsive mb-0">
+            <table class="table table-sm align-middle mb-0">
+              <tbody>
+                <tr><th class="text-muted" style="width:220px">WordPress</th><td><strong>{{ tr('да', 'yes') if wp_result.is_wordpress else tr('нет', 'no') }}</strong></td></tr>
+                <tr><th class="text-muted">/wp-login.php</th><td><code>{{ wp_result.wp_login_status }}</code></td></tr>
+                <tr><th class="text-muted">xmlrpc.php</th><td><strong>{{ tr('доступен', 'enabled') if wp_result.xmlrpc_enabled else tr('не обнаружен', 'not detected') }}</strong></td></tr>
+                <tr><th class="text-muted">readme.html</th><td><strong>{{ tr('доступен', 'exposed') if wp_result.readme_exposed else tr('не обнаружен', 'not detected') }}</strong></td></tr>
+                <tr><th class="text-muted">wp-json</th><td><strong>{{ tr('доступен', 'enabled') if wp_result.wp_json_enabled else tr('не обнаружен', 'not detected') }}</strong></td></tr>
+                <tr><th class="text-muted">uploads listing</th><td><strong>{{ tr('включен', 'enabled') if wp_result.uploads_listing else tr('выключен', 'disabled') }}</strong></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
 
       {% set hints = wp_result.hints %}
       {% set top_margin = 'mt-2 mb-0' %}
