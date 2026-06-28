@@ -47,6 +47,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 
 # === Блюпринт Site Checker ====================================
 from flask_site_checker.blueprint import site_checker_bp
+from flask_site_checker.services import rkn_domain_list, is_in_rkn
 # === Agent API (JSON для LLM/агентов) ==========================
 from agent_api import agent_api_bp
 # ===============================================================
@@ -141,6 +142,7 @@ app.config.update(
     SITE_CHECKER_RATE_LIMIT_PER_MIN=int(os.environ.get("SITE_CHECKER_RATE_LIMIT_PER_MIN", "15")),
     SITE_CANONICAL_ROOT=(os.environ.get("SITE_CANONICAL_ROOT", "https://domaintools.site").strip().rstrip("/")),
     INDEXNOW_DEBOUNCE_S=int(os.environ.get("INDEXNOW_DEBOUNCE_S", "600")),
+    RKN_CACHE_TTL=int(os.environ.get("RKN_CACHE_TTL", "3600")),
 )
 
 if not app.config.get("SECRET_KEY"):
@@ -2376,6 +2378,7 @@ def _tool_rate_limited(tool: str) -> Optional[str]:
         "whois": ("TOOL_RATE_LIMIT_PER_MIN", 20),
         "geo": ("TOOL_RATE_LIMIT_PER_MIN", 20),
         "reverse": ("TOOL_RATE_LIMIT_PER_MIN", 20),
+        "rkn": ("TOOL_RATE_LIMIT_PER_MIN", 20),
         "domains": ("DOMAINS_RATE_LIMIT_PER_MIN", 10),
     }
     cfg_key, default = limits.get(tool, ("TOOL_RATE_LIMIT_PER_MIN", 20))
@@ -5650,6 +5653,82 @@ def reverse_lookup():
             error = _msg("Неожиданная ошибка при reverse DNS.", "An unexpected error occurred during reverse lookup.")
 
     return render_template("reverse.html", result=result, error=error, query=query, permalink=permalink)
+
+
+# ---------- RKN (blocklist check) ----------
+_RKN_CACHE = {"data": None, "data_set": None, "ts": 0}
+
+
+def _get_rkn_cached():
+    ttl = int(app.config.get("RKN_CACHE_TTL", 3600))
+    now = time.time()
+    if not _RKN_CACHE["data"] or now - _RKN_CACHE["ts"] > ttl:
+        try:
+            data = rkn_domain_list()
+            _RKN_CACHE["data"] = data
+            _RKN_CACHE["data_set"] = {x.lower() for x in data if isinstance(x, str)}
+        except Exception:
+            _RKN_CACHE["data"] = []
+            _RKN_CACHE["data_set"] = set()
+        _RKN_CACHE["ts"] = now
+    return _RKN_CACHE.get("data_set") or set()
+
+
+@app.route("/rkn", methods=["GET", "POST"])
+def rkn_check():
+    query = (request.form.get("query") or request.args.get("query") or "").strip()
+    result = None
+    error = None
+    permalink = None
+
+    if request.method == "POST" and not query:
+        error = _msg("Укажите домен для проверки.", "Enter a domain to check.")
+        return render_template("rkn.html", result=None, error=error, query="", permalink=None)
+
+    if query:
+        captcha_error = _verify_form_recaptcha_if_needed()
+        if captcha_error:
+            return render_template("rkn.html", result=None, error=captcha_error, query=query, permalink=None)
+
+        rate_error = _tool_rate_limited("rkn")
+        if rate_error:
+            return render_template("rkn.html", result=None, error=rate_error, query=query, permalink=None)
+
+        domain, norm_err = _normalize_domain_query(query)
+        if norm_err:
+            error = norm_err
+        else:
+            try:
+                ipaddress.ip_address(domain or "")
+                error = _msg(
+                    "Пока поддерживается только проверка доменов.",
+                    "Only domain checks are supported for now.",
+                )
+            except Exception:
+                blocked = is_in_rkn(domain, _get_rkn_cached())
+                if blocked is None:
+                    error = _msg(
+                        "Не удалось загрузить список РКН. Попробуйте позже.",
+                        "Failed to load the RKN list. Please try again later.",
+                    )
+                else:
+                    matches = []
+                    if blocked:
+                        matches.append(
+                            {
+                                "type": "domain",
+                                "value": query,
+                                "source": "https://reestr.rublacklist.net/",
+                            }
+                        )
+                    result = {
+                        "status": "blocked" if blocked else "clear",
+                        "count": len(matches),
+                        "matches": matches,
+                    }
+                    permalink = url_for("rkn_check", query=query, _external=True)
+
+    return render_template("rkn.html", result=result, error=error, query=query or None, permalink=permalink)
 
 
 @app.route('/security', methods=['GET', 'POST'])

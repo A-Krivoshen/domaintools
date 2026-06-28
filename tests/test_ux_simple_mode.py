@@ -164,6 +164,7 @@ class UXSimpleModeTests(unittest.TestCase):
                     html = resp.get_data(as_text=True)
         self.assertEqual(resp.status_code, 200)
         self.assertIn('check-dashboard', html)
+        self.assertIn('result-card', html)
         self.assertIn('__DT_LAST_CHECK__', html)
         self.assertIn('data-banner-priority', html)
 

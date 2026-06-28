@@ -109,6 +109,11 @@
   <div data-banner-priority="100">
     {% include '_whois_expiry_urgency_banner.html' %}
   </div>
+  <div class="result-panel mb-2">
+    <div class="result-panel__head">
+      <h2 class="result-panel__title h6 mb-0">{{ one.domain_display or one.domain }}</h2>
+    </div>
+  </div>
   {% include '_check_dashboard.html' %}
   {% endfor %}
 {% endif %}

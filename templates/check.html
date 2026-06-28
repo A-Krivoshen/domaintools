@@ -120,7 +120,7 @@
     <div class="small fw-semibold mb-2">{{ tr('Тот же бренд в других зонах', 'Same brand in other zones') }}</div>
     <div class="lookup-landing__related-chips">
       {% for link in related_tld_links %}
-        <a class="lookup-landing__related-chip"
+        <a class="lookup-landing__related-chip dt-chip dt-chip--idea"
            href="{{ url_for('domain_check', domain=link.fqdn) }}"
            title="{{ tr('Проверить', 'Check') }} {{ link.fqdn }}">.{{ link.tld }}</a>
       {% endfor %}
@@ -129,6 +129,17 @@
   {% endif %}
 {% endif %}
 
+{% if one %}
+<details class="tool-faq-wrap tool-faq-wrap--compact mb-3">
+  <summary class="tool-faq-wrap__summary">{{ tr('Что входит в проверку', 'What this check includes') }}</summary>
+  <ul class="small text-muted mb-0 mt-2">
+    <li>{{ tr('WHOIS — регистратор, даты, статусы', 'WHOIS — registrar, dates, statuses') }}</li>
+    <li>{{ tr('DNS — A, MX, NS, TXT', 'DNS — A, MX, NS, TXT') }}</li>
+    <li>{{ tr('GeoIP — страна и ASN сервера', 'GeoIP — server country and ASN') }}</li>
+    <li>{{ tr('Reverse DNS — PTR и FCrDNS', 'Reverse DNS — PTR and FCrDNS') }}</li>
+  </ul>
+</details>
+{% else %}
 <section class="card-soft p-3 mb-3">
   <h2 class="h6 mb-2">{{ tr('Что входит в проверку', 'What this check includes') }}</h2>
   <ul class="small text-muted mb-0">
@@ -138,6 +149,7 @@
     <li>{{ tr('Reverse DNS — PTR и FCrDNS', 'Reverse DNS — PTR and FCrDNS') }}</li>
   </ul>
 </section>
+{% endif %}
 
 {% set faq_id = 'check-faq' %}
 {% set faq_items = [
@@ -146,8 +158,13 @@
   {'q': tr('Свободен ли домен ', 'Is ') ~ domain ~ tr('?', ' available?'),
    'a': tr('Смотрите баннер доступности и WHOIS — если домен занят, будет регистратор и даты.', 'See availability banner and WHOIS — if taken, registrar and dates appear.')},
 ] %}
+{% if one %}
+{% set faq_compact = true %}
+{% include '_faq_section.html' %}
+{% else %}
 {% include '_faq_section.html' %}
 {% include '_faq_jsonld.html' %}
+{% endif %}
 {% include '_related_links_compact.html' %}
 
 {% if one %}

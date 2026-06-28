@@ -19,6 +19,7 @@ class UIToolPagesSmokeTests(unittest.TestCase):
             '/reverse',
             '/security',
             '/site-checker',
+            '/rkn',
             '/history',
         ]
         for path in pages:
@@ -39,6 +40,7 @@ class UIToolPagesSmokeTests(unittest.TestCase):
             '/reverse': ['tool-form', 'tool-intro'],
             '/security': ['tool-form', 'tool-intro'],
             '/site-checker': ['tool-form', 'tool-intro'],
+            '/rkn': ['tool-form', 'tool-intro'],
         }
         for path, markers in checks.items():
             with self.subTest(path=path):
