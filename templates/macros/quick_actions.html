@@ -3,6 +3,35 @@
   tool_side_panel(tr, actions, quick_links=[], qa_context={})
   tool_page_dock_open() / tool_page_dock_close(tr, qa_bundle)
 -#}
+{% macro _session_info_block(tr) %}
+<div class="quick-actions-dock__session" data-qa-session-info-wrap>
+  <button type="button"
+          class="quick-actions-dock__session-trigger"
+          data-qa-session-info-toggle
+          aria-expanded="false">
+    <i class="fa-regular fa-circle-question quick-actions-dock__session-trigger-icon" aria-hidden="true"></i>
+    <span>{{ tr('Информация о сессии', 'Session info') }}</span>
+  </button>
+  <div class="quick-actions-dock__session-panel d-none"
+       data-qa-session-info-panel
+       hidden>
+    <div class="quick-actions-dock__session-loading small text-muted" data-qa-session-info-loading hidden>
+      {{ tr('Загрузка…', 'Loading…') }}
+    </div>
+    <dl class="quick-actions-dock__session-dl mb-2" data-qa-session-info-data hidden></dl>
+    <p class="quick-actions-dock__session-note small text-muted mb-2" data-qa-session-info-note hidden>
+      {{ tr('Эти данные используются только для корректной работы инструментов (показ релевантных зон, цен и ограничение запросов). Они не сохраняются долго и не передаются третьим лицам.', 'This information is only used to run the tools correctly (relevant zones, pricing, and rate limits). It is not stored long-term or shared with third parties.') }}
+    </p>
+    <details class="quick-actions-dock__session-why small">
+      <summary>{{ tr('Почему вы видите эти данные?', 'Why am I seeing this?') }}</summary>
+      <p class="text-muted mb-0 mt-1">
+        {{ tr('Мы показываем их по вашему запросу для прозрачности: так вы видите, как сайт определяет регион и ограничивает запросы. Это не постоянная слежка и не профиль для рекламы.', 'We show this only when you ask, for transparency: you can see how the site detects region and applies limits. This is not ongoing tracking or an advertising profile.') }}
+      </p>
+    </details>
+  </div>
+</div>
+{% endmacro %}
+
 {% macro _history_chip(tr, item) %}
 <a class="quick-actions-dock__history-chip"
    href="{{ item.repeat_url or item.view_url }}"
@@ -156,6 +185,10 @@
       </div>
     </div>
     {% endif %}
+
+    <div class="quick-actions-dock__session-wrap">
+      {{ _session_info_block(tr) }}
+    </div>
   </div>
 </aside>
 
@@ -223,6 +256,8 @@
         {{ tr('Показать общую историю', 'Show site-wide history') }}
       </label>
     </div>
+
+    {{ _session_info_block(tr) }}
   </div>
 </div>
 {% endmacro %}

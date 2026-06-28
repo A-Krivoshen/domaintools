@@ -1497,4 +1497,109 @@
     });
     window.dtRefreshPanelHistory = refreshPanelHistory;
   })();
+
+  // ===== Session info (opt-in, fetched on demand) =====
+  (function initSessionInfo() {
+    const wraps = document.querySelectorAll('[data-qa-session-info-wrap]');
+    if (!wraps.length) return;
+
+    const cache = { loaded: false, data: null, inflight: null };
+
+    function pageLang() {
+      const lang = (document.documentElement.getAttribute('lang') || 'ru').toLowerCase();
+      return lang.startsWith('en') ? 'en' : 'ru';
+    }
+
+    function label(ru, en) {
+      return pageLang() === 'en' ? en : ru;
+    }
+
+    function esc(value) {
+      return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderData(panel, data) {
+      const dl = panel.querySelector('[data-qa-session-info-data]');
+      const note = panel.querySelector('[data-qa-session-info-note]');
+      const loading = panel.querySelector('[data-qa-session-info-loading]');
+      if (!dl) return;
+
+      const loc = pageLang() === 'en' ? data.location_en : data.location_ru;
+      const browser = pageLang() === 'en' ? data.browser_en : data.browser_ru;
+      const rows = [
+        [label('IP', 'IP'), data.ip || '—'],
+        [label('Местоположение', 'Location'), loc || '—'],
+        [label('Браузер', 'Browser'), browser || '—'],
+      ];
+      if (data.session_id_short) {
+        rows.push([label('Сессия', 'Session'), data.session_id_short]);
+      }
+      dl.innerHTML = rows.map(([k, v]) => (
+        `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`
+      )).join('');
+      dl.hidden = false;
+      if (note) note.hidden = false;
+      if (loading) loading.hidden = true;
+    }
+
+    async function fetchSessionInfo() {
+      if (cache.loaded) return cache.data;
+      if (cache.inflight) return cache.inflight;
+      cache.inflight = fetch('/api/session/info', {
+        headers: { Accept: 'application/json' },
+        cache: 'no-store',
+      }).then(async (resp) => {
+        if (!resp.ok) throw new Error('session info failed');
+        const data = await resp.json();
+        cache.data = data;
+        cache.loaded = true;
+        return data;
+      }).finally(() => {
+        cache.inflight = null;
+      });
+      return cache.inflight;
+    }
+
+    function setPanelOpen(wrap, open) {
+      const toggle = wrap.querySelector('[data-qa-session-info-toggle]');
+      const panel = wrap.querySelector('[data-qa-session-info-panel]');
+      if (!toggle || !panel) return;
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+      panel.classList.toggle('d-none', !open);
+      panel.hidden = !open;
+    }
+
+    wraps.forEach((wrap) => {
+      const toggle = wrap.querySelector('[data-qa-session-info-toggle]');
+      const panel = wrap.querySelector('[data-qa-session-info-panel]');
+      if (!toggle || !panel) return;
+
+      toggle.addEventListener('click', async () => {
+        const isOpen = toggle.getAttribute('aria-expanded') === 'true';
+        if (isOpen) {
+          setPanelOpen(wrap, false);
+          return;
+        }
+        setPanelOpen(wrap, true);
+        const loading = panel.querySelector('[data-qa-session-info-loading]');
+        if (loading) loading.hidden = false;
+        try {
+          const data = await fetchSessionInfo();
+          document.querySelectorAll('[data-qa-session-info-panel]').forEach((p) => {
+            renderData(p, data);
+          });
+        } catch (err) {
+          const dl = panel.querySelector('[data-qa-session-info-data]');
+          if (dl) {
+            dl.innerHTML = `<dt>${esc(label('Ошибка', 'Error'))}</dt><dd>${esc(label('Не удалось загрузить', 'Could not load'))}</dd>`;
+            dl.hidden = false;
+          }
+          if (loading) loading.hidden = true;
+        }
+      });
+    });
+  })();
 })();

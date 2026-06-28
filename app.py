@@ -889,6 +889,32 @@ def _locale_by_country_header() -> str | None:
 
 # Небольшой in-memory кэш для гео-IP фолбэка (country by IP)
 _IP_COUNTRY_CACHE: Dict[str, Tuple[str, float]] = {}
+_IP_SESSION_GEO_CACHE: Dict[str, Tuple[Dict[str, str], float]] = {}
+
+_COUNTRY_NAMES_RU: Dict[str, str] = {
+    "RU": "Россия",
+    "US": "США",
+    "DE": "Германия",
+    "GB": "Великобритания",
+    "FR": "Франция",
+    "NL": "Нидерланды",
+    "FI": "Финляндия",
+    "UA": "Украина",
+    "BY": "Беларусь",
+    "KZ": "Казахстан",
+    "CN": "Китай",
+    "IN": "Индия",
+    "BR": "Бразилия",
+    "CA": "Канада",
+    "AU": "Австралия",
+    "JP": "Япония",
+    "PL": "Польша",
+    "TR": "Турция",
+    "SE": "Швеция",
+    "NO": "Норвегия",
+    "IT": "Италия",
+    "ES": "Испания",
+}
 
 
 def _country_code_from_remote_ip(timeout_s: float = 0.8) -> str | None:
@@ -924,6 +950,137 @@ def _country_code_from_remote_ip(timeout_s: float = 0.8) -> str | None:
     # Кэшируем неуспех на короткое время, чтобы не спамить внешний сервис
     _IP_COUNTRY_CACHE[ip] = ("", now + 300)
     return None
+
+
+def _is_non_public_ip(ip: str) -> bool:
+    try:
+        obj = ipaddress.ip_address((ip or "").strip())
+        return bool(obj.is_private or obj.is_loopback or obj.is_link_local or obj.is_reserved)
+    except Exception:
+        return True
+
+
+def _geo_from_ip_for_session(ip: str, *, timeout_s: float = 1.0) -> Dict[str, str]:
+    """City + country for session info (cached, no persistence)."""
+    ip = (ip or "").strip()
+    if not ip or _is_non_public_ip(ip):
+        return {}
+
+    now = time.time()
+    cached = _IP_SESSION_GEO_CACHE.get(ip)
+    if cached and cached[1] > now:
+        return dict(cached[0])
+
+    payload: Dict[str, str] = {}
+    url = f"http://ip-api.com/json/{ip}?fields=status,country,countryCode,city"
+    try:
+        resp = requests.get(url, timeout=timeout_s)
+        data = resp.json() if resp.ok else {}
+        if data.get("status") == "success":
+            payload = {
+                "city": (data.get("city") or "").strip(),
+                "country": (data.get("country") or "").strip(),
+                "country_code": (data.get("countryCode") or "").strip().upper(),
+            }
+    except Exception:
+        payload = {}
+
+    _IP_SESSION_GEO_CACHE[ip] = (payload, now + 3600)
+    return dict(payload)
+
+
+def _country_display_name(country_code: str, country_en: str, *, ru: bool) -> str:
+    cc = (country_code or "").strip().upper()
+    if ru and cc in _COUNTRY_NAMES_RU:
+        return _COUNTRY_NAMES_RU[cc]
+    return (country_en or cc or "").strip()
+
+
+def _format_session_location(geo: Dict[str, str], *, ru: bool) -> str:
+    cc_hdr = _visitor_country_code()
+    city = (geo.get("city") or "").strip()
+    country_code = (geo.get("country_code") or cc_hdr or "").strip().upper()
+    country_en = (geo.get("country") or "").strip()
+    country = _country_display_name(country_code, country_en, ru=ru)
+    parts = [p for p in (city, country) if p]
+    if parts:
+        return ", ".join(parts)
+    if country_code:
+        return _country_display_name(country_code, country_code, ru=ru)
+    return _msg("Не определено", "Unknown") if ru else "Unknown"
+
+
+def _short_user_agent(ua: str) -> Tuple[str, str]:
+    ua = (ua or "").strip()
+    if not ua:
+        return ("—", "—")
+
+    def _os_pair() -> Tuple[str, str]:
+        if "Windows" in ua:
+            return ("Windows", "Windows")
+        if "Mac OS X" in ua or "Macintosh" in ua:
+            return ("macOS", "macOS")
+        if "Android" in ua:
+            return ("Android", "Android")
+        if "iPhone" in ua or "iPad" in ua:
+            return ("iOS", "iOS")
+        if "Linux" in ua:
+            return ("Linux", "Linux")
+        return ("", "")
+
+    os_ru, os_en = _os_pair()
+    os_suffix_ru = f" на {os_ru}" if os_ru else ""
+    os_suffix_en = f" on {os_en}" if os_en else ""
+
+    for pattern, name in (
+        (r"Edg/(\d+)", "Edge"),
+        (r"OPR/(\d+)", "Opera"),
+        (r"Firefox/(\d+)", "Firefox"),
+    ):
+        m = re.search(pattern, ua)
+        if m:
+            ver = m.group(1)
+            return (f"{name} {ver}{os_suffix_ru}", f"{name} {ver}{os_suffix_en}")
+
+    if "Chrome/" in ua:
+        m = re.search(r"Chrome/(\d+)", ua)
+        if m:
+            ver = m.group(1)
+            return (f"Chrome {ver}{os_suffix_ru}", f"Chrome {ver}{os_suffix_en}")
+
+    if "Safari/" in ua and "Chrome/" not in ua:
+        m = re.search(r"Version/(\d+)", ua)
+        ver = m.group(1) if m else ""
+        label = f"Safari {ver}".strip()
+        return (f"{label}{os_suffix_ru}", f"{label}{os_suffix_en}")
+
+    short = ua[:56] + ("…" if len(ua) > 56 else "")
+    return (short, short)
+
+
+def _short_session_id(vid: Optional[str]) -> Optional[str]:
+    v = (vid or "").strip()
+    if not v:
+        return None
+    return f"{v[:8]}…"
+
+
+def session_info_payload() -> Dict[str, object]:
+    ip = _client_ip()
+    ua = (request.headers.get("User-Agent") or "").strip()
+    browser_ru, browser_en = _short_user_agent(ua)
+    geo = _geo_from_ip_for_session(ip) if ip and not _is_non_public_ip(ip) else {}
+    vid = _visitor_id()
+    return {
+        "ok": True,
+        "ip": ip or None,
+        "location_ru": _format_session_location(geo, ru=True),
+        "location_en": _format_session_location(geo, ru=False),
+        "browser_ru": browser_ru,
+        "browser_en": browser_en,
+        "session_id_short": _short_session_id(vid),
+        "is_private_ip": _is_non_public_ip(ip),
+    }
 
 
 def _select_locale():
@@ -4028,6 +4185,14 @@ def api_clear_user_history():
     if not clear_user_history():
         return jsonify({"ok": False, "error": "no_visitor"}), 400
     resp = jsonify({"ok": True})
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
+@app.get("/api/session/info")
+def api_session_info():
+    """Session transparency payload (IP, approximate location, browser) — on demand only."""
+    resp = jsonify(session_info_payload())
     resp.headers["Cache-Control"] = "no-store"
     return resp
 
