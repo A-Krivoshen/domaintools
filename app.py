@@ -3038,7 +3038,7 @@ _REGISTRAR_OFFERS_RAW: List[Dict[str, object]] = [
         "id": "regru",
         "name": "REG.RU",
         "price_rub": 199,
-        "buy_url": "https://www.reg.ru/domain/new?domain={domain}&rlink=reflink-11522689",
+        "buy_url": "https://www.reg.ru/buy/domains/?query={domain}&place_of_order=domain-new&rlink=reflink-11522689",
         "search_url": "https://www.reg.ru/domain/new?rlink=reflink-11522689",
         "icon": "fa-certificate",
         "badge": "popular",
@@ -3792,26 +3792,44 @@ def track_ref_click():
 
     return jsonify(ok=True), 200
 
-@app.get("/llms.txt")
-def llms_txt():
-    path = os.path.join(app.root_path, "static", "llms.txt")
+def _serve_static_txt(filename: str) -> Response:
+    path = os.path.join(app.root_path, "static", filename)
     try:
         with open(path, "r", encoding="utf-8") as fh:
             body = fh.read()
     except OSError:
         abort(404)
     return Response(body, mimetype="text/plain; charset=utf-8")
+
+
+@app.get("/llms.txt")
+def llms_txt():
+    return _serve_static_txt("llms.txt")
+
+
+@app.get("/llms-ru.txt")
+def llms_txt_ru():
+    return _serve_static_txt("llms-ru.txt")
+
+
+@app.get("/llms-en.txt")
+def llms_txt_en():
+    return _serve_static_txt("llms-en.txt")
 
 
 @app.get("/ai.txt")
 def ai_txt():
-    path = os.path.join(app.root_path, "static", "ai.txt")
-    try:
-        with open(path, "r", encoding="utf-8") as fh:
-            body = fh.read()
-    except OSError:
-        abort(404)
-    return Response(body, mimetype="text/plain; charset=utf-8")
+    return _serve_static_txt("ai.txt")
+
+
+@app.get("/ai-ru.txt")
+def ai_txt_ru():
+    return _serve_static_txt("ai-ru.txt")
+
+
+@app.get("/ai-en.txt")
+def ai_txt_en():
+    return _serve_static_txt("ai-en.txt")
 
 
 @app.get("/humans.txt")
@@ -3827,7 +3845,11 @@ def humans_txt():
         "Standards: HTML5, Schema.org, hreflang, IndexNow",
         "Languages: ru, en",
         f"LLMs: {root}/llms.txt",
+        f"LLMs-ru: {root}/llms-ru.txt",
+        f"LLMs-en: {root}/llms-en.txt",
         f"AI: {root}/ai.txt",
+        f"AI-ru: {root}/ai-ru.txt",
+        f"AI-en: {root}/ai-en.txt",
         f"OpenAPI: {root}/openapi.json",
         "",
         "/* THANKS */",
@@ -3876,7 +3898,11 @@ def robots():
         "User-agent: *",
         "Allow: /",
         "Allow: /llms.txt",
+        "Allow: /llms-ru.txt",
+        "Allow: /llms-en.txt",
         "Allow: /ai.txt",
+        "Allow: /ai-ru.txt",
+        "Allow: /ai-en.txt",
         "Allow: /humans.txt",
         "Allow: /openapi.json",
         "Allow: /developers",
@@ -3914,10 +3940,20 @@ def sitemap():
         (url_for("reverse_lookup"), "0.8", "weekly"),
         (url_for("site_checker.site_checker"), "0.8", "weekly"),
         (url_for("security_tools"), "0.7", "monthly"),
-        (url_for("llms_txt"), "0.5", "monthly"),
         (url_for("developers_hub"), "0.75", "weekly"),
         (url_for("about_page"), "0.6", "monthly"),
-        (url_for("ai_txt"), "0.5", "monthly"),
+    ]
+    llms_ru_path = url_for("llms_txt_ru")
+    llms_en_path = url_for("llms_txt_en")
+    ai_ru_path = url_for("ai_txt_ru")
+    ai_en_path = url_for("ai_txt_en")
+    agent_txt_pages = [
+        (url_for("llms_txt"), llms_ru_path, llms_en_path),
+        (llms_ru_path, llms_ru_path, llms_en_path),
+        (llms_en_path, llms_ru_path, llms_en_path),
+        (url_for("ai_txt"), ai_ru_path, ai_en_path),
+        (ai_ru_path, ai_ru_path, ai_en_path),
+        (ai_en_path, ai_ru_path, ai_en_path),
     ]
 
     dynamic_domain_entries: List[Tuple[str, str]] = []
@@ -3981,8 +4017,30 @@ def sitemap():
         xml.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{loc_default}" />')
         xml.append("</url>")
 
+    def _append_agent_txt_url(
+        loc_path: str,
+        href_ru_path: str,
+        href_en_path: str,
+        priority: str = "0.5",
+        changefreq: str = "monthly",
+    ) -> None:
+        loc = f"{root}{loc_path}"
+        href_ru = f"{root}{href_ru_path}"
+        href_en = f"{root}{href_en_path}"
+        xml.append("<url>")
+        xml.append(f"<loc>{loc}</loc>")
+        xml.append(f"<lastmod>{now_iso}</lastmod>")
+        xml.append(f"<changefreq>{changefreq}</changefreq>")
+        xml.append(f"<priority>{priority}</priority>")
+        xml.append(f'<xhtml:link rel="alternate" hreflang="ru" href="{href_ru}" />')
+        xml.append(f'<xhtml:link rel="alternate" hreflang="en" href="{href_en}" />')
+        xml.append(f'<xhtml:link rel="alternate" hreflang="x-default" href="{href_ru}" />')
+        xml.append("</url>")
+
     for path, priority, changefreq in static_pages:
         _append_url(path, priority, changefreq)
+    for loc_path, href_ru_path, href_en_path in agent_txt_pages:
+        _append_agent_txt_url(loc_path, href_ru_path, href_en_path)
     for path, lastmod in dynamic_domain_entries:
         _append_url(path, "0.75", "weekly", lastmod=lastmod)
     for path in zone_paths:

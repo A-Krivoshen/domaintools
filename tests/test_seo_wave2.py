@@ -29,7 +29,13 @@ class SeoWave2Tests(unittest.TestCase):
     def test_ai_txt(self):
         resp = self.client.get("/ai.txt")
         self.assertEqual(resp.status_code, 200)
-        self.assertIn(b"llms.txt", resp.data)
+        self.assertIn(b"llms-ru.txt", resp.data)
+        self.assertIn(b"ai-ru.txt", resp.data)
+
+    def test_ai_txt_ru(self):
+        resp = self.client.get("/ai-ru.txt")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"llms-ru.txt", resp.data)
 
     def test_humans_txt(self):
         body = self.client.get("/humans.txt").get_data(as_text=True)
@@ -66,6 +72,8 @@ class SeoWave2Tests(unittest.TestCase):
         body = self.client.get("/robots.txt").get_data(as_text=True)
         self.assertIn("Allow: /openapi.json", body)
         self.assertIn("Allow: /developers", body)
+        self.assertIn("Allow: /llms-ru.txt", body)
+        self.assertIn("Allow: /ai-ru.txt", body)
 
 
 if __name__ == "__main__":

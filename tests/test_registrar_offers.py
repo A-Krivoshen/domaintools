@@ -24,9 +24,11 @@ class RegistrarOffersTests(unittest.TestCase):
     def test_registrar_buy_urls_prefill_domain_for_regru_and_sweb(self):
         regru = app_module._registrar_buy_url("regru", "twc.tatar")
         sweb = app_module._registrar_buy_url("sweb", "twc.tatar")
-        self.assertIn("domain/new?domain=twc.tatar", regru)
+        self.assertIn("buy/domains/?query=twc.tatar", regru)
+        self.assertIn("place_of_order=domain-new", regru)
         self.assertIn("rlink=reflink-11522689", regru)
         self.assertNotIn("/domain/new/twc.tatar", regru)
+        self.assertNotIn("domain/new?domain=", regru)
         self.assertIn("sweb.ru/domains/?d=twc.tatar", sweb)
         self.assertIn("utm_term=siehpehi", sweb)
         self.assertNotIn("/registration/", sweb)

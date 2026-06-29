@@ -1,0 +1,32 @@
+# DomainTools — индекс для AI-агентов
+# Канонический: https://domaintools.site/ai-ru.txt
+# Полное руководство: https://domaintools.site/llms-ru.txt
+# Индекс: https://domaintools.site/ai.txt
+
+> Предпочитайте структурированный JSON вместо HTML-скрапинга. Интерфейс двуязычный (ru/en).
+
+## Быстрый старт
+- Корень сайта: https://domaintools.site/
+- Машиночитаемое описание для агентов: https://domaintools.site/llms-ru.txt
+- OpenAPI (публичная спецификация): https://domaintools.site/openapi.json
+- Раздел для разработчиков: https://domaintools.site/developers
+
+## Лучшие URL для проверки доменов (индексируемые, стабильные)
+- Полная проверка: https://domaintools.site/check/{domain}
+- WHOIS: https://domaintools.site/lookup/whois/{domain}
+- DNS: https://domaintools.site/lookup/dns/{domain}
+- Поиск в зоне: https://domaintools.site/zones/{tld}
+
+## Agent API (нужен API-ключ, если включено)
+- Базовый URL: https://domaintools.site/api/v1/
+- Авторизация: X-API-Key или Authorization: Bearer
+- Эндпоинты: /dns, /whois, /geo, /reverse, /report
+
+## Не скрапьте агрессивно
+- /security — сканер портов с лимитами
+- /history — личная история пользователя (noindex)
+- Уважайте ответы 429
+
+## Другие языковые версии
+- English: https://domaintools.site/ai-en.txt
+- Индекс llms.txt: https://domaintools.site/llms.txt

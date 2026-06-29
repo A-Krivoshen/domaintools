@@ -14,7 +14,7 @@ def build_openapi_spec() -> dict:
             "description": (
                 "Machine-readable API for AI agents and automation. "
                 "Provides DNS, WHOIS, GeoIP, reverse DNS, and domain report lookups. "
-                f"Human docs: {root}/developers — agent index: {root}/llms.txt"
+                f"Human docs: {root}/developers — agent guides: {root}/llms-ru.txt, {root}/llms-en.txt"
             ),
         },
         "servers": [
@@ -22,7 +22,7 @@ def build_openapi_spec() -> dict:
             {"url": "/api/v1", "description": "Relative (same host)"},
         ],
         "externalDocs": {
-            "description": "llms.txt agent guide",
+            "description": "llms.txt agent guides (ru/en)",
             "url": url_for("llms_txt", _external=True),
         },
         "paths": {
@@ -133,7 +133,7 @@ def build_openapi_spec() -> dict:
         },
         "security": [{"ApiKeyHeader": []}],
         "externalDocs": {
-            "description": "llms.txt — agent-oriented site description",
+            "description": "llms.txt — agent-oriented site description (ru/en)",
             "url": url_for("llms_txt", _external=True),
         },
     }

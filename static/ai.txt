@@ -1,27 +1,19 @@
 # DomainTools — AI agent index
 # Canonical: https://domaintools.site/ai.txt
-# Full guide: https://domaintools.site/llms.txt
 
-> Prefer structured JSON over HTML scraping. Human UI is bilingual (ru/en).
+> Bilingual site (Russian default). Prefer structured JSON over HTML scraping.
+> Двуязычный сайт (русский по умолчанию). Предпочитайте JSON вместо HTML-скрапинга.
 
-## Quick start
-- Site root: https://domaintools.site/
-- Machine-readable site map for agents: https://domaintools.site/llms.txt
-- OpenAPI (public spec): https://domaintools.site/openapi.json
+## Language versions / Языковые версии
+
+- Russian / Русский: https://domaintools.site/ai-ru.txt
+- English / Английский: https://domaintools.site/ai-en.txt
+
+## Shared / Общее
+
+- llms.txt index: https://domaintools.site/llms.txt
+- llms-ru.txt: https://domaintools.site/llms-ru.txt
+- llms-en.txt: https://domaintools.site/llms-en.txt
+- OpenAPI: https://domaintools.site/openapi.json
 - Developer hub: https://domaintools.site/developers
-
-## Best URLs for domain checks (indexable, stable)
-- Full check: https://domaintools.site/check/{domain}
-- WHOIS landing: https://domaintools.site/lookup/whois/{domain}
-- DNS landing: https://domaintools.site/lookup/dns/{domain}
-- Zone search: https://domaintools.site/zones/{tld}
-
-## Agent API (requires API key when enabled)
-- Base: https://domaintools.site/api/v1/
-- Auth: X-API-Key or Authorization: Bearer
-- Endpoints: /dns, /whois, /geo, /reverse, /report
-
-## Do not scrape aggressively
-- /security — rate-limited port scanner
-- /history — private user history (noindex)
-- Respect 429 responses
+- Site root: https://domaintools.site/

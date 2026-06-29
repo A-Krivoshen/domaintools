@@ -25,7 +25,9 @@
   <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='favicon.svg', _external=True) }}" />
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
   <link rel="manifest" href="{{ url_for('static', filename='manifest.webmanifest') }}">
-  <link rel="alternate" type="text/plain" href="{{ url_for('llms_txt', _external=True) }}" title="llms.txt">
+  <link rel="alternate" type="text/plain" href="{{ url_for('llms_txt', _external=True) }}" title="llms.txt" hreflang="x-default">
+  <link rel="alternate" type="text/plain" href="{{ url_for('llms_txt_ru', _external=True) }}" title="llms-ru.txt" hreflang="ru">
+  <link rel="alternate" type="text/plain" href="{{ url_for('llms_txt_en', _external=True) }}" title="llms-en.txt" hreflang="en">
 
   <!-- Open Graph -->
   <meta property="og:title" content="{% block og_title %}{% block og_title_text %}{{ self.title()|striptags }}{% endblock %}{% endblock %}">

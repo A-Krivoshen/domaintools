@@ -23,8 +23,11 @@
 <section class="card-soft p-4 mb-3">
   <h2 class="page-section-title">{{ tr('Файлы для агентов', 'Agent discovery files') }}</h2>
   <ul class="mb-0">
-    <li><a href="{{ url_for('llms_txt') }}">llms.txt</a> — {{ tr('полное описание сайта и API', 'full site and API description') }}</li>
+    <li><a href="{{ url_for('llms_txt') }}">llms.txt</a> — {{ tr('индекс языковых версий', 'language version index') }}</li>
+    <li><a href="{{ url_for('llms_txt_ru') }}">llms-ru.txt</a> — {{ tr('полное описание на русском', 'full Russian description') }}</li>
+    <li><a href="{{ url_for('llms_txt_en') }}">llms-en.txt</a> — {{ tr('полное описание на английском', 'full English description') }}</li>
     <li><a href="{{ url_for('ai_txt') }}">ai.txt</a> — {{ tr('краткий индекс для AI-краулеров', 'short index for AI crawlers') }}</li>
+    <li><a href="{{ url_for('ai_txt_ru') }}">ai-ru.txt</a> / <a href="{{ url_for('ai_txt_en') }}">ai-en.txt</a> — {{ tr('краткие версии по языкам', 'short language-specific versions') }}</li>
     <li><a href="{{ url_for('public_openapi') }}">openapi.json</a> — {{ tr('OpenAPI 3.1 (публичная спецификация)', 'OpenAPI 3.1 (public spec)') }}</li>
     <li><a href="/sitemap.xml">sitemap.xml</a> — {{ tr('карта сайта', 'sitemap') }}</li>
   </ul>

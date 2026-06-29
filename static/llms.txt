@@ -1,80 +1,35 @@
 # DomainTools
 
 > Domain and infrastructure lookup suite for humans and AI agents.
+> Двуязычный сервис проверки доменов и инфраструктуры для людей и AI-агентов.
 > Canonical site: https://domaintools.site/
-> AI index: https://domaintools.site/ai.txt
-> OpenAPI: https://domaintools.site/openapi.json
-> Developer hub: https://domaintools.site/developers
 
-DomainTools provides DNS, WHOIS, GeoIP, reverse DNS, domain availability search,
-full domain reports, site availability checks, and security scans.
-Languages: Russian (default) and English — append ?lang=en or ?lang=ru to any URL.
+## About this file / О файле
 
-## Recommended stable URLs (SEO / agents)
+domaintools.site is a bilingual website (Russian default, English).
+This is the llms.txt INDEX for the entire site — not the full tool/API guide.
+Open a language-specific file below for complete descriptions.
 
-Prefer these pretty URLs over parameterized forms (?q=, ?query=):
+Сайт domaintools.site двуязычный (русский по умолчанию, английский).
+Это ИНДЕКСНЫЙ llms.txt для всего сайта — не полное руководство по инструментам и API.
+Откройте языковую версию ниже для полного описания.
 
-- Full domain dashboard: /check/{domain}
-- WHOIS landing: /lookup/whois/{domain}
-- DNS landing: /lookup/dns/{domain}
-- TLD zone hub: /zones/{tld}  (e.g. /zones/ru, /zones/com)
+## Language versions / Языковые версии
 
-## Human UI tools
+- Russian / Русский: https://domaintools.site/llms-ru.txt — основной контент, UI по умолчанию ru
+- English / Английский: https://domaintools.site/llms-en.txt — English descriptions
 
-- / — home, full domain check form
-- /dns — DNS record lookup (A, AAAA, MX, NS, TXT, SOA, SRV, …)
-- /whois — WHOIS lookup (domains and IP)
-- /geo — GeoIP / ASN lookup
-- /reverse — PTR and FCrDNS checks
-- /report — combined domain report (single or batch)
-- /domains — domain availability search across TLDs (IDN supported)
-- /site-checker — HTTP availability, DNS, IP info, RKN registry check
-- /security — safe port scanner and passive WordPress checks
-- /hosting — VPS provider comparison
-- /history — saved lookup history (noindex; not for scraping)
+## Shared resources / Общие ресурсы (без привязки к языку)
 
-## Agent API
+- AI index: https://domaintools.site/ai.txt
+- OpenAPI: https://domaintools.site/openapi.json
+- Developer hub / Разработчикам: https://domaintools.site/developers
+- Security contact: https://domaintools.site/.well-known/security.txt
 
-- Base URL: /api/v1/
-- OpenAPI spec (public): /openapi.json
-- Authenticated OpenAPI mirror: /api/v1/openapi.json (requires API key when enabled)
+## Agent API (language-agnostic / языконезависимый)
 
-### Endpoints
+- Base URL / Базовый URL: https://domaintools.site/api/v1/
+- Auth / Авторизация: X-API-Key or Authorization: Bearer (when AGENT_API_ENABLED=1)
+- Public spec: https://domaintools.site/openapi.json
 
-- GET /api/v1/dns?domain=example.com&types=A,MX,TXT
-- GET /api/v1/whois?domain=example.com
-- GET /api/v1/geo?query=example.com
-- GET /api/v1/reverse?query=8.8.8.8
-- GET /api/v1/report?domains=example.com,example.org
-- POST /api/v1/report — queue async report job (JSON: {"domains": ["example.com"]})
-- GET /api/v1/report/jobs/{job_id} — poll async report job
-
-### Authentication
-
-Agent API may be disabled on a given deployment. Check /developers or GET /api/v1/ (403 = disabled).
-When enabled, set AGENT_API_ENABLED=1 and AGENT_API_KEY on the server.
-Send the key via header X-API-Key: <key> or Authorization: Bearer <key>.
-
-### Rate limits (per IP, per minute)
-
-- Agent API (general): AGENT_API_RATE_LIMIT_PER_MIN (default 30)
-- Agent API report: AGENT_API_REPORT_RATE_LIMIT_PER_MIN (default 10)
-- Web tools (DNS/WHOIS/Geo/Reverse): TOOL_RATE_LIMIT_PER_MIN (default 20)
-- Domain search: DOMAINS_RATE_LIMIT_PER_MIN (default 10)
-- Site checker: SITE_CHECKER_RATE_LIMIT_PER_MIN (default 15)
-
-Limits use Redis with in-memory fallback. Respect 429 responses and retry with backoff.
-
-## Notes for agents
-
-- Prefer /api/v1/* or /openapi.json over HTML scraping when API is enabled.
-- For public HTML, use /check/{domain} and /lookup/*/{domain} landing pages.
-- Do not brute-force /security scanners; they are rate-limited and captcha-protected.
-- Batch report size is limited; split large domain lists into multiple requests.
-- IndexNow is enabled: successful lookups update search engines via IndexNow pings.
-
-## Operator
-
-- ИП Кривошеин А.С. — https://krivoshein.site
-- About / methodology: /about
-- Security contact: /.well-known/security.txt
+Endpoints: /dns, /whois, /geo, /reverse, /report — see llms-ru.txt or llms-en.txt for details.

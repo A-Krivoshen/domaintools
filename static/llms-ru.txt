@@ -1,0 +1,85 @@
+# DomainTools
+
+> Сервис проверки доменов и инфраструктуры для людей и AI-агентов.
+> Канонический сайт: https://domaintools.site/
+> AI-индекс: https://domaintools.site/ai-ru.txt
+> OpenAPI: https://domaintools.site/openapi.json
+> Раздел для разработчиков: https://domaintools.site/developers
+
+DomainTools предоставляет DNS, WHOIS, GeoIP, обратный DNS, поиск свободных доменов,
+полные отчёты по доменам, проверку доступности сайтов и сканирование безопасности.
+Языки: русский (по умолчанию) и английский — добавьте ?lang=ru или ?lang=en к любому URL.
+
+## Об этом файле llms.txt
+
+Вы читаете русскоязычную версию. Полный индекс всех языковых версий: https://domaintools.site/llms.txt
+Английская версия: https://domaintools.site/llms-en.txt
+
+## Рекомендуемые стабильные URL (SEO / агенты)
+
+Предпочитайте эти «красивые» URL вместо форм с параметрами (?q=, ?query=):
+
+- Полная сводка по домену: /check/{domain}
+- WHOIS: /lookup/whois/{domain}
+- DNS: /lookup/dns/{domain}
+- Хаб зоны TLD: /zones/{tld}  (например /zones/ru, /zones/com)
+
+## Инструменты (веб-интерфейс)
+
+- / — главная, полная проверка домена
+- /dns — DNS-записи (A, AAAA, MX, NS, TXT, SOA, SRV, …)
+- /whois — WHOIS (домены и IP)
+- /geo — GeoIP / ASN
+- /reverse — PTR и проверка FCrDNS
+- /report — сводный отчёт по домену (один или пакет)
+- /domains — поиск свободных доменов по зонам (поддержка IDN и кириллицы)
+- /site-checker — доступность HTTP, DNS, IP, проверка реестра РКН
+- /security — безопасное сканирование портов и пассивные проверки WordPress
+- /hosting — сравнение VPS-провайдеров
+- /history — история запросов (noindex; не для скрапинга)
+
+## Agent API
+
+- Базовый URL: /api/v1/
+- OpenAPI (публичная спецификация): /openapi.json
+- OpenAPI с авторизацией: /api/v1/openapi.json (нужен API-ключ, если включено)
+
+### Эндпоинты
+
+- GET /api/v1/dns?domain=example.com&types=A,MX,TXT
+- GET /api/v1/whois?domain=example.com
+- GET /api/v1/geo?query=example.com
+- GET /api/v1/reverse?query=8.8.8.8
+- GET /api/v1/report?domains=example.com,example.org
+- POST /api/v1/report — асинхронный отчёт (JSON: {"domains": ["example.com"]})
+- GET /api/v1/report/jobs/{job_id} — статус асинхронного отчёта
+
+### Аутентификация
+
+Agent API может быть отключён на конкретной инсталляции. Проверьте /developers или GET /api/v1/ (403 = отключено).
+При включении задайте AGENT_API_ENABLED=1 и AGENT_API_KEY на сервере.
+Передавайте ключ в заголовке X-API-Key: <key> или Authorization: Bearer <key>.
+
+### Лимиты запросов (на IP, в минуту)
+
+- Agent API (общий): AGENT_API_RATE_LIMIT_PER_MIN (по умолчанию 30)
+- Agent API отчёты: AGENT_API_REPORT_RATE_LIMIT_PER_MIN (по умолчанию 10)
+- Веб-инструменты (DNS/WHOIS/Geo/Reverse): TOOL_RATE_LIMIT_PER_MIN (по умолчанию 20)
+- Поиск доменов: DOMAINS_RATE_LIMIT_PER_MIN (по умолчанию 10)
+- Проверка сайта: SITE_CHECKER_RATE_LIMIT_PER_MIN (по умолчанию 15)
+
+Лимиты через Redis с in-memory fallback. При ответе 429 — подождите и повторите с backoff.
+
+## Заметки для агентов
+
+- Предпочитайте /api/v1/* или /openapi.json вместо HTML-скрапинга, если API включён.
+- Для публичного HTML используйте /check/{domain} и /lookup/*/{domain}.
+- Не перегружайте /security — сканеры с лимитами и капчей.
+- Размер пакетного отчёта ограничен; большие списки доменов разбивайте на несколько запросов.
+- IndexNow включён: успешные проверки отправляют пинги в поисковые системы (Bing, Yandex).
+
+## Оператор
+
+- ИП Кривошеин А.С. — https://krivoshein.site
+- О сервисе / методология: /about
+- Контакт по безопасности: /.well-known/security.txt

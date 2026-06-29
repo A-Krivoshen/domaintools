@@ -1,0 +1,32 @@
+# DomainTools — AI agent index
+# Canonical: https://domaintools.site/ai-en.txt
+# Full guide: https://domaintools.site/llms-en.txt
+# Index: https://domaintools.site/ai.txt
+
+> Prefer structured JSON over HTML scraping. Human UI is bilingual (ru/en).
+
+## Quick start
+- Site root: https://domaintools.site/
+- Machine-readable site map for agents: https://domaintools.site/llms-en.txt
+- OpenAPI (public spec): https://domaintools.site/openapi.json
+- Developer hub: https://domaintools.site/developers
+
+## Best URLs for domain checks (indexable, stable)
+- Full check: https://domaintools.site/check/{domain}
+- WHOIS landing: https://domaintools.site/lookup/whois/{domain}
+- DNS landing: https://domaintools.site/lookup/dns/{domain}
+- Zone search: https://domaintools.site/zones/{tld}
+
+## Agent API (requires API key when enabled)
+- Base: https://domaintools.site/api/v1/
+- Auth: X-API-Key or Authorization: Bearer
+- Endpoints: /dns, /whois, /geo, /reverse, /report
+
+## Do not scrape aggressively
+- /security — rate-limited port scanner
+- /history — private user history (noindex)
+- Respect 429 responses
+
+## Other language versions
+- Russian: https://domaintools.site/ai-ru.txt
+- llms.txt index: https://domaintools.site/llms.txt

@@ -71,6 +71,9 @@ class SeoTests(unittest.TestCase):
     def test_sitemap_includes_llms_txt(self):
         xml = self.client.get("/sitemap.xml").get_data(as_text=True)
         self.assertIn("/llms.txt", xml)
+        self.assertIn("/llms-ru.txt", xml)
+        self.assertIn("/llms-en.txt", xml)
+        self.assertIn("/ai-ru.txt", xml)
 
     def test_sitemap_includes_com_zone(self):
         xml = self.client.get("/sitemap.xml").get_data(as_text=True)

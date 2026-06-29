@@ -52,6 +52,18 @@ class AgentApiTests(unittest.TestCase):
     def test_llms_txt_served(self):
         resp = self.client.get("/llms.txt")
         self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"llms-ru.txt", resp.data)
+        self.assertIn(b"llms-en.txt", resp.data)
+
+    def test_llms_txt_ru_served(self):
+        resp = self.client.get("/llms-ru.txt")
+        self.assertEqual(resp.status_code, 200)
+        self.assertIn(b"Agent API", resp.data)
+        self.assertIn("русскоязычную".encode(), resp.data)
+
+    def test_llms_txt_en_served(self):
+        resp = self.client.get("/llms-en.txt")
+        self.assertEqual(resp.status_code, 200)
         self.assertIn(b"Agent API", resp.data)
 
     def test_api_key_required_in_header(self):
